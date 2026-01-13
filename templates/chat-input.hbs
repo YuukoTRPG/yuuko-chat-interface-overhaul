@@ -11,12 +11,13 @@
     </div>
 
     <div class="input-wrapper">
-        <textarea id="chat-message-input" name="message" placeholder="輸入訊息..."></textarea>
-        <button id="chat-send-btn" type="button" aria-label="發送訊息">
+        <textarea id="chat-message-input" name="message" placeholder="{{localize 'YCIO.Input.Placeholder'}}"></textarea>
+        <button id="chat-send-btn" type="button" aria-label="{{localize 'YCIO.Input.Send'}}">
             <i class="fas fa-paper-plane"></i>
+            <span>{{localize 'YCIO.Input.Send'}}</span>
         </button>
     </div>
 
     {{! 顯示誰在打字中的區塊 }}
-    <div id="typing-indicator" class="typing-indicator">沒人在打字</div>
+    <div id="typing-indicator" class="typing-indicator">{{localize 'YCIO.Input.TypingNone'}}</div>
 </footer>

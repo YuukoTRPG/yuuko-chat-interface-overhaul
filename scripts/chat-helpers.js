@@ -22,7 +22,7 @@ export function prepareSpeakerList() {
     // 2. 加入 OOC 選項
     speakers.push({
         value: "ooc",
-        label: `OOC (${game.user.name})`,
+        label: `${game.i18n.localize("YCIO.Speaker.OOC")} (${game.user.name})`,
         selected: currentSelectionValue === "ooc"
     });
 

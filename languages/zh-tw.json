@@ -1,0 +1,18 @@
+{
+  "YCIO": {
+    "WindowTitle": "對話視窗",
+    "Tabs": {
+      "Public": "公開訊息",
+      "OOC": "場外"
+    },
+    "Input": {
+      "Placeholder": "輸入訊息...",
+      "Send": "發送訊息",
+      "TypingNone": "沒人在打字",
+      "Typing": " 正在輸入..."
+    },
+    "Speaker": {
+      "OOC": "場外"
+    }
+  }
+}

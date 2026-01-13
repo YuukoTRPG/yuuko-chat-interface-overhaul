@@ -1,0 +1,18 @@
+{
+  "YCIO": {
+    "WindowTitle": "Chat Window",
+    "Tabs": {
+      "Public": "Public",
+      "OOC": "OOC"
+    },
+    "Input": {
+      "Placeholder": "Type a message...",
+      "Send": "Send",
+      "TypingNone": "No one is typing...",
+      "Typing": " is typing..."
+    },
+    "Speaker": {
+      "OOC": "OOC"
+    }
+  }
+}

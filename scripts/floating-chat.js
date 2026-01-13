@@ -15,6 +15,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     // 預設分頁：若有場景則為場景ID，否則為 ooc
     this.activeTab = canvas.scene?.id || "ooc";
 
+    // --- 設定視窗標題 (使用 i18n) ---
+    this.options.window.title = game.i18n.localize("YCIO.WindowTitle");
+
     // --- 狀態追蹤變數 ---
     this._isLoadingOlder = false;       // 防止重複觸發載入歷史訊息
     this._programmaticScroll = false;   // 用於區分「程式捲動」與「手動捲動」
@@ -36,7 +39,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     classes: ["YCIO-floating-chat-window"],
     tag: "aside",
     window: {
-      title: "自定義聊天室測試",
+      title: "YCIO.WindowTitle",
       resizable: true,
       icon: "fas fa-comments"
     },
@@ -605,13 +608,16 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     const userNames = typingUsers.map(u => u.name);
 
     if (userNames.length > 0) {
-        indicator.textContent = userNames.join(", ") + " 正在輸入...";
+        const typingText = game.i18n.localize("YCIO.Input.Typing");
+        indicator.textContent = userNames.join(", ") + typingText;
         indicator.classList.add("active");
     } else {
         indicator.classList.remove("active");
         // 動畫結束後清空文字
         setTimeout(() => { 
-            if(!indicator.classList.contains("active")) indicator.textContent = ""; 
+            if(!indicator.classList.contains("active")) {
+                indicator.textContent = game.i18n.localize("YCIO.Input.TypingNone"); 
+            }
         }, 300);
     }
   }
