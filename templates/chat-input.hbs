@@ -1,0 +1,22 @@
+<footer class="chat-input-area">
+    {{! 發話身份選擇區 }}
+    <div class="speaker-select-wrapper">
+        <select id="chat-speaker-select">
+            {{#each speakers}}
+                <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>
+                    {{this.label}}
+                </option>
+            {{/each}}
+        </select>
+    </div>
+
+    <div class="input-wrapper">
+        <textarea id="chat-message-input" name="message" placeholder="輸入訊息..."></textarea>
+        <button id="chat-send-btn" type="button" aria-label="發送訊息">
+            <i class="fas fa-paper-plane"></i>
+        </button>
+    </div>
+
+    {{! 顯示誰在打字中的區塊 }}
+    <div id="typing-indicator" class="typing-indicator">沒人在打字</div>
+</footer>

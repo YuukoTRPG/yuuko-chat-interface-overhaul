@@ -1,0 +1,15 @@
+<nav class="tabs">
+    {{!-- OOC 分頁：固定存在，點擊時不切換場景，但過濾無 Token 發言 --}}
+    <a class="item {{#if (eq activeTab 'ooc')}}active{{/if}}" data-tab="ooc">
+        <i class="fas fa-comment-slash"></i> OOC
+    </a>
+
+    {{!-- 場景分頁：動態生成 --}}
+    {{#each scenes}}
+        <a class="item {{#if this.active}}active{{/if}}" 
+           data-tab="{{this.id}}" 
+           title="{{this.name}}">
+           {{this.name}}
+        </a>
+    {{/each}}
+</nav>

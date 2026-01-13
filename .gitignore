@@ -1,0 +1,10 @@
+# 系統縮圖檔
+Thumbs.db
+Desktop.ini
+
+# VS Code 設定檔 (若不想分享個人編輯器設定)
+.vscode/
+
+# 若你有使用 Node.js / npm
+node_modules/
+package-lock.json
