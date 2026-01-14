@@ -4,9 +4,12 @@
    ========================================================= */
 
 .YCIO-floating-chat-window {
+    /* --- 定義 CSS 變數預設值 --- */
+    --ycio-bg: rgba(0, 0, 0, 0.8);
+
     display: flex;
     flex-direction: column; /* 垂直排列：分頁 -> 內容 -> 輸入框 */
-    background: rgba(0, 0, 0, 0.8); /* 視窗背景色 (半透明黑) */
+    background: var(--ycio-bg);/* 視窗背景色 (預設半透明黑) */
     color: white; /* 預設文字顏色 */
 }
 

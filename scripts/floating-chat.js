@@ -4,7 +4,7 @@
  */
 
 import { prepareSpeakerList, getChatContextOptions } from "./chat-helpers.js"; //某些函式
-import { FLAG_SCOPE, FLAG_KEY } from "./config.js"; //某些常數，定義 Flag 作用域和 Key (用於打字狀態同步)
+import { FLAG_SCOPE, FLAG_KEY, MODULE_ID } from "./config.js"; //某些常數，定義 Flag 作用域和 Key (用於打字狀態同步)
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -15,8 +15,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     // 預設分頁：若有場景則為場景ID，否則為 ooc
     this.activeTab = canvas.scene?.id || "ooc";
 
-    // --- 設定視窗標題 (使用 i18n) ---
-    this.options.window.title = game.i18n.localize("YCIO.WindowTitle");
+    // --- 設定視窗標題 (使用 i18n，優先使用設定中的標題) ---
+    const customTitle = game.settings.get(MODULE_ID, "windowTitle");
+    this.options.window.title = customTitle || game.i18n.localize("YCIO.WindowTitle");
 
     // --- 狀態追蹤變數 ---
     this._isLoadingOlder = false;       // 防止重複觸發載入歷史訊息
@@ -28,6 +29,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     
     // --- Hook 管理 ---
     this._hooks = [];               // 陣列以便管理多個 Hooks
+
+    // --- 監聽設定變更，即時更新視窗樣式 ---
+    Hooks.on("YCIO_UpdateStyle", () => this._applyCustomStyles());
   }
 
   /* ========================================================= */
@@ -146,7 +150,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
    */
   _onRender(context, options) {
     super._onRender(context, options);
-    
+
+    // --- 每次渲染時套用最新的背景設定 ---
+    this._applyCustomStyles();
+
     // --- 聊天記錄區域 ---
     const log = this.element.querySelector("#custom-chat-log");
     if (log) {
@@ -260,6 +267,26 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             }
         });
     }
+  }
+
+  /**
+   * 讀取Config設定並套用 CSS 變數
+   */
+  _applyCustomStyles() {
+      if (!this.element) return;
+
+      const colorHex = game.settings.get(MODULE_ID, "backgroundColor");
+      const opacity = game.settings.get(MODULE_ID, "backgroundOpacity");
+
+      // 簡單的 Hex 轉 RGB 轉換
+      const r = parseInt(colorHex.slice(1, 3), 16);
+      const g = parseInt(colorHex.slice(3, 5), 16);
+      const b = parseInt(colorHex.slice(5, 7), 16);
+      
+      const rgba = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+
+      // 設定 CSS 變數，即時改變外觀
+      this.element.style.setProperty('--ycio-bg', rgba);
   }
 
   /**

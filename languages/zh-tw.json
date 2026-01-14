@@ -13,6 +13,22 @@
     },
     "Speaker": {
       "OOC": "場外"
+    },
+
+    "Settings": {
+        "WindowTitle": {
+            "Name": "自訂視窗標題",
+            "Hint": "預設的視窗標題文字 (GM 限定)。",
+            "Changed": "浮動聊天視窗標題已變更，請重整頁面以套用。"
+        },
+        "BackgroundColor": {
+            "Name": "聊天視窗背景顏色",
+            "Hint": "設定浮動視窗的背景顏色。"
+        },
+        "BackgroundOpacity": {
+            "Name": "聊天視窗背景透明度",
+            "Hint": "調整視窗背景的透明度（0為完全透明）。"
+        }
     }
   }
 }
