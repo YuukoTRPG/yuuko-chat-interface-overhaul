@@ -12,7 +12,7 @@
     {{!-- 頭像列表 --}}
     <div class="avatar-grid">
         {{!-- 1. 預設頭像 (Token/Actor 原圖) --}}
-        <div class="avatar-item {{#if (eq currentAvatar defaultAvatar)}}selected{{/if}}" 
+        <div class="avatar-item {{#if (eq currentAvatar '')}}selected{{/if}}" 
              data-action="selectAvatar" data-src="">
             <img src="{{defaultAvatar}}" title="{{localize 'YCIO.Avatar.Default'}}" />
             <span class="label">{{localize "YCIO.Avatar.Default"}}</span>
@@ -31,4 +31,11 @@
             </div>
         {{/each}}
     </div>
+
+    {{!-- 底部確認按鈕 --}}
+    <footer class="footer">
+        <button type="button" data-action="confirm" class="confirm-btn">
+            <i class="fas fa-check"></i> {{localize "YCIO.Avatar.Confirm"}}
+        </button>
+    </footer>
 </div>

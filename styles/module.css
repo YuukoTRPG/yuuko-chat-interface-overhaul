@@ -506,3 +506,29 @@ display: flex;
 .avatar-item:hover .delete-btn {
     opacity: 1;
 }
+
+/* 底部確認區域 */
+.avatar-selector-container .footer {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #444;
+}
+
+/* 確認按鈕樣式 */
+.avatar-selector-container .confirm-btn {
+    width: 100%;
+    padding: 8px;
+    background: #333;
+    color: #eee;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.avatar-selector-container .confirm-btn:hover {
+    background: #444;
+    color: #fff;
+    border-color: #666;
+}

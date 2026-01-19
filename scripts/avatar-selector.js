@@ -18,14 +18,15 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
             title: "YCIO.Avatar.WindowTitle",
             resizable: true,
             width: 400,
-            height: 350,
+            height: 400,
             icon: "fas fa-images"
         },
         position: { width: 400, height: 350 },
         actions: {
             addAvatar: AvatarSelector.onAddAvatar,
             selectAvatar: AvatarSelector.onSelectAvatar,
-            deleteAvatar: AvatarSelector.onDeleteAvatar
+            deleteAvatar: AvatarSelector.onDeleteAvatar,
+            confirm: AvatarSelector.onConfirm
         }
     };
 
@@ -120,5 +121,12 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
         }
 
         this.render();
+    }
+
+    /**
+     * 確認按鈕 (關閉視窗)
+     */
+    static onConfirm(event, target) {
+        this.close();
     }
 }
