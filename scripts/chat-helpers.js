@@ -7,6 +7,8 @@
  * 準備發話身份列表 (Speakers)
  * 遍歷場景與 Token，回傳符合下拉選單格式的陣列
  */
+import { MODULE_ID } from "./config.js";
+
 export function prepareSpeakerList() {
     // 1. 找出當前選中的 Token (用於標記 selected)
     const controlled = canvas.tokens?.controlled[0];
@@ -97,4 +99,110 @@ export function getChatContextOptions() {
         }
       }
     ];
+}
+
+/* ========================================================= */
+/* 頭像處理與 HTML 改造 (Avatar & DOM Enrichment)           */
+/* ========================================================= */
+/**
+ * --- 計算當下應該使用哪張頭像 ---
+ * 不讀取訊息歷史快照，純粹根據當下的 Actor/User/Token 狀態回傳 URL
+ */
+export function resolveCurrentAvatar(message) {
+    const speaker = message.speaker;
+
+    // 1. 檢查 Actor 身上是否有選中特定頭像 (Custom Flag)
+    if (speaker.actor) {
+        const actor = game.actors.get(speaker.actor);
+        if (actor) {
+            const customAvatar = actor.getFlag(MODULE_ID, "currentAvatar");
+            if (customAvatar) return customAvatar;
+        }
+    }
+    
+    // 2. 檢查 User 身上是否有選中特定頭像 (OOC Custom Flag)
+    if (message.user) {
+         const user = message.user.id ? message.user : game.users.get(message.user);
+         if (user) {
+             const customAvatar = user.getFlag(MODULE_ID, "currentAvatar");
+             if (customAvatar) return customAvatar;
+         }
+    }
+    
+    // --- 如果都沒有自選，以下是「預設」邏輯 ---
+
+    // 3. 嘗試從 Token 取得
+    if (speaker.token) {
+        // A. 嘗試從當前 Canvas 找
+        const token = canvas.tokens?.get(speaker.token);
+        if (token) return token.document.texture.src;
+        
+        // B. 嘗試從指定場景找 (跨場景發話)
+        if (speaker.scene) {
+            const scene = game.scenes.get(speaker.scene);
+            const tokenDoc = scene?.tokens.get(speaker.token);
+            if (tokenDoc) return tokenDoc.texture.src;
+        }
+    }
+
+    // 4. 嘗試從 Actor 取得 (Prototype Token 或 Actor Image)
+    if (speaker.actor) {
+        const actor = game.actors.get(speaker.actor);
+        if (actor) return actor.img;
+    }
+
+    // 5. 嘗試從 User 取得 (使用者頭像)
+    if (message.user) {
+        // 相容性處理：有時候 message.user 只是 ID
+        const user = message.user.id ? message.user : game.users.get(message.user);
+        if (user) return user.avatar;
+    }
+
+    // 6. 真的什麼都沒有，回傳神秘人
+    return "icons/svg/mystery-man.svg";
+}
+
+/**
+ * 根據訊息內容取得對應的頭像 URL
+ */
+export function getAvatarUrl(message) {
+    // --- 最高優先級 - 讀取訊息本身的歷史快照 (Snapshot) ---
+    // 這確保了即使角色後來換了頭像，這條舊訊息依然顯示當時的樣子
+    const snapshotAvatar = message.getFlag(MODULE_ID, "avatarUrl");
+    if (snapshotAvatar) return snapshotAvatar;
+
+    // 如果沒有快照 (舊訊息或錯誤)，才計算當下狀態
+    return resolveCurrentAvatar(message);
+}
+
+/**
+ * 改造訊息 HTML：注入頭像與調整結構
+ * @param {ChatMessage} message - 訊息物件
+ * @param {HTMLElement} htmlElement - Foundry 渲染出的原生 DOM
+ */
+export function enrichMessageHTML(message, htmlElement) {
+    // 1. 取得頭像 (注意：這裡直接呼叫同檔案的函式，不用 this)
+    const avatarUrl = getAvatarUrl(message);
+
+    // 2. 建立頭像 DOM
+    const avatarDiv = document.createElement("div");
+    avatarDiv.classList.add("message-avatar");
+    const img = document.createElement("img");
+    img.src = avatarUrl;
+    img.alt = message.speaker.alias || "Avatar";
+    avatarDiv.appendChild(img);
+
+    // 3. 建立右側內容容器 (message-body)
+    const bodyDiv = document.createElement("div");
+    bodyDiv.classList.add("message-body");
+
+    // 4. 移動原本的內容
+    const children = Array.from(htmlElement.childNodes);
+    children.forEach(child => bodyDiv.appendChild(child));
+
+    // 5. 重新組裝
+    htmlElement.appendChild(avatarDiv);
+    htmlElement.appendChild(bodyDiv);
+    
+    return htmlElement;
 }

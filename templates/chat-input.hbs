@@ -1,13 +1,20 @@
 <footer class="chat-input-area">
     {{! 發話身份選擇區 }}
-    <div class="speaker-select-wrapper">
-        <select id="chat-speaker-select">
-            {{#each speakers}}
-                <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>
-                    {{this.label}}
-                </option>
-            {{/each}}
-        </select>
+    <div class="speaker-row">
+        <div class="speaker-select-wrapper">
+            <select id="chat-speaker-select">
+                {{#each speakers}}
+                    <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>
+                        {{this.label}}
+                    </option>
+                {{/each}}
+            </select>
+        </div>
+        
+        {{! 頭像設定按鈕 }}
+        <button id="chat-avatar-btn" type="button" aria-label="設定頭像">
+            <i class="fas fa-user-circle"></i>
+        </button>
     </div>
 
     <div class="input-wrapper">

@@ -1,0 +1,34 @@
+<div class="avatar-selector-container">
+    {{!-- 頂部工具列 --}}
+    <header class="controls">
+        <button type="button" data-action="addAvatar" class="add-btn">
+            <i class="fas fa-plus"></i> {{localize "YCIO.Avatar.Add"}}
+        </button>
+        <div class="info">
+            {{localize "YCIO.Avatar.Managing"}}: <strong>{{targetName}}</strong>
+        </div>
+    </header>
+
+    {{!-- 頭像列表 --}}
+    <div class="avatar-grid">
+        {{!-- 1. 預設頭像 (Token/Actor 原圖) --}}
+        <div class="avatar-item {{#if (eq currentAvatar defaultAvatar)}}selected{{/if}}" 
+             data-action="selectAvatar" data-src="">
+            <img src="{{defaultAvatar}}" title="{{localize 'YCIO.Avatar.Default'}}" />
+            <span class="label">{{localize "YCIO.Avatar.Default"}}</span>
+        </div>
+
+        {{!-- 2. 自定義頭像列表 --}}
+        {{#each avatars}}
+            <div class="avatar-item {{#if (eq ../currentAvatar this)}}selected{{/if}}" 
+                 data-action="selectAvatar" data-src="{{this}}">
+                <img src="{{this}}" />
+                
+                {{!-- 刪除按鈕 --}}
+                <button type="button" class="delete-btn" data-action="deleteAvatar" data-src="{{this}}">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        {{/each}}
+    </div>
+</div>

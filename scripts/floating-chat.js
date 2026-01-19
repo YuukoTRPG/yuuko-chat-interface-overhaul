@@ -3,8 +3,9 @@
  * 包含：視窗渲染、聊天記錄管理、輸入處理、打字狀態同步(Flags)、右鍵選單
  */
 
-import { prepareSpeakerList, getChatContextOptions } from "./chat-helpers.js"; //某些函式
+import { prepareSpeakerList, getChatContextOptions, enrichMessageHTML, resolveCurrentAvatar} from "./chat-helpers.js"; //某些函式
 import { FLAG_SCOPE, FLAG_KEY, MODULE_ID } from "./config.js"; //某些常數，定義 Flag 作用域和 Key (用於打字狀態同步)
+import { AvatarSelector } from "./avatar-selector.js"; //頭像選擇器
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -130,8 +131,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
     const renderedMessages = [];
     for (const m of filteredMessages) {
-      const html = await m.renderHTML();
-      renderedMessages.push({ id: m.id, html: html.outerHTML });
+      const html = await m.renderHTML(); // HTMLElement (jQuery object in v12, Element in v13)
+      enrichMessageHTML(m, html[0] || html); // 注入頭像，相容 jQuery 與原生 DOM
+      renderedMessages.push({ id: m.id, html: html.outerHTML }); // 使用修改後的 outerHTML
     }
 
     // 準備發話身份列表 (Speakers)，呼叫chat-helpers.js的函式
@@ -197,6 +199,34 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         });
     }
 
+    // --- 頭像設定按鈕 ---
+    const avatarBtn = this.element.querySelector("#chat-avatar-btn");
+    if (avatarBtn) {
+        avatarBtn.addEventListener("click", () => {
+            // 1. 判斷現在選的是誰 (下拉選單的值)
+            const speakerSelect = this.element.querySelector("#chat-speaker-select");
+            const value = speakerSelect ? speakerSelect.value : "ooc";
+            
+            let targetDoc;
+
+            if (value === "ooc") {
+                targetDoc = game.user; // 目標是 User
+            } else {
+                // value 格式是 "SceneID.TokenID"
+                const [sceneId, tokenId] = value.split(".");
+                const scene = game.scenes.get(sceneId);
+                const token = scene?.tokens.get(tokenId);
+                if (token && token.actor) {
+                    targetDoc = token.actor; // 目標是 Actor
+                }
+            }
+
+            if (targetDoc) {
+                new AvatarSelector(targetDoc).render(true);
+            }
+        });
+    }
+
     // --- 輸入框與按鈕 ---
     const input = this.element.querySelector("#chat-message-input");
     const sendBtn = this.element.querySelector("#chat-send-btn");
@@ -256,7 +286,22 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             }
         });
 
-        // 4. 場景列表更新監聽 (新增/刪除/改名，還有選擇Token時重繪)
+        // 4. 訊息建立前攔截監聽 (Snapshot Avatar)
+        // 在訊息寫入資料庫前，將當前的頭像設定「烙印」到訊息的 flags 裡
+        register("preCreateChatMessage", (messageDoc, initialData, context, userId) => {
+            // 呼叫 helper 計算當下應該是用哪張圖
+            // messageDoc 此時雖然還沒存檔，但已經具備 user, speaker 等屬性，足夠用來判斷
+            const finalAvatarUrl = resolveCurrentAvatar(messageDoc);
+
+            // 只要算得出來，就寫入 flags
+            if (finalAvatarUrl) {
+                messageDoc.updateSource({
+                    [`flags.${MODULE_ID}.avatarUrl`]: finalAvatarUrl
+                });
+            }
+        });
+
+        // 5. 場景列表更新監聽 (新增/刪除/改名，還有選擇Token時重繪)
         register("controlToken", () => this.render());
         register("createScene", () => this.render());
         register("deleteScene", () => this.render());
@@ -412,6 +457,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     const fragment = document.createDocumentFragment();
     for (const msg of olderMessages) {
         const html = await msg.renderHTML();
+        enrichMessageHTML(msg, html); // 放入頭像
         fragment.appendChild(html);
     }
     logElement.insertBefore(fragment, logElement.firstChild);
@@ -448,6 +494,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     const isAtBottom = distanceToBottom < 50;
 
     const htmlElement = await message.renderHTML();
+    enrichMessageHTML(message, htmlElement); // 放入頭像
     log.appendChild(htmlElement); 
 
     const jumpBtn = this.element.querySelector(".jump-to-bottom");
@@ -501,6 +548,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     // 狀況 B: 我有權限看，且它已經在畫面上 -> 更新內容
     if (el) {
         const newHtml = await message.renderHTML();
+        enrichMessageHTML(message, newHtml); // 放入頭像
         el.replaceWith(newHtml);
         return;
     }
@@ -676,6 +724,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
    */
   async _insertMessageSmartly(message, log) {
       const newHtml = await message.renderHTML();
+      enrichMessageHTML(message, newHtml); // 放入頭像
+
       const targetTime = message.timestamp;
 
       // 1. 找出所有現存的訊息 DOM
