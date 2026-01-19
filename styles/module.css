@@ -210,6 +210,11 @@ display: flex;
     min-width: 0; /* 關鍵：防止內容(如長網址)撐爆 Flex */
     display: flex;
     flex-direction: column;
+    color: #000; /* 內部字的顏色 */
+}
+
+.YCIO-floating-chat-window .message-sender {
+    color: #000; /* 內部字的顏色 */
 }
 
 /* 微調原本的 header，取消下底線(可選)，或是調整間距 */

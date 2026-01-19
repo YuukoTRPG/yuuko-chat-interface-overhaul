@@ -121,7 +121,7 @@ export function resolveCurrentAvatar(message) {
     }
     
     // 2. 檢查 User 身上是否有選中特定頭像 (OOC Custom Flag)
-    if (message.user) {
+    if (!speaker.token && !speaker.actor && message.user) {
          const user = message.user.id ? message.user : game.users.get(message.user);
          if (user) {
              const customAvatar = user.getFlag(MODULE_ID, "currentAvatar");
