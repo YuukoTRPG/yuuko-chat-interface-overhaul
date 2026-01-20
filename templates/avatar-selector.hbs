@@ -11,23 +11,41 @@
 
     {{!-- 頭像列表 --}}
     <div class="avatar-grid">
-        {{!-- 1. 預設頭像 (Token/Actor 原圖) --}}
-        <div class="avatar-item {{#if (eq currentAvatar '')}}selected{{/if}}" 
+        {{!-- 1. 預設頭像 --}}
+        <div class="avatar-card {{#if (eq currentAvatar '')}}selected{{/if}}" 
              data-action="selectAvatar" data-src="">
-            <img src="{{defaultAvatar}}" title="{{localize 'YCIO.Avatar.Default'}}" />
-            <span class="label">{{localize "YCIO.Avatar.Default"}}</span>
+            
+            <div class="image-wrapper">
+                <img src="{{defaultAvatar}}" />
+            </div>
+            
+            <div class="details">
+                {{!-- 預設頭像沒有輸入框，顯示標籤即可 --}}
+                <span class="system-label">{{localize "YCIO.Avatar.Default"}}</span>
+            </div>
         </div>
 
         {{!-- 2. 自定義頭像列表 --}}
         {{#each avatars}}
-            <div class="avatar-item {{#if (eq ../currentAvatar this)}}selected{{/if}}" 
-                 data-action="selectAvatar" data-src="{{this}}">
-                <img src="{{this}}" />
+            <div class="avatar-card {{#if (eq ../currentAvatar this.src)}}selected{{/if}}" 
+                 data-action="selectAvatar" data-src="{{this.src}}">
                 
-                {{!-- 刪除按鈕 --}}
-                <button type="button" class="delete-btn" data-action="deleteAvatar" data-src="{{this}}">
-                    <i class="fas fa-times"></i>
-                </button>
+                <div class="image-wrapper">
+                    <img src="{{this.src}}" />
+                    
+                    {{!-- 刪除按鈕 (改用 index) --}}
+                    <button type="button" class="delete-btn" data-action="deleteAvatar" data-index="{{@index}}">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="details">
+                    {{!-- 註解輸入框 --}}
+                    <input type="text" class="avatar-label-input" 
+                           value="{{this.label}}" 
+                           placeholder="{{localize 'YCIO.Avatar.LabelPlaceholder'}}"
+                           data-action="updateLabel" data-index="{{@index}}">
+                </div>
             </div>
         {{/each}}
     </div>

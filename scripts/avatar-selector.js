@@ -17,11 +17,11 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
         window: {
             title: "YCIO.Avatar.WindowTitle",
             resizable: true,
-            width: 400,
-            height: 400,
+            width: 420,
+            height: 500,
             icon: "fas fa-images"
         },
-        position: { width: 400, height: 350 },
+        position: { width: 600, height: 350 },
         actions: {
             addAvatar: AvatarSelector.onAddAvatar,
             selectAvatar: AvatarSelector.onSelectAvatar,
@@ -39,41 +39,41 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
     /* ============================================= */
 
     async _prepareContext(_options) {
-        // 1. 讀取儲存的頭像列表 (Array)
-        const savedAvatars = this.target.getFlag(MODULE_ID, "avatarList") || [];
+        // 1. 讀取並遷移資料結構
+        // 舊格式: ["url"] -> 新格式: [{src: "url", label: ""}]
+        let savedAvatars = this.target.getFlag(MODULE_ID, "avatarList") || [];
         
-        // 2. 讀取當前選中的頭像 (String URL)
-        // 如果為空字串或 undefined，代表使用預設圖
+        // 簡單的遷移邏輯：如果有字串，就轉成物件
+        const hasLegacyData = savedAvatars.some(a => typeof a === 'string');
+        if (hasLegacyData) {
+            savedAvatars = savedAvatars.map(a => typeof a === 'string' ? { src: a, label: "" } : a);
+            // 靜默更新資料結構 (不等待)
+            this.target.setFlag(MODULE_ID, "avatarList", savedAvatars);
+        }
+
         const currentAvatar = this.target.getFlag(MODULE_ID, "currentAvatar") || "";
 
-        // 3. 取得預設頭像 (Token Image 或 Actor Image 或 User Avatar)
+        // 3. 取得預設頭像 (保持你原本的邏輯)
         let defaultAvatar = "icons/svg/mystery-man.svg";
         if (this.target.documentName === "Actor") {
-            // A. 讀取在 config.js 註冊的設定
+             //讀取config的設定
             const useToken = game.settings.get(MODULE_ID, "useTokenAvatarDefault");
-            
+
             // 預設先拿原型圖片
             let tokenImg = this.target.prototypeToken?.texture?.src;
-            
+
             // 嘗試尋找場景上的實例：
             // 1. 如果是合成 Actor (Unlinked)，this.target.token 會存在
             // 2. 如果是連結 Actor (Linked)，去場景上的 tokens 找一個屬於此 Actor 的
             const activeTokenDoc = this.target.token || canvas.tokens?.placeables.find(t => t.actor?.id === this.target.id)?.document;
-            
-            // 如果找到了場景實例，就用它的圖片 (手動更新後的圖片)
-            if (activeTokenDoc) {
-                tokenImg = activeTokenDoc.texture.src;
-            }
 
+            // 如果找到了場景實例，就用它的圖片 (手動更新後的圖片)
+            if (activeTokenDoc) tokenImg = activeTokenDoc.texture.src;
             const actorImg = this.target.img;
-            // B. 根據設定決定優先順序 (若優先的沒圖，則自動使用另一張當備案)
-            if (useToken) {
-                // 勾選：Token 優先
-                defaultAvatar = tokenImg || actorImg;
-            } else {
-                // 未勾選：角色圖片優先
-                defaultAvatar = actorImg || tokenImg;
-            }
+
+            //根據設定決定用Token或角色
+            if (useToken) defaultAvatar = tokenImg || actorImg;
+            else defaultAvatar = actorImg || tokenImg;
 
         } else if (this.target.documentName === "User") {
             defaultAvatar = this.target.avatar;
@@ -88,6 +88,29 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     /* ============================================= */
+    /* 渲染後處理 (Event Binding)                   */
+    /* ============================================= */
+
+    _onRender(context, options) {
+        super._onRender(context, options);
+
+        // --- 手動綁定輸入框事件 ---
+        const inputs = this.element.querySelectorAll(".avatar-label-input");
+        inputs.forEach(input => {
+            // 1. 點擊輸入框時，阻止冒泡 (避免觸發卡片選擇)
+            input.addEventListener("click", ev => ev.stopPropagation());
+
+            // 2. 內容變更時 (失去焦點或 Enter)，觸發存檔
+            input.addEventListener("change", ev => AvatarSelector.onUpdateLabel.call(this, ev, input));
+
+            // 3. 按下 Enter 鍵時，強制失去焦點 (這會觸發 change)
+            input.addEventListener("keydown", ev => {
+                if (ev.key === "Enter") input.blur();
+            });
+        });
+    }
+
+    /* ============================================= */
     /* 操作邏輯                                      */
     /* ============================================= */
 
@@ -98,12 +121,13 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
         const fp = new FilePicker({
             type: "image",
             callback: async (path) => {
-                // 讀取舊列表 -> 加入新路徑 -> 存回 Flag
                 const currentList = this.target.getFlag(MODULE_ID, "avatarList") || [];
-                if (!currentList.includes(path)) {
-                    const newList = [...currentList, path];
+                // 檢查是否重複 (比對 src)
+                if (!currentList.some(a => a.src === path)) {
+                    // 物件結構
+                    const newList = [...currentList, { src: path, label: "" }];
                     await this.target.setFlag(MODULE_ID, "avatarList", newList);
-                    this.render(); // 重繪介面
+                    this.render();
                 }
             }
         });
@@ -115,7 +139,18 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     static async onSelectAvatar(event, target) {
         // 防止誤觸刪除按鈕
-        if (event.target.closest(".delete-btn")) return;
+        if (event.target.closest(".delete-btn") || event.target.closest("input")) return;
+
+        const activeInput = this.element.querySelector("input:focus");
+        if (activeInput) {
+            // 強制失去焦點，這會觸發 input 的 'change' 事件，執行 onUpdateLabel
+            activeInput.blur(); 
+        }
+        
+        // 等待任何正在進行的存檔動作完成 (防止競態條件)
+        if (this._pendingSave) {
+            await this._pendingSave;
+        }
 
         const src = target.dataset.src; // 空字串代表預設，有值代表自選
         await this.target.setFlag(MODULE_ID, "currentAvatar", src);
@@ -131,21 +166,56 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
     static async onDeleteAvatar(event, target) {
         // 阻止事件冒泡 (避免觸發選擇)
         event.stopPropagation();
-        
-        const srcToDelete = target.dataset.src;
+        const index = parseInt(target.dataset.index); // 用 index 刪除比較準確
         
         // 1. 更新列表
         const currentList = this.target.getFlag(MODULE_ID, "avatarList") || [];
-        const newList = currentList.filter(src => src !== srcToDelete);
+
+        const itemToDelete = currentList[index];
+        if (!itemToDelete) return;
+
+        const newList = currentList.filter((_, i) => i !== index);
         await this.target.setFlag(MODULE_ID, "avatarList", newList);
 
         // 2. 如果刪除的是當前選中的，重置回預設
         const currentSelected = this.target.getFlag(MODULE_ID, "currentAvatar");
-        if (currentSelected === srcToDelete) {
+        if (currentSelected === itemToDelete.src) {
             await this.target.unsetFlag(MODULE_ID, "currentAvatar");
         }
-
+        // 3. 重新渲染
         this.render();
+    }
+
+    /**
+     * 更新頭像註解
+     */
+    static async onUpdateLabel(event, target) {
+        const index = parseInt(target.dataset.index);
+        const newLabel = target.value;
+
+        // 建立存檔任務
+        const saveTask = (async () => {
+            const currentList = this.target.getFlag(MODULE_ID, "avatarList") || [];
+            
+            // 只有當內容真的改變且 index 有效時才存檔
+            if (currentList[index] && currentList[index].label !== newLabel) {
+                console.log(`YCIO | 更新註解 [${index}]: ${newLabel}`); // 除錯 Log
+                currentList[index].label = newLabel;
+                await this.target.setFlag(MODULE_ID, "avatarList", currentList);
+            }
+        })();
+
+        // 掛載任務鎖，讓 onSelectAvatar 可以等待它
+        this._pendingSave = saveTask;
+
+        try {
+            await saveTask;
+        } finally {
+            // 任務結束後解鎖
+            if (this._pendingSave === saveTask) {
+                this._pendingSave = null;
+            }
+        }
     }
 
     /**
