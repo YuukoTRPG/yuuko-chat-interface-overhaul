@@ -49,7 +49,32 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
         // 3. 取得預設頭像 (Token Image 或 Actor Image 或 User Avatar)
         let defaultAvatar = "icons/svg/mystery-man.svg";
         if (this.target.documentName === "Actor") {
-            defaultAvatar = this.target.prototypeToken?.texture?.src || this.target.img;
+            // A. 讀取在 config.js 註冊的設定
+            const useToken = game.settings.get(MODULE_ID, "useTokenAvatarDefault");
+            
+            // 預設先拿原型圖片
+            let tokenImg = this.target.prototypeToken?.texture?.src;
+            
+            // 嘗試尋找場景上的實例：
+            // 1. 如果是合成 Actor (Unlinked)，this.target.token 會存在
+            // 2. 如果是連結 Actor (Linked)，去場景上的 tokens 找一個屬於此 Actor 的
+            const activeTokenDoc = this.target.token || canvas.tokens?.placeables.find(t => t.actor?.id === this.target.id)?.document;
+            
+            // 如果找到了場景實例，就用它的圖片 (手動更新後的圖片)
+            if (activeTokenDoc) {
+                tokenImg = activeTokenDoc.texture.src;
+            }
+
+            const actorImg = this.target.img;
+            // B. 根據設定決定優先順序 (若優先的沒圖，則自動使用另一張當備案)
+            if (useToken) {
+                // 勾選：Token 優先
+                defaultAvatar = tokenImg || actorImg;
+            } else {
+                // 未勾選：角色圖片優先
+                defaultAvatar = actorImg || tokenImg;
+            }
+
         } else if (this.target.documentName === "User") {
             defaultAvatar = this.target.avatar;
         }

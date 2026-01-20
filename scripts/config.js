@@ -42,11 +42,30 @@ export function registerSettings() {
         type: Number,
         default: 0.8,
         range: {            // 顯示為滑桿
-            min: 0,
+            min: 0.1,
             max: 1,
             step: 0.05
         },
         onChange: () => Hooks.callAll("YCIO_UpdateStyle") // 觸發自定義 Hook
+    });
+
+    // 預設頭像來源 (Client)
+    game.settings.register(MODULE_ID, "useTokenAvatarDefault", {
+        name: "YCIO.Settings.UseTokenAvatar.Name",
+        hint: "YCIO.Settings.UseTokenAvatar.Hint",
+        scope: "client",    // 玩家個人設定
+        config: true,       // 顯示在選單
+        type: Boolean,      // 勾選框
+        default: false,     // 預設未勾選 (即預設使用 Actor 圖片)
+        onChange: () => {
+             // 當設定變更時，如果頭像選擇視窗剛好是開著的，就重繪它以即時反映變更
+             // 使用 V13 標準方式尋找 AppV2 實例，遍歷所有應用程式實例，找到 ID 符合的並重繪
+             for (const app of foundry.applications.instances.values()) {
+                 if (app.id === "ycio-avatar-selector") {
+                     app.render();
+                 }
+             }
+        }
     });
     
     console.log("YCIO | 設定 (Settings) 已註冊");
