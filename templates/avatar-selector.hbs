@@ -27,11 +27,14 @@
 
         {{!-- 2. 自定義頭像列表 --}}
         {{#each avatars}}
-            <div class="avatar-card {{#if (eq ../currentAvatar this.src)}}selected{{/if}}" 
-                 data-action="selectAvatar" data-src="{{this.src}}">
+            <div class="avatar-card draggable-item {{#if (eq ../currentAvatar this.src)}}selected{{/if}}" 
+                 draggable="true"
+                 data-action="selectAvatar" 
+                 data-src="{{this.src}}"
+                 data-index="{{@index}}">
                 
                 <div class="image-wrapper">
-                    <img src="{{this.src}}" />
+                    <img src="{{this.src}}" draggable="false" />
                     
                     {{!-- 刪除按鈕 (改用 index) --}}
                     <button type="button" class="delete-btn" data-action="deleteAvatar" data-index="{{@index}}">

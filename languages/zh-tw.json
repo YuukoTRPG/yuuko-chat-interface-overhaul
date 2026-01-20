@@ -41,7 +41,8 @@
         "Managing": "正在管理",
         "Default": "預設",
         "LabelPlaceholder": "頭像註解...",
-        "Confirm": "確認"
+        "Confirm": "確認",
+        "Current": "當前頭像"
     }
   }
 }

@@ -226,6 +226,19 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             }
         });
     }
+    // --- 初始化 頭像按鈕的Tooltip ---
+    this._updateAvatarBtnTooltip();
+    // --- 監聽下拉選單變化，更新 Tooltip ---
+    if (speakerSelect) {
+        speakerSelect.addEventListener("change", () => this._updateAvatarBtnTooltip());
+    }
+    // --- 監聽頭像變更 Hook (由 AvatarSelector 觸發)，更新 Tooltip ---
+    // 檢查是否已經註冊過這個 Hook，避免重複註冊
+    const hookName = "YCIO_AvatarChanged";
+    if (!this._hooks.some(h => h.hook === hookName)) {
+        const id = Hooks.on(hookName, () => this._updateAvatarBtnTooltip());
+        this._hooks.push({ hook: hookName, id });
+    }
 
     // --- 輸入框與按鈕 ---
     const input = this.element.querySelector("#chat-message-input");
@@ -754,4 +767,52 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       }
   }
 
+  /* ========================================================= */
+  /* 8.更新頭像按鈕的 Tooltip (顯示當前圖片預覽) */
+  /* ========================================================= */
+  _updateAvatarBtnTooltip() {
+      const btn = this.element.querySelector("#chat-avatar-btn");
+      if (!btn) return;
+
+      const speakerSelect = this.element.querySelector("#chat-speaker-select");
+      const value = speakerSelect ? speakerSelect.value : "ooc";
+      
+      // 建構一個假 Message 物件，傳給 resolveCurrentAvatar 用
+      // 這是為了複用 resolveCurrentAvatar 的邏輯
+      let dummyMessage = { speaker: {}, user: null };
+
+      if (value === "ooc") {
+          dummyMessage.user = game.user;
+      } else {
+          // value 格式是 "SceneID.TokenID"
+          const [sceneId, tokenId] = value.split(".");
+          dummyMessage.speaker = { scene: sceneId, token: tokenId, actor: null };
+          
+          // 嘗試找出 Actor ID (為了讓 resolveCurrentAvatar 能讀到 flag)
+          const scene = game.scenes.get(sceneId);
+          const token = scene?.tokens.get(tokenId);
+          if (token && token.actor) {
+              dummyMessage.speaker.actor = token.actor.id;
+          }
+      }
+
+      // 計算當前頭像 URL
+      const currentUrl = resolveCurrentAvatar(dummyMessage);
+      
+      // 設定 HTML Tooltip
+      // 這裡使用 Foundry 的 data-tooltip 屬性，它支援 HTML
+      const tooltipContent = `
+        <div style="text-align: center;">
+            <div style="margin-bottom: 5px; font-weight: bold;">${game.i18n.localize("YCIO.Avatar.Current")}</div>
+            <img src="${currentUrl}" style="max-width: 100px; max-height: 100px; border: 1px solid #666; border-radius: 4px; background: black;">
+        </div>
+      `;
+      
+      btn.dataset.tooltip = tooltipContent;
+      // 確保沒有 aria-label 干擾 tooltip 顯示 (如果有的話)
+      // btn.removeAttribute("aria-label"); 
+
+      // --- 指定 Tooltip 的 CSS 類別，把這個 class 加到 #tooltip 元素上
+      btn.dataset.tooltipClass = "ycio-avatar-tooltip";
+  }
 }

@@ -577,3 +577,25 @@ display: flex;
     color: #fff;
     border-color: #666;
 }
+
+/* 拖曳中的頭像卡片 (半透明 + 虛線框) */
+.avatar-card.dragging {
+    opacity: 0.4;
+    border: 2px dashed #999;
+}
+
+/* 拖曳經過目標上方時的樣式 (提示放置位置) */
+.avatar-card.drag-over {
+    border: 2px solid #ffd700; /* 金色實線框 */
+    transform: scale(1.02);    /* 微微放大 */
+    z-index: 1;
+}
+
+/* =========================================================
+   9. 特殊 Tooltip 樣式
+   ========================================================= */
+
+/* 強制移除 Tooltip 的淡入淡出動畫，達成「即時顯示」的效果 */
+#tooltip.ycio-avatar-tooltip {
+    transition-delay: 0s !important;   /* 移除延遲 */
+}

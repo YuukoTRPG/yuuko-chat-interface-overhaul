@@ -108,6 +108,70 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
                 if (ev.key === "Enter") input.blur();
             });
         });
+
+        // --- 修正：拖曳排序功能 (Drag & Drop) ---
+        const draggables = this.element.querySelectorAll('.avatar-card.draggable-item');
+        
+        draggables.forEach(card => {
+            // 1. 開始拖曳
+            card.addEventListener('dragstart', ev => {
+                ev.dataTransfer.effectAllowed = "move";
+                ev.dataTransfer.setData("text/plain", card.dataset.index);
+                
+                // 關鍵修正：使用 setTimeout 延遲樣式套用
+                // 讓瀏覽器先抓取「原本不透明」的卡片作為殘影，之後再把卡片變半透明
+                setTimeout(() => card.classList.add('dragging'), 0);
+            });
+
+            // 2. 拖曳結束 (無論成功與否都會觸發)
+            card.addEventListener('dragend', ev => {
+                card.classList.remove('dragging');
+                // 清除所有卡片的 drag-over 樣式，防止殘留
+                draggables.forEach(c => c.classList.remove('drag-over'));
+            });
+
+            // 3. 經過目標 (允許放置)
+            card.addEventListener('dragover', ev => {
+                ev.preventDefault(); // 必須有這行才能觸發 drop
+                ev.dataTransfer.dropEffect = "move";
+                
+                // 補強：確保在 dragenter 沒觸發到的情況下也能顯示樣式
+                if (!card.classList.contains('dragging')) {
+                    card.classList.add('drag-over');
+                }
+            });
+
+            // 4. 進入目標
+            card.addEventListener('dragenter', ev => {
+                if (!card.classList.contains('dragging')) {
+                    card.classList.add('drag-over');
+                }
+            });
+
+            // 5. 離開目標 (關鍵修正：防閃爍)
+            card.addEventListener('dragleave', ev => {
+                // 如果滑鼠只是移到了卡片內部的子元素 (如圖片、輸入框)，不視為離開
+                if (card.contains(ev.relatedTarget)) return;
+                
+                card.classList.remove('drag-over');
+            });
+
+            // 6. 放下 (Drop)
+            card.addEventListener('drop', async ev => {
+                ev.preventDefault();
+                // 放下時立刻移除樣式
+                card.classList.remove('drag-over');
+
+                const fromIndex = parseInt(ev.dataTransfer.getData("text/plain"));
+                const toIndex = parseInt(card.dataset.index);
+
+                // 檢查數據有效性
+                if (isNaN(fromIndex) || isNaN(toIndex) || fromIndex === toIndex) return;
+
+                // 呼叫排序邏輯
+                await this._reorderAvatars(fromIndex, toIndex);
+            });
+        });
     }
 
     /* ============================================= */
@@ -156,8 +220,8 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
         await this.target.setFlag(MODULE_ID, "currentAvatar", src);
         this.render(); // 重繪以更新選取狀態 (黃框)
         
-        // 通知主視窗 (如果有的話) 重繪輸入框附近的頭像預覽 (可選)
-        // Hooks.callAll("YCIO_AvatarChanged"); 
+        // 通知主視窗 (如果有的話) 重繪輸入框附近的頭像預覽
+        Hooks.callAll("YCIO_AvatarChanged"); 
     }
 
     /**
@@ -216,6 +280,24 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
                 this._pendingSave = null;
             }
         }
+    }
+
+    /**
+     * 處理頭像陣列的重新排序
+     */
+    async _reorderAvatars(fromIndex, toIndex) {
+        const currentList = this.target.getFlag(MODULE_ID, "avatarList") || [];
+        
+        // 防呆檢查
+        if (!currentList[fromIndex]) return;
+
+        // 陣列操作：取出 -> 插入
+        const itemToMove = currentList.splice(fromIndex, 1)[0]; // 移除來源
+        currentList.splice(toIndex, 0, itemToMove);            // 插到目標位置
+
+        // 存檔並重繪
+        await this.target.setFlag(MODULE_ID, "avatarList", currentList);
+        this.render();
     }
 
     /**
