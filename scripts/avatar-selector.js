@@ -8,6 +8,17 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
         super(options);
         // targetDocument 可能是 Actor (角色) 或 User (OOC)
         this.target = targetDocument; 
+
+        // --- 讀取並還原視窗位置 ---
+        const savedPos = game.settings.get(MODULE_ID, "avatarSelectorPosition");
+        if (savedPos && !foundry.utils.isEmpty(savedPos)) {
+            Object.assign(this.position, savedPos);
+        }
+
+        // --- 防抖動儲存視窗位置與大小 ---
+        this._savePositionDebounced = foundry.utils.debounce((pos) => {
+            game.settings.set(MODULE_ID, "avatarSelectorPosition", pos);
+        }, 500);
     }
 
     static DEFAULT_OPTIONS = {
@@ -33,6 +44,15 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
     static PARTS = {
         form: { template: "modules/yuuko-chat-interface-overhaul/templates/avatar-selector.hbs" }
     };
+
+    /**
+     * 覆寫 setPosition 自動存檔
+     */
+    setPosition(position={}) {
+        const newPosition = super.setPosition(position);
+        this._savePositionDebounced(newPosition);
+        return newPosition;
+    }
 
     /* ============================================= */
     /* 資料準備                                      */

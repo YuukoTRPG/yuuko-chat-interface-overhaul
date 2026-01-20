@@ -20,6 +20,20 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     const customTitle = game.settings.get(MODULE_ID, "windowTitle");
     this.options.window.title = customTitle || game.i18n.localize("YCIO.WindowTitle");
 
+    // --- 讀取並還原視窗位置 ---
+    const savedPos = game.settings.get(MODULE_ID, "floatingChatPosition");
+    if (savedPos && !foundry.utils.isEmpty(savedPos)) {
+        // 將儲存的座標合併到當前的 position 物件中
+        Object.assign(this.position, savedPos);
+    }
+
+    // --- 防抖動的視窗座標與大小存檔函式 (延遲 500ms) ---
+    // 只有當動作停止 500ms 後才會真正寫入資料庫
+    this._savePositionDebounced = foundry.utils.debounce((pos) => {
+        game.settings.set(MODULE_ID, "floatingChatPosition", pos);
+        // console.log("YCIO | 主視窗位置已儲存", pos);
+    }, 500);
+
     // --- 狀態追蹤變數 ---
     this._isLoadingOlder = false;       // 防止重複觸發載入歷史訊息
     this._programmaticScroll = false;   // 用於區分「程式捲動」與「手動捲動」
@@ -355,6 +369,20 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       this._hooks.forEach(h => Hooks.off(h.hook, h.id));
       this._hooks = [];
       return super.close(options);
+  }
+
+  /**
+   * 覆寫 setPosition 以便在移動/縮放時自動存檔
+   */
+  setPosition(position={}) {
+      // 1. 執行原本的定位邏輯
+      const newPosition = super.setPosition(position);
+      
+      // 2. 觸發存檔 (使用防抖動函式)
+      // 注意：newPosition 包含了 {left, top, width, height}
+      this._savePositionDebounced(newPosition);
+
+      return newPosition;
   }
 
 

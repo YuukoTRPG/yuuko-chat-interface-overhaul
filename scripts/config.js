@@ -7,6 +7,25 @@ export const FLAG_KEY = "isTyping";
  * 模組設定註冊 (Settings Registration)
  */
 export function registerSettings() {
+
+    // --- 隱藏設定：記憶視窗位置 ---
+    // 1. 主聊天視窗位置
+    game.settings.register(MODULE_ID, "floatingChatPosition", {
+        scope: "client",
+        config: false,
+        type: Object,
+        default: {} 
+    });
+
+    // 2. 頭像選擇器位置
+    game.settings.register(MODULE_ID, "avatarSelectorPosition", {
+        scope: "client",
+        config: false,
+        type: Object,
+        default: {}
+    });
+    
+
     // 自訂視窗標題 (GM Only)
     game.settings.register(MODULE_ID, "windowTitle", {
         name: "YCIO.Settings.WindowTitle.Name",
