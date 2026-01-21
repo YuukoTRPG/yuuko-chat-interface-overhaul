@@ -11,6 +11,11 @@
     flex-direction: column; /* 垂直排列：分頁 -> 內容 -> 輸入框 */
     background: var(--ycio-bg);/* 視窗背景色 (預設半透明黑) */
     color: white; /* 預設文字顏色 */
+    padding: 0;
+}
+
+.YCIO-floating-chat-window .window-content{
+    padding: 2px;
 }
 
 /* =========================================================
@@ -19,13 +24,15 @@
    ========================================================= */
 
 .YCIO-floating-chat-window .tabs {
-display: flex;
+    display: flex;
     border-bottom: 1px solid #555;
-    padding: 5px;
+    padding: 0px 2px;
     
-    /* 新增：支援水平捲動 */
+    /* 支援水平捲動 */
     overflow-x: auto;
     white-space: nowrap;
+    justify-content: flex-start;
+    gap: 2px;
     
     /* 隱藏醜醜的捲動條 (Webkit 瀏覽器) */
     scrollbar-width: thin; 
@@ -33,7 +40,7 @@ display: flex;
 }
 
 .YCIO-floating-chat-window .tabs::-webkit-scrollbar {
-    height: 4px;
+    height: 2px;
 }
 .YCIO-floating-chat-window .tabs::-webkit-scrollbar-thumb {
     background-color: #444;
@@ -41,12 +48,14 @@ display: flex;
 }
 
 .YCIO-floating-chat-window .tabs .item {
-    padding: 5px 15px;
+    padding: 0px 5px;
+    font-size: 1em;  /* 字體 */
     cursor: pointer;
     color: #aaa;
     transition: color 0.2s, background 0.2s;
-    /* 確保文字不換行 */
-    white-space: nowrap; 
+    white-space: nowrap; /* 確保文字不換行 */
+    border-radius: 4px; /* 增加圓角 */
+    border-right: 1px solid #555;
 }
 
 .YCIO-floating-chat-window .tabs .item:hover {
@@ -59,6 +68,7 @@ display: flex;
     border-radius: 4px;
     color: #fff;
     font-weight: bold;
+    border-right: 1px solid #EE0;
 }
 
 /* =========================================================
@@ -72,7 +82,7 @@ display: flex;
     flex-direction: column;
     min-height: 0;      /* 關鍵：防止內容撐開父元素，確保 flex 正確運作 */
     overflow: hidden;   /* 隱藏溢出，讓捲動發生在內部的 #custom-chat-log */
-    padding: 10px;
+    padding: 0px;
     position: relative; /* 讓內部的絕對定位元素 (如置底按鈕) 以此為基準 */
 }
 
@@ -82,16 +92,16 @@ display: flex;
     overflow-y: auto;   /* 必須要有 auto，捲動條才會出現 */
     height: 100%;       /* 確保高度被撐滿 */
     list-style: none;   /* 移除列表的點點 */
-    padding: 10px;
+    padding: 0px;
     margin: 0;
 }
 
 /* 載入中的讀取條 (撈取舊訊息時顯示) */
 .YCIO-floating-chat-window .loading-spinner {
     text-align: center;
-    font-size: 12px;
+    font-size: 10px;
     color: #888;
-    padding: 5px;
+    padding: 4px;
     display: none;      /* 預設隱藏，由 JS 控制顯示 */
 }
 
@@ -106,6 +116,18 @@ display: flex;
     border: 1px solid #444;
     border-radius: 4px;
     /* margin-bottom 可以視需要加入，保持訊息間距 */
+
+    display: flex;
+    flex-direction: row; /* 水平排列 */
+    align-items: flex-start; /* 頂部對齊 */
+    gap: 4px; /* 頭像與內容的間距 */
+    padding: 2px; /* 整體內縮一點 */
+    
+    /* 確保原本的背景色/邊框還是在最外層 */
+    background: rgb(255, 255, 255); 
+    border: 1.5px solid #444;
+    border-radius: 4px;
+
 }
 
 /* 訊息標頭 (發訊者、時間等) */
@@ -169,20 +191,6 @@ display: flex;
    5. 訊息頭像佈局 (Message Avatar Layout)
    左圖右文
    ========================================================= */
-
-/* 1. 將 list item (.message) 改為 Flex 容器 */
-.YCIO-floating-chat-window .chat-message {
-    display: flex;
-    flex-direction: row; /* 水平排列 */
-    align-items: flex-start; /* 頂部對齊 */
-    gap: 8px; /* 頭像與內容的間距 */
-    padding: 5px; /* 整體內縮一點 */
-    
-    /* 確保原本的背景色/邊框還是在最外層 */
-    background: rgb(255, 255, 255); 
-    border: 1px solid #444;
-    border-radius: 4px;
-}
 
 /* 2. 左側頭像區域 */
 .YCIO-floating-chat-window .message-avatar {
@@ -264,11 +272,14 @@ display: flex;
 
 
 .YCIO-floating-chat-window .chat-input-area {
-    padding: 10px;
+    padding: 0px;
+    padding-top: 2px;
     flex-shrink: 0;   /* 防止被擠壓，保持高度 */
     display: flex;       /* flex column 佈局 */
     flex-direction: column; 
-    gap: 5px;            /* 元素間距 */
+    gap: 2px;            /* 元素間距 */
+    background: rgba(0,0,0,0.2); /* 稍微加深背景，區分輸入區 */
+    border-top: 1px solid #444;  /* 加上頂部邊框，視覺上更整齊 */
 }
 
 /* 身份選擇器樣式 */
@@ -304,7 +315,7 @@ display: flex;
 .YCIO-floating-chat-window textarea {
     width: 100%;
     height: auto;       /* 自動高度 */
-    min-height: 40px;   /* 最小高度 */
+    min-height: 32px;   /* 最小高度 */
     background: #222;   /* 輸入框深色背景 */
     color: white;
     border: 1px solid #444;
@@ -313,7 +324,7 @@ display: flex;
     /* 關鍵行為設定 */
     resize: none;       /* 禁止手動拉大，由 JS 控制 */
     overflow-y: hidden; /* 未達最大高度前隱藏捲軸 */
-    padding: 8px 40px 8px 8px; /* padding-right: 40px 是為了避開右下角的發送按鈕 */
+    padding: 6px 35px 2px 2px; /* padding-right: 40px 是為了避開右下角的發送按鈕 */
     line-height: 1.4;
     box-sizing: border-box;
 }
@@ -347,9 +358,7 @@ display: flex;
     font-size: 12px;
     color: #aaa;        /* 淺灰色字體 */
     font-style: italic;
-    height: 18px;       /* 固定高度，避免文字出現時造成版面跳動 */
-    margin-top: 4px;
-    margin-left: 5px;   
+    height: 12px;       /* 固定高度，避免文字出現時造成版面跳動 */
     opacity: 0;         /* (依需求保留) 預設為 1，透過 class 切換或 JS 控制 */
     transition: opacity 0.3s ease; /* 淡入淡出效果 */
     pointer-events: none; /* 讓滑鼠點不到它，避免擋住下方的操作 */
