@@ -229,7 +229,7 @@ display: flex;
    底部的文字輸入框、發送按鈕與打字提示
    ========================================================= */
 
-/* 頭像選擇器案紐那一塊 */
+/* 頭像選擇器按鈕那一塊 */
 .YCIO-floating-chat-window .speaker-row {
     display: flex;
     gap: 5px;
@@ -246,10 +246,22 @@ display: flex;
     cursor: pointer;
 }
 
+.YCIO-floating-chat-window #chat-avatar-btn.ycio-disabled {
+    opacity: 0.5;               /* 變半透明 */
+    filter: grayscale(100%);    /* 變灰階 (選用) */
+    cursor: not-allowed;        /* 滑鼠移上去變成紅色禁止符號 */
+}
+
 .YCIO-floating-chat-window #chat-avatar-btn:hover {
     color: #fff;
     background: #444;
 }
+
+/* 頭像按鈕的 Tooltip，因為不依附在模組的視窗內，必須獨立指定 */
+.ycio-avatar-tooltip {
+    transition-delay: 0s !important;   /* 移除顯示延遲，雖然好像沒卵用 */
+}
+
 
 .YCIO-floating-chat-window .chat-input-area {
     padding: 10px;
@@ -589,13 +601,4 @@ display: flex;
     border: 2px solid #ffd700; /* 金色實線框 */
     transform: scale(1.02);    /* 微微放大 */
     z-index: 1;
-}
-
-/* =========================================================
-   9. 特殊 Tooltip 樣式
-   ========================================================= */
-
-/* 強制移除 Tooltip 的淡入淡出動畫，達成「即時顯示」的效果 */
-#tooltip.ycio-avatar-tooltip {
-    transition-delay: 0s !important;   /* 移除延遲 */
 }

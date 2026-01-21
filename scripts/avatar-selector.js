@@ -12,7 +12,10 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
         // --- 讀取並還原視窗位置 ---
         const savedPos = game.settings.get(MODULE_ID, "avatarSelectorPosition");
         if (savedPos && !foundry.utils.isEmpty(savedPos)) {
-            Object.assign(this.position, savedPos);
+            if (Number.isFinite(savedPos.left)) this.position.left = Math.max(1, savedPos.left);
+            if (Number.isFinite(savedPos.top)) this.position.top = Math.max(1, savedPos.top);
+            if (Number.isFinite(savedPos.width)) this.position.width = savedPos.width;
+            if (Number.isFinite(savedPos.height)) this.position.height = savedPos.height;
         }
 
         // --- 防抖動儲存視窗位置與大小 ---

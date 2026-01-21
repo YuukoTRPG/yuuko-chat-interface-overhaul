@@ -110,55 +110,81 @@ export function getChatContextOptions() {
  */
 export function resolveCurrentAvatar(message) {
     const speaker = message.speaker;
+    // 相容性處理，優先讀取 author (V12+), 如果沒有則讀取 user
+    const messageUser = message.author ?? message.user;
 
-    // 1. 檢查 Actor 身上是否有選中特定頭像 (Custom Flag)
-    if (speaker.actor) {
-        const actor = game.actors.get(speaker.actor);
-        if (actor) {
-            const customAvatar = actor.getFlag(MODULE_ID, "currentAvatar");
-            if (customAvatar) return customAvatar;
-        }
-    }
-    
-    // 2. 檢查 User 身上是否有選中特定頭像 (OOC Custom Flag)
-    if (!speaker.token && !speaker.actor && message.user) {
-         const user = message.user.id ? message.user : game.users.get(message.user);
-         if (user) {
-             const customAvatar = user.getFlag(MODULE_ID, "currentAvatar");
-             if (customAvatar) return customAvatar;
-         }
-    }
-    
-    // --- 如果都沒有自選，以下是「預設」邏輯 ---
+    // --- 0. 準備資料物件 (TokenDoc & ActorDoc) ---
+    let tokenDoc = null;
+    let actorDoc = null;
 
-    // 3. 嘗試從 Token 取得
     if (speaker.token) {
         // A. 嘗試從當前 Canvas 找
         const token = canvas.tokens?.get(speaker.token);
-        if (token) return token.document.texture.src;
+        if (token) tokenDoc = token.document;
         
         // B. 嘗試從指定場景找 (跨場景發話)
-        if (speaker.scene) {
+        if (!tokenDoc && speaker.scene) {
             const scene = game.scenes.get(speaker.scene);
-            const tokenDoc = scene?.tokens.get(speaker.token);
-            if (tokenDoc) return tokenDoc.texture.src;
+            tokenDoc = scene?.tokens.get(speaker.token);
         }
     }
 
-    // 4. 嘗試從 Actor 取得 (Prototype Token 或 Actor Image)
     if (speaker.actor) {
-        const actor = game.actors.get(speaker.actor);
-        if (actor) return actor.img;
+        actorDoc = game.actors.get(speaker.actor);
     }
 
-    // 5. 嘗試從 User 取得 (使用者頭像)
-    if (message.user) {
-        // 相容性處理：有時候 message.user 只是 ID
-        const user = message.user.id ? message.user : game.users.get(message.user);
+    // --- 1. 檢查自選頭像 (Custom Flag) ---
+    // 只有「連結 (Linked) 角色」或「純 User (OOC)」才允許使用自選頭像
+    // 未連結 (Unlinked) 角色強制略過此段，直接進入預設邏輯
+    const isUnlinked = tokenDoc && !tokenDoc.actorLink;
+
+    if (!isUnlinked) {
+        // 檢查 Actor 身上是否有選中特定頭像
+        if (actorDoc) {
+            const customAvatar = actorDoc.getFlag(MODULE_ID, "currentAvatar");
+            if (customAvatar) return customAvatar;
+        }
+        
+        // 檢查 User 身上是否有選中特定頭像 (OOC)
+        if (!tokenDoc && !actorDoc && messageUser) {
+             const user = messageUser.id ? messageUser : game.users.get(messageUser);
+             if (user) {
+                 const customAvatar = user.getFlag(MODULE_ID, "currentAvatar");
+                 if (customAvatar) return customAvatar;
+             }
+        }
+    }
+    
+    // --- 2. 預設邏輯 (Default Fallback) ---
+
+    // A. 如果是未連結 Token (Unlinked) -> 強制使用 Token 圖片
+    if (isUnlinked && tokenDoc) {
+        return tokenDoc.texture.src;
+    }
+
+    // B. 如果是連結 Token (Linked) -> 根據設定決定
+    if (tokenDoc && tokenDoc.actorLink) {
+        const useTokenAsDefault = game.settings.get(MODULE_ID, "useTokenAvatarDefault");
+        
+        // 如果設定勾選「用 Token 圖」 -> 回傳 Token 圖
+        if (useTokenAsDefault) return tokenDoc.texture.src;
+        
+        // 如果設定未勾選 -> 繼續往下走，會讀取 Actor 圖
+    }
+
+    // C. 嘗試從 Actor 取得 (預設為 Actor 圖片)
+    if (actorDoc) return actorDoc.img;
+
+    // D. 嘗試從 Token 取得 (兜底，萬一沒有 Actor)
+    if (tokenDoc) return tokenDoc.texture.src;
+
+    // E. 嘗試從 User 取得 (使用者頭像)
+    if (messageUser) {
+        const user = messageUser.id ? messageUser : game.users.get(messageUser);
         if (user) return user.avatar;
     }
 
-    // 6. 真的什麼都沒有，回傳神秘人
+    // F. 真的什麼都沒有
     return "icons/svg/mystery-man.svg";
 }
 
@@ -181,6 +207,10 @@ export function getAvatarUrl(message) {
  * @param {HTMLElement} htmlElement - Foundry 渲染出的原生 DOM
  */
 export function enrichMessageHTML(message, htmlElement) {
+
+  // 相容性處理，無論傳進來的是 jQuery 物件還是 HTMLElement (V13標準)，統一轉為原生 DOM
+    const element = htmlElement instanceof jQuery ? htmlElement[0] : htmlElement;
+
     // 1. 取得頭像 (注意：這裡直接呼叫同檔案的函式，不用 this)
     const avatarUrl = getAvatarUrl(message);
 
@@ -197,12 +227,51 @@ export function enrichMessageHTML(message, htmlElement) {
     bodyDiv.classList.add("message-body");
 
     // 4. 移動原本的內容
-    const children = Array.from(htmlElement.childNodes);
+    const children = Array.from(element.childNodes);
     children.forEach(child => bodyDiv.appendChild(child));
 
     // 5. 重新組裝
-    htmlElement.appendChild(avatarDiv);
-    htmlElement.appendChild(bodyDiv);
+    element.appendChild(avatarDiv);
+    element.appendChild(bodyDiv);
     
-    return htmlElement;
+    // 如果原本傳進來的是 jQuery，這裡回傳原生 DOM 也可以，因為 append 動作是「引用傳遞」，
+    // 修改 element 等於修改了原本的 htmlElement[0]，介面會正常更新。
+    return element;
+}
+
+/**
+ * 根據下拉選單的值，轉換為 Speaker 物件結構
+ * @param {String} value - 下拉選單的值 (例如 "ooc" 或 "SceneID.TokenID")
+ * @returns {Object} 包含 speaker 和 user 的物件，可供 resolveCurrentAvatar 使用
+ */
+export function getSpeakerFromSelection(value) {
+    // 建構一個假 Message 物件，傳給 resolveCurrentAvatar 用
+    // 這是為了複用 resolveCurrentAvatar 的邏輯
+    let dummyMessage = { speaker: {}, user: null };
+
+    if (!value || value === "ooc") {
+        dummyMessage.user = game.user;
+    } else {
+        // value 格式是 "SceneID.TokenID"
+        const [sceneId, tokenId] = value.split(".");
+        dummyMessage.speaker = { scene: sceneId, token: tokenId, actor: null };
+        
+        // 嘗試找出 Actor ID
+        const scene = game.scenes.get(sceneId);
+        const token = scene?.tokens.get(tokenId);
+        if (token && token.actor) {
+            dummyMessage.speaker.actor = token.actor.id;
+        }
+    }
+    return dummyMessage;
+}
+
+/**
+ * 將 Hex 顏色轉為 RGBA 字串
+ */
+export function hexToRgba(hex, opacity) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }

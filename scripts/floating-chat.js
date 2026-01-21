@@ -3,7 +3,12 @@
  * 包含：視窗渲染、聊天記錄管理、輸入處理、打字狀態同步(Flags)、右鍵選單
  */
 
-import { prepareSpeakerList, getChatContextOptions, enrichMessageHTML, resolveCurrentAvatar} from "./chat-helpers.js"; //某些函式
+import {prepareSpeakerList,
+        getChatContextOptions,
+        enrichMessageHTML,
+        resolveCurrentAvatar,
+        getSpeakerFromSelection,
+        hexToRgba} from "./chat-helpers.js"; //某些函式
 import { FLAG_SCOPE, FLAG_KEY, MODULE_ID } from "./config.js"; //某些常數，定義 Flag 作用域和 Key (用於打字狀態同步)
 import { AvatarSelector } from "./avatar-selector.js"; //頭像選擇器
 
@@ -23,8 +28,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     // --- 讀取並還原視窗位置 ---
     const savedPos = game.settings.get(MODULE_ID, "floatingChatPosition");
     if (savedPos && !foundry.utils.isEmpty(savedPos)) {
-        // 將儲存的座標合併到當前的 position 物件中
-        Object.assign(this.position, savedPos);
+        // 使用安全的方式賦值，防止壞掉的資料導致視窗崩潰
+        if (Number.isFinite(savedPos.left)) this.position.left = Math.max(1, savedPos.left);
+        if (Number.isFinite(savedPos.top)) this.position.top = Math.max(1, savedPos.top);
+        if (Number.isFinite(savedPos.width)) this.position.width = savedPos.width;
+        if (Number.isFinite(savedPos.height)) this.position.height = savedPos.height;
     }
 
     // --- 防抖動的視窗座標與大小存檔函式 (延遲 500ms) ---
@@ -44,6 +52,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     
     // --- Hook 管理 ---
     this._hooks = [];               // 陣列以便管理多個 Hooks
+    this._mainHooksRegistered = false; // 用來標記主要 Hooks 是否已註冊
 
     // --- 監聽設定變更，即時更新視窗樣式 ---
     Hooks.on("YCIO_UpdateStyle", () => this._applyCustomStyles());
@@ -216,7 +225,14 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     // --- 頭像設定按鈕 ---
     const avatarBtn = this.element.querySelector("#chat-avatar-btn");
     if (avatarBtn) {
-        avatarBtn.addEventListener("click", () => {
+        avatarBtn.addEventListener("click", (ev) => {
+            // 如果按鈕是 disabled 狀態，直接擋掉，不執行任何動作
+            if (avatarBtn.classList.contains("ycio-disabled")) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                return;
+            }
+
             // 1. 判斷現在選的是誰 (下拉選單的值)
             const speakerSelect = this.element.querySelector("#chat-speaker-select");
             const value = speakerSelect ? speakerSelect.value : "ooc";
@@ -292,7 +308,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     this._updateTypingDisplay();
 
     // --- Hooks 註冊 (只需註冊一次) ---
-    if (this._hooks.length === 0) {
+    if (!this._mainHooksRegistered) {
+        this._mainHooksRegistered = true; // 鎖定，防止重複註冊
         
         // 1. 輔助函式：註冊並儲存
         const register = (hook, fn) => {
@@ -302,6 +319,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // 2. 打字狀態同步
         register("updateUser", (user, changes) => {
+            console.log("YCIO Debug | User Update:", user.name, changes);
             if (changes.flags?.[FLAG_SCOPE]) this._updateTypingDisplay();
         });
 
@@ -350,12 +368,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       const colorHex = game.settings.get(MODULE_ID, "backgroundColor");
       const opacity = game.settings.get(MODULE_ID, "backgroundOpacity");
 
-      // 簡單的 Hex 轉 RGB 轉換
-      const r = parseInt(colorHex.slice(1, 3), 16);
-      const g = parseInt(colorHex.slice(3, 5), 16);
-      const b = parseInt(colorHex.slice(5, 7), 16);
-      
-      const rgba = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      // 呼叫 Helper RGB轉換
+      const rgba = hexToRgba(colorHex, opacity);
 
       // 設定 CSS 變數，即時改變外觀
       this.element.style.setProperty('--ycio-bg', rgba);
@@ -368,6 +382,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       // 正確移除所有監聽的 Hook
       this._hooks.forEach(h => Hooks.off(h.hook, h.id));
       this._hooks = [];
+      this._mainHooksRegistered = false; // 重置標記
       return super.close(options);
   }
 
@@ -746,13 +761,23 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
    * 初始化右鍵選單
    */
   _initializeContextMenu(html) {
-    const $html = $(html);
+    // 1. 確保取得原生的 HTMLElement (非 jQuery 物件)
+    const element = html instanceof jQuery ? html[0] : html;
+    
     let contextMenu;
 
-    contextMenu = new ContextMenu($html, ".message", [], {
-        onOpen: ($target) => {
+    // 2. 使用新版路徑 foundry.applications.ux.ContextMenu
+    // 3. 傳入 element 而非 $html
+    // 4. 加入 jQuery: false 設定
+    contextMenu = new foundry.applications.ux.ContextMenu(element, ".message", [], {
+        jQuery: false, // 告訴 FVTT 我們使用原生 DOM
+        onOpen: (target) => {
+            // target 現在是 HTMLElement
             const options = getChatContextOptions();
-            Hooks.call("getChatMessageContextOptions", $target, options);
+            
+            // 為了相容其他可能還在用 jQuery 的模組 Hook，我們這裡把 target 包回 jQuery 傳出去
+            Hooks.call("getChatMessageContextOptions", $(target), options);
+            
             contextMenu.menuItems = options;
         }
     });
@@ -805,42 +830,47 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       const speakerSelect = this.element.querySelector("#chat-speaker-select");
       const value = speakerSelect ? speakerSelect.value : "ooc";
       
-      // 建構一個假 Message 物件，傳給 resolveCurrentAvatar 用
-      // 這是為了複用 resolveCurrentAvatar 的邏輯
-      let dummyMessage = { speaker: {}, user: null };
-
-      if (value === "ooc") {
-          dummyMessage.user = game.user;
-      } else {
-          // value 格式是 "SceneID.TokenID"
+      // 1. 判斷是否為未連結 Token
+      let isUnlinked = false;
+      if (value !== "ooc") {
           const [sceneId, tokenId] = value.split(".");
-          dummyMessage.speaker = { scene: sceneId, token: tokenId, actor: null };
-          
-          // 嘗試找出 Actor ID (為了讓 resolveCurrentAvatar 能讀到 flag)
           const scene = game.scenes.get(sceneId);
-          const token = scene?.tokens.get(tokenId);
-          if (token && token.actor) {
-              dummyMessage.speaker.actor = token.actor.id;
-          }
+          const tokenDoc = scene?.tokens.get(tokenId);
+          if (tokenDoc && !tokenDoc.actorLink) isUnlinked = true;
       }
 
-      // 計算當前頭像 URL
-      const currentUrl = resolveCurrentAvatar(dummyMessage);
-      
-      // 設定 HTML Tooltip
-      // 這裡使用 Foundry 的 data-tooltip 屬性，它支援 HTML
-      const tooltipContent = `
-        <div style="text-align: center;">
-            <div style="margin-bottom: 5px; font-weight: bold;">${game.i18n.localize("YCIO.Avatar.Current")}</div>
-            <img src="${currentUrl}" style="max-width: 100px; max-height: 100px; border: 1px solid #666; border-radius: 4px; background: black;">
-        </div>
-      `;
-      
-      btn.dataset.tooltip = tooltipContent;
-      // 確保沒有 aria-label 干擾 tooltip 顯示 (如果有的話)
-      // btn.removeAttribute("aria-label"); 
+      // 2. 切換 CSS Class (控制按鈕變灰)
+      btn.classList.toggle("ycio-disabled", isUnlinked);
 
-      // --- 指定 Tooltip 的 CSS 類別，把這個 class 加到 #tooltip 元素上
+      // 3. 統一計算當前頭像 URL
+      // 無論是否連結，都計算出這張 Token 當下會用的圖片 (Token圖)
+      const dummyMessage = getSpeakerFromSelection(value);
+      const currentUrl = resolveCurrentAvatar(dummyMessage);
+
+      // 4. 設定 Tooltip 內容
+      let tooltipContent = "";
+
+      if (isUnlinked) {
+          // --- 未連結狀態：顯示警告文字 + 圖片 ---
+          // 移除了 || 後面的硬編碼文字
+          tooltipContent = `
+            <div style="text-align: left;">
+                <div style="margin-bottom: 5px; color: #ffcccc;">${game.i18n.localize("YCIO.Avatar.UnlinkedWarning")}</div>
+                <img src="${currentUrl}" style="max-width: 100px; max-height: 100px; border: 1px solid #666; border-radius: 4px; background: black;">
+            </div>
+          `;
+
+      } else {
+          // --- 正常狀態：顯示標題 + 圖片 ---
+          tooltipContent = `
+            <div style="text-align: left;">
+                <div style="margin-bottom: 5px; font-weight: bold;">${game.i18n.localize("YCIO.Avatar.Current")}</div>
+                <img src="${currentUrl}" style="max-width: 100px; max-height: 100px; border: 1px solid #666; border-radius: 4px; background: black;">
+            </div>
+          `;
+      }
+
+      btn.dataset.tooltip = tooltipContent;
       btn.dataset.tooltipClass = "ycio-avatar-tooltip";
   }
 }

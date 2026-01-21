@@ -30,8 +30,8 @@
             "Hint": "調整視窗背景的透明度（0為完全透明）。"
         },
         "UseTokenAvatar": {
-            "Name": "使用 Token 圖片作為預設頭像",
-            "Hint": "勾選：預設使用場景上的 Token 圖片。未勾選：預設使用角色卡面 (Actor) 圖片。\n（必須取消Token設定中的「連結角色資料」，否則它只會抓到第一個Token的圖示。）"
+            "Name": "(實驗性)使用 Token 圖片作為預設頭像",
+            "Hint": "勾選：預設使用場景上的 Token 圖片。未勾選：預設使用角色卡面 (Actor) 圖片。"
         }
     },
 
@@ -42,7 +42,8 @@
         "Default": "預設",
         "LabelPlaceholder": "頭像註解...",
         "Confirm": "確認",
-        "Current": "當前頭像"
+        "Current": "當前頭像：",
+        "UnlinkedWarning": "所選Token未連結角色資料<br>當前固定為Token圖片："
     }
   }
 }
