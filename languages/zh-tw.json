@@ -1,6 +1,7 @@
 {
   "YCIO": {
     "WindowTitle": "悠子的文字聊天大修模組（可在設定更改這段標題）",
+    "MinimizeIcon": "最小化",
     "Tabs": {
       "Public": "公開訊息",
       "OOC": "場外"

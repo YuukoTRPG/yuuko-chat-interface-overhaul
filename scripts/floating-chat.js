@@ -78,7 +78,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       expandRoll: FloatingChat.onExpandRoll,       // 展開/折疊擲骰結果
       deleteMessage: FloatingChat.onDeleteMessage, // 刪除訊息
       jumpToBottom: FloatingChat.onJumpToBottom,   // 跳至底部
-      switchTab: FloatingChat.onSwitchTab // 切換分頁
+      switchTab: FloatingChat.onSwitchTab, // 切換分頁
+      toggleMinimize: FloatingChat.onToggleMinimize // 最小化/還原
     }
   };
 
@@ -175,6 +176,24 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
    */
   _onRender(context, options) {
     super._onRender(context, options);
+
+    // --- 將右上角的「關閉(X)」按鈕偽裝成「最小化」按鈕 ---
+    const appWindow = document.getElementById(this.id);
+    if (appWindow) {
+        // 尋找 header 中的關閉按鈕
+        const closeBtn = appWindow.querySelector('.window-header [data-action="close"]');
+        if (closeBtn) {
+            //移除原本的叉叉圖示改用減號
+            closeBtn.classList.remove("fa-xmark", "fa-times");
+            closeBtn.classList.add("fa-minus");
+            // 設定提示文字
+            const tooltipText = game.i18n.localize("YCIO.MinimizeIcon");
+            closeBtn.dataset.tooltip = tooltipText;
+            closeBtn.setAttribute("aria-label", tooltipText);
+            // 替換按鈕的動作
+            closeBtn.dataset.action = "toggleMinimize";
+        }
+    }
 
     // --- 每次渲染時套用最新的背景設定 ---
     this._applyCustomStyles();
@@ -379,11 +398,32 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
    * 視窗關閉時的清理工作
    */
   async close(options) {
-      // 正確移除所有監聽的 Hook
-      this._hooks.forEach(h => Hooks.off(h.hook, h.id));
-      this._hooks = [];
-      this._mainHooksRegistered = false; // 重置標記
-      return super.close(options);
+        // 防呆：確保 options 是一個物件，如果它是 undefined 就設為空物件
+        options = options || {};
+
+        // 如果傳入 force: true (例如模組卸載、或是程式碼強制關閉時)，才真正執行關閉
+        if (options.force) {
+            // --- 執行原本的 Hooks 清理工作 ---
+            this._hooks.forEach(h => Hooks.off(h.hook, h.id));
+            this._hooks = [];
+            this._mainHooksRegistered = false;
+
+            // 呼叫父層真正的關閉邏輯
+            return super.close(options);
+        }
+
+        // --- 否則：只執行最小化 ---
+        // 這是 ApplicationV2 內建的方法，會將視窗收折到剩標題列
+        return this.minimize();
+  }
+
+  /**
+   * 自定義最小化/還原動作，替換視窗關閉動作
+   */
+  static onToggleMinimize(event, target) {
+      event.preventDefault();
+      // 在 ApplicationV2 的 action 中，this 指向視窗實例
+      this.minimize(); 
   }
 
   /**
