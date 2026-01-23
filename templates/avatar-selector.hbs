@@ -24,6 +24,19 @@
                 <span class="system-label">{{localize "YCIO.Avatar.Default"}}</span>
             </div>
         </div>
+        
+        {{!-- GM 專用：無頭像選項 --}}
+        {{#if isGM}}
+        <div class="avatar-card {{#if (eq currentAvatar '__NO_AVATAR__')}}selected{{/if}}" 
+             data-action="selectAvatar" data-src="__NO_AVATAR__">
+            <div class="image-wrapper">
+                <img src="icons/svg/cancel.svg" />
+            </div>
+            <div class="details">
+                <span class="system-label">{{localize "YCIO.Avatar.NoAvatar"}}</span>
+            </div>
+        </div>
+        {{/if}}
 
         {{!-- 2. 自定義頭像列表 --}}
         {{#each avatars}}

@@ -106,7 +106,8 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
             avatars: savedAvatars,
             currentAvatar: currentAvatar,
             defaultAvatar: defaultAvatar,
-            targetName: this.target.name
+            targetName: this.target.name,
+            isGM: game.user.isGM
         };
     }
 

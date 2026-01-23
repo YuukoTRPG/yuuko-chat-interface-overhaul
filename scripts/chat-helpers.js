@@ -214,25 +214,44 @@ export function enrichMessageHTML(message, htmlElement) {
     // 1. 取得頭像 (注意：這裡直接呼叫同檔案的函式，不用 this)
     const avatarUrl = getAvatarUrl(message);
 
-    // 2. 建立頭像 DOM
-    const avatarDiv = document.createElement("div");
-    avatarDiv.classList.add("message-avatar");
-    const img = document.createElement("img");
-    img.src = avatarUrl;
-    img.alt = message.speaker.alias || "Avatar";
-    avatarDiv.appendChild(img);
+    // [修改開始] 判斷是否為無頭像模式
+    if (avatarUrl === "__NO_AVATAR__") {
+        // A. 無頭像模式
+        // 為了讓 CSS 方便處理 (如果需要微調邊距)，我們可以加個 class
+        element.classList.add("no-avatar-mode");
 
-    // 3. 建立右側內容容器 (message-body)
-    const bodyDiv = document.createElement("div");
-    bodyDiv.classList.add("message-body");
+        // 建立右側內容容器 (message-body)
+        const bodyDiv = document.createElement("div");
+        bodyDiv.classList.add("message-body");
+        
+        // 將原本的內容移動進去
+        const children = Array.from(element.childNodes);
+        children.forEach(child => bodyDiv.appendChild(child));
 
-    // 4. 移動原本的內容
-    const children = Array.from(element.childNodes);
-    children.forEach(child => bodyDiv.appendChild(child));
+        // 只加入 bodyDiv，不加入 avatarDiv
+        element.appendChild(bodyDiv);
+    } else {
+        // B. 正常頭像模式，繼續插入頭像
+        // 2. 建立頭像 DOM
+        const avatarDiv = document.createElement("div");
+        avatarDiv.classList.add("message-avatar");
+        const img = document.createElement("img");
+        img.src = avatarUrl;
+        img.alt = message.speaker.alias || "Avatar";
+        avatarDiv.appendChild(img);
 
-    // 5. 重新組裝
-    element.appendChild(avatarDiv);
-    element.appendChild(bodyDiv);
+        // 3. 建立右側內容容器 (message-body)
+        const bodyDiv = document.createElement("div");
+        bodyDiv.classList.add("message-body");
+
+        // 4. 移動原本的內容
+        const children = Array.from(element.childNodes);
+        children.forEach(child => bodyDiv.appendChild(child));
+
+        // 5. 重新組裝
+        element.appendChild(avatarDiv);
+        element.appendChild(bodyDiv);
+    }
     
     // 如果原本傳進來的是 jQuery，這裡回傳原生 DOM 也可以，因為 append 動作是「引用傳遞」，
     // 修改 element 等於修改了原本的 htmlElement[0]，介面會正常更新。
