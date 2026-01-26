@@ -79,7 +79,13 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       deleteMessage: FloatingChat.onDeleteMessage, // 刪除訊息
       jumpToBottom: FloatingChat.onJumpToBottom,   // 跳至底部
       switchTab: FloatingChat.onSwitchTab, // 切換分頁
-      toggleMinimize: FloatingChat.onToggleMinimize // 最小化/還原
+      toggleMinimize: FloatingChat.onToggleMinimize, // 最小化/還原
+
+      // --- 文字格式工具列 Actions ---
+      formatBold: FloatingChat.onFormatBold,
+      formatItalic: FloatingChat.onFormatItalic,
+      formatStrikethrough: FloatingChat.onFormatStrikethrough,
+      formatInlineAvatar: FloatingChat.onFormatInlineAvatar
     }
   };
 
@@ -287,6 +293,18 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!this._hooks.some(h => h.hook === hookName)) {
         const id = Hooks.on(hookName, () => this._updateAvatarBtnTooltip());
         this._hooks.push({ hook: hookName, id });
+    }
+
+    // --- 綁定文字顏色選擇器 ---
+    const colorPicker = this.element.querySelector("#chat-text-color-picker");
+    if (colorPicker) {
+        // 為了避免每次選顏色都預設黑色，我們可以設一個預設值或不處理
+        // 這裡監聽 'change' 事件 (當使用者確定選擇顏色後觸發)
+        colorPicker.addEventListener("change", (ev) => {
+            const color = ev.target.value;
+            // 呼叫我們的靜態助手，傳入生成的 style 標籤
+            FloatingChat._insertFormat(ev.target, `<span style="color:${color}">`, `</span>`);
+        });
     }
 
     // --- 輸入框與按鈕 ---
@@ -711,7 +729,74 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /* ========================================================= */
-  /* 6. 打字狀態同步 (Typing Status - Flags)                  */
+  /* 6. 格式工具列邏輯 (Formatting Toolbar)               */
+  /* ========================================================= */
+
+  /**
+   * 通用格式化助手：在 Textarea 游標處插入 HTML 標籤
+   * @param {HTMLElement} target - 觸發事件的按鈕 DOM
+   * @param {String} startTag - 開始標籤 (如 "<b>")
+   * @param {String} endTag - 結束標籤 (如 "</b>")
+   */
+  static _insertFormat(target, startTag, endTag) {
+    // 1. 找到輸入框 (透過 ID 尋找最穩健)
+    // 由於這是 Static 方法，我們透過 target 往上找最近的視窗，再找裡面的輸入框
+    const wrapper = target.closest(".ycio-floating-chat-window") || document;
+    const textarea = wrapper.querySelector("#chat-message-input");
+    
+    if (!textarea) return;
+
+    // 2. 取得當前游標位置與選取範圍
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+
+    // 3. 進行字串切割與重組
+    const selectedText = text.substring(start, end);
+    const beforeText = text.substring(0, start);
+    const afterText = text.substring(end);
+
+    // 組合新字串
+    const newText = beforeText + startTag + selectedText + endTag + afterText;
+    
+    // 4. 更新輸入框內容
+    textarea.value = newText;
+
+    // 5. 處理游標位置
+    textarea.focus();
+    
+    if (start === end) {
+      // 狀況 A: 沒有選取文字 -> 游標停在標籤中間 (方便直接打字)
+      // 位置 = 前段文字長度 + 開始標籤長度
+      textarea.setSelectionRange(start + startTag.length, start + startTag.length);
+    } else {
+      // 狀況 B: 有選取文字 -> 保持選取狀態 (包住原本的文字)
+      // 起點 = 前段 + tag，終點 = 前段 + tag + 原文長度
+      textarea.setSelectionRange(start + startTag.length, end + startTag.length);
+    }
+  }
+
+  // --- 各個按鈕的具體實作 ---
+
+  static onFormatBold(event, target) {
+    FloatingChat._insertFormat(target, "<b>", "</b>");
+  }
+
+  static onFormatItalic(event, target) {
+    FloatingChat._insertFormat(target, "<i>", "</i>");
+  }
+
+  static onFormatStrikethrough(event, target) {
+    FloatingChat._insertFormat(target, "<s>", "</s>");
+  }
+
+  // 預留給表符按鈕，目前先插入空括號
+  static onFormatInlineAvatar(event, target) {
+    FloatingChat._insertFormat(target, "[[", "]]");
+  }
+
+  /* ========================================================= */
+  /* 7. 打字狀態同步 (Typing Status - Flags)                  */
   /* ========================================================= */
 
   /**
@@ -794,7 +879,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /* ========================================================= */
-  /* 7. 右鍵選單 (Context Menu)                               */
+  /* 8. 右鍵選單 (Context Menu)                               */
   /* ========================================================= */
 
   /**
@@ -861,7 +946,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /* ========================================================= */
-  /* 8.更新頭像按鈕的 Tooltip (顯示當前圖片預覽) */
+  /* 9.更新頭像按鈕的 Tooltip (顯示當前圖片預覽) */
   /* ========================================================= */
   _updateAvatarBtnTooltip() {
       const btn = this.element.querySelector("#chat-avatar-btn");
@@ -911,6 +996,6 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       }
 
       btn.dataset.tooltip = tooltipContent;
-      btn.dataset.tooltipClass = "ycio-avatar-tooltip";
+      btn.dataset.tooltipClass = "YCIO-avatar-tooltip";
   }
 }

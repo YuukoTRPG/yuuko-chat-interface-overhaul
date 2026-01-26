@@ -10,7 +10,12 @@
       "Placeholder": "輸入訊息...",
       "Send": "發送訊息",
       "TypingNone": "沒人在打字",
-      "Typing": " 正在輸入..."
+      "Typing": " 正在輸入...",
+      "AvatarSetting":"選擇頭像",
+      "Bold": "粗體",
+      "Italic": "斜體",
+      "Strikethrough": "刪除線",
+      "TextColor": "文字顏色"
     },
     "Speaker": {
       "OOC": "場外"

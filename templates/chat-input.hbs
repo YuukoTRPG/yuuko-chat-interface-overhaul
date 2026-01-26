@@ -12,9 +12,18 @@
         </div>
         
         {{! 頭像設定按鈕 }}
-        <button id="chat-avatar-btn" type="button" aria-label="設定頭像">
+        <button id="chat-avatar-btn" type="button" aria-label=={{localize 'YCIO.Input.AvatarSetting'}}>
             <i class="fas fa-user-circle"></i>
         </button>
+
+        {{! 文字格式按鈕 }}
+        <div class="chat-toolbar">
+            <button type="button" data-action="formatBold" title={{localize 'YCIO.Input.Bold'}}><i class="fas fa-bold"></i></button>
+            <button type="button" data-action="formatItalic" title={{localize 'YCIO.Input.Italic'}}><i class="fas fa-italic"></i></button>
+            <button type="button" data-action="formatStrikethrough" title={{localize 'YCIO.Input.Strikethrough'}}><i class="fas fa-strikethrough"></i></button>
+            <input type="color" id="chat-text-color-picker" title={{localize 'YCIO.Input.TextColor'}}>
+            <button type="button" data-action="formatInlineAvatar" title={{localize 'YCIO.Input.InlineAvatar'}}><i class="far fa-smile"></i></button>
+        </div>
     </div>
 
     <div class="input-wrapper">
