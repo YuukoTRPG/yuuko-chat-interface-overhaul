@@ -8,7 +8,7 @@ export const FLAG_KEY = "isTyping";
  */
 export function registerSettings() {
 
-    // --- 隱藏設定：記憶視窗位置 ---
+    // --- 隱藏設定 ---
     // 1. 主聊天視窗位置
     game.settings.register(MODULE_ID, "floatingChatPosition", {
         scope: "client",
@@ -23,6 +23,14 @@ export function registerSettings() {
         config: false,
         type: Object,
         default: {}
+    });
+
+    // 3.文字顏色選擇器最後選的顏色
+    game.settings.register(MODULE_ID, "lastUsedTextColor", {
+        scope: "client",      // 存在玩家端
+        config: false,        // 不顯示在設定選單
+        type: String,
+        default: "#000000"    // 預設黑色
     });
     
 

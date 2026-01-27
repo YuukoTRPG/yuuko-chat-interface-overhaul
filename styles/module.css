@@ -285,9 +285,11 @@
     transition-delay: 0s !important;   /* 移除顯示延遲，雖然好像沒卵用 */
 }
 
-/* 聊天輸入框文字格式按鈕 */
+/* 文字格式按鈕 */
 .YCIO-floating-chat-window .chat-input-area .chat-toolbar {
     display: flex;
+    position: absolute;
+    right: 0;
     align-items: center;
     gap: 5px;
     padding: 2px 5px;
@@ -310,21 +312,32 @@
     text-shadow: 0 0 5px var(--color-shadow-primary);
 }
 
-.YCIO-floating-chat-window .chat-input-area .chat-toolbar #chat-text-color-picker {
+.YCIO-floating-chat-window .chat-input-area .chat-toolbar .color-control-group {
+    display: flex;
+    align-items: center;
+    border: 1px solid #474747;
+    border-radius: 2px;
+    padding-top: 1px;
+    padding-bottom: 1px;
+    padding-left: 2px;
+    padding-right: 2px;
+}
+
+.YCIO-floating-chat-window .chat-input-area .chat-toolbar .color-control-group #chat-text-color-picker {
     background: none;
     color: var(--color-text-light-highlight);
     cursor: pointer;
-    padding: 0px 0px;
+    padding: 4px 0px;
     height: 24px;
-    width: 24px;
+    width: 30px;
     line-height: 24px;
 }
 
-.YCIO-floating-chat-window .chat-input-area .chat-toolbar #chat-text-color-picker::-webkit-color-swatch-wrapper {
+.YCIO-floating-chat-window .chat-input-area .chat-toolbar .color-control-group #chat-text-color-picker::-webkit-color-swatch-wrapper {
     padding: 0;
 }
 
-.YCIO-floating-chat-window .chat-input-area .chat-toolbar #chat-text-color-picker::-webkit-color-swatch {
+.YCIO-floating-chat-window .chat-input-area .chat-toolbar .color-control-group #chat-text-color-picker::-webkit-color-swatch {
     border: none;
 }
 

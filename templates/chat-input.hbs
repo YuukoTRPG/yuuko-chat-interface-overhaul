@@ -21,7 +21,14 @@
             <button type="button" data-action="formatBold" title={{localize 'YCIO.Input.Bold'}}><i class="fas fa-bold"></i></button>
             <button type="button" data-action="formatItalic" title={{localize 'YCIO.Input.Italic'}}><i class="fas fa-italic"></i></button>
             <button type="button" data-action="formatStrikethrough" title={{localize 'YCIO.Input.Strikethrough'}}><i class="fas fa-strikethrough"></i></button>
-            <input type="color" id="chat-text-color-picker" title={{localize 'YCIO.Input.TextColor'}}>
+            <div class="color-control-group" style="display: inline-flex; align-items: center; gap: 2px;">
+                {{!-- 應用顏色按鈕 (圖示會變色) --}}
+                <button type="button" id="chat-text-color-btn" data-action="applyTextColor" title={{localize 'YCIO.Input.TextColor'}}>
+                    <i class="fas fa-font"></i>
+                </button>
+                {{!-- 色盤只作為選擇器 --}}
+                <input type="color" value="#444444" id="chat-text-color-picker" title={{localize 'YCIO.Input.SelectColor'}}>
+            </div>
             <button type="button" data-action="formatInlineAvatar" title={{localize 'YCIO.Input.InlineAvatar'}}><i class="far fa-smile"></i></button>
         </div>
     </div>

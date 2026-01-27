@@ -85,6 +85,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       formatBold: FloatingChat.onFormatBold,
       formatItalic: FloatingChat.onFormatItalic,
       formatStrikethrough: FloatingChat.onFormatStrikethrough,
+      applyTextColor: FloatingChat.onApplyTextColor,
       formatInlineAvatar: FloatingChat.onFormatInlineAvatar
     }
   };
@@ -295,15 +296,18 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         this._hooks.push({ hook: hookName, id });
     }
 
-    // --- 綁定文字顏色選擇器 ---
+    // --- 文字顏色選擇器的顏色記憶 ---
     const colorPicker = this.element.querySelector("#chat-text-color-picker");
     if (colorPicker) {
-        // 為了避免每次選顏色都預設黑色，我們可以設一個預設值或不處理
-        // 這裡監聽 'change' 事件 (當使用者確定選擇顏色後觸發)
-        colorPicker.addEventListener("change", (ev) => {
+        // 1. [讀取] 從設定中取得最後一次的顏色，並套用
+        const savedColor = game.settings.get(MODULE_ID, "lastUsedTextColor");
+        colorPicker.value = savedColor;
+        
+        // 2. [監聽] 當顏色改變時
+        colorPicker.addEventListener("change", async (ev) => {
             const color = ev.target.value;
-            // 呼叫我們的靜態助手，傳入生成的 style 標籤
-            FloatingChat._insertFormat(ev.target, `<span style="color:${color}">`, `</span>`);
+            // [儲存] 將新顏色寫入設定 (以便下次重整或切換分頁時讀取)
+            await game.settings.set(MODULE_ID, "lastUsedTextColor", color);
         });
     }
 
@@ -788,6 +792,18 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static onFormatStrikethrough(event, target) {
     FloatingChat._insertFormat(target, "<s>", "</s>");
+  }
+
+  static onApplyTextColor(event, target) {
+      // 1. 找到同一視窗內的色盤 Input
+      const wrapper = target.closest(".YCIO-floating-chat-window");
+      const picker = wrapper.querySelector("#chat-text-color-picker");
+      
+      if (picker) {
+          const color = picker.value;
+          // 2. 插入標籤
+          FloatingChat._insertFormat(target, `<span style="color:${color}">`, `</span>`);
+      }
   }
 
   // 預留給表符按鈕，目前先插入空括號
