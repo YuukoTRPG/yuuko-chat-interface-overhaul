@@ -179,7 +179,7 @@
 /* 訊息內容，主要寫用來插入圖片表符等 */
 .YCIO-floating-chat-window .chat-message .message-content {
     display: flex;
-    align-items: bottom;
+    align-items: baseline;
 }
 
 /* --- 特殊訊息類型 (配色區) --- */
