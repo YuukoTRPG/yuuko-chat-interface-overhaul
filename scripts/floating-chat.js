@@ -209,6 +209,19 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     const log = this.element.querySelector("#custom-chat-log");
     if (log) {
         log.addEventListener("scroll", this._onChatScroll.bind(this));
+        
+        // 為了目前的向下相容，需要將這個容器視為一個 "ChatLog"，未來可能需要維護
+        // 1. 轉換為 jQuery 物件 (因為大多數系統如 CoC7e 仍依賴 jQuery 方法如 .find(), .on())
+        const $log = $(log);
+
+        // 2. 手動觸發 'renderChatLog' Hook
+        // 這會告訴系統 (CoC7e, D&D5e 等) 和其他模組 (Dice So Nice 等)訊息渲染完成
+        // 注意：傳入 'this' 作為 Application 實例，傳入 '$log' 作為 HTML
+        Hooks.call("renderChatLog", this, $log);
+
+        // 有些系統可能會監聽 renderChatPopout，視情況也可以觸發，這邊先註解掉，但 renderChatLog 通常是通用的
+        // Hooks.call("renderChatPopout", this, $log);
+
         requestAnimationFrame(() => {
             log.scrollTop = log.scrollHeight;
             this._initializeContextMenu(log);
