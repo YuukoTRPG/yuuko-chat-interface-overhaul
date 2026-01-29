@@ -704,13 +704,73 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
    * 呼叫 FVTT 核心處理訊息 (支援 /r, /w 等指令)
    */
   async _processMessage(content) {
+    // 先進行行內頭像替換 (Pre-processing)
+    content = this._parseInlineAvatars(content);
+
     try {
+        // 將處理過(可能包含 img 標籤)的內容送給核心
         await ui.chat.processMessage(content);
-        console.log("YCIO | 原始發送訊息：" + content);
+        // console.log("YCIO | 原始發送訊息：" + content); // Debug 用
     } catch (err) {
         console.error("YCIO | 訊息處理錯誤:", err);
         ui.notifications.error("訊息發送失敗");
     }
+  }
+
+  /**
+   * 解析並替換行內頭像標籤 ([[Tag]])
+   * 邏輯：檢查 Actor/User 的 avatarList，若有對應標籤則替換為 img，否則保留原文。
+   */
+  _parseInlineAvatars(content) {
+      // 1. 取得當前發話身份
+      const speakerSelect = this.element.querySelector("#chat-speaker-select");
+      const value = speakerSelect ? speakerSelect.value : "ooc";
+      // 使用既有的 helper 取得身份資訊
+      const speakerInfo = getSpeakerFromSelection(value); 
+
+      let targetDoc = null;
+
+      // 2. 解析出真正的 Document 物件 (Actor 或 User) 以便讀取 Flag
+      if (speakerInfo.speaker.token) {
+          // A. Token 身份：嘗試從 Canvas 或 Scene 取得 Actor
+          const token = canvas.tokens.get(speakerInfo.speaker.token);
+          if (token) {
+              targetDoc = token.actor;
+          } else if (speakerInfo.speaker.scene) {
+              // 處理跨場景的情況
+              const scene = game.scenes.get(speakerInfo.speaker.scene);
+              const t = scene?.tokens.get(speakerInfo.speaker.token);
+              if (t) targetDoc = t.actor;
+          }
+      } else if (speakerInfo.speaker.actor) {
+          // B. 純 Actor 身份
+          targetDoc = game.actors.get(speakerInfo.speaker.actor);
+      } else if (speakerInfo.user) {
+          // C. User (OOC) 身份
+          targetDoc = speakerInfo.user;
+      }
+
+      // 3. 若找不到文件或該文件沒有設定頭像列表，直接回傳
+      if (!targetDoc) return content;
+      
+      const avatarList = targetDoc.getFlag(MODULE_ID, "avatarList") || [];
+      if (avatarList.length === 0) return content;
+
+      // 4. 正則替換核心
+      // 搜尋所有 [[內容]]
+      return content.replace(/\[\[(.*?)\]\]/g, (match, tagLabel) => {
+          // 在列表中尋找 label 相符的頭像
+          const found = avatarList.find(a => a.label === tagLabel);
+          
+          if (found) {
+              // [命中] 替換成圖片 HTML
+              // style 設定確保圖片在文字行內垂直置中，高度設為 1.5 倍文字大小
+              return `<img src="${found.src}" class="ycio-inline-emote" alt="${tagLabel}">`;
+          }
+          
+          // [未命中] 回傳原始字串 (保留給 FVTT 原生處理，如 [[/r 1d6]])
+          return match;
+      });
   }
 
   /**
