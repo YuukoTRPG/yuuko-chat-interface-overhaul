@@ -331,3 +331,75 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
         this.close();
     }
 }
+
+
+/* ============================================= */
+/* 行內頭像插入器 (Inline Picker)          */
+/* ============================================= */
+export class InlineAvatarPicker extends HandlebarsApplicationMixin(ApplicationV2) {
+    
+    constructor(avatars, callback, options={}) {
+        super(options);
+        this.avatars = avatars; // 過濾好的頭像列表
+        this.callback = callback; // 點擊後的回呼函式
+
+        // 讀取並還原視窗位置
+        const savedPos = game.settings.get(MODULE_ID, "inlinePickerPosition");
+        if (savedPos && !foundry.utils.isEmpty(savedPos)) {
+            if (Number.isFinite(savedPos.left)) this.position.left = Math.max(1, savedPos.left);
+            if (Number.isFinite(savedPos.top)) this.position.top = Math.max(1, savedPos.top);
+            if (Number.isFinite(savedPos.width)) this.position.width = savedPos.width;
+            if (Number.isFinite(savedPos.height)) this.position.height = savedPos.height;
+        }
+
+        // 防抖動儲存視窗位置 (500ms)
+        this._savePositionDebounced = foundry.utils.debounce((pos) => {
+            game.settings.set(MODULE_ID, "inlinePickerPosition", pos);
+        }, 500);
+    }
+
+    static DEFAULT_OPTIONS = {
+        id: "YCIO-inline-picker",
+        tag: "div",
+        window: {
+            title: "YCIO.Picker.Title", // 記得在語言檔加入這個 key，或暫時顯示 "選擇表符"
+            resizable: true,
+            width: 340,
+            height: "auto",
+            icon: "far fa-smile"
+        },
+        position: { width: 340, height: "auto" }
+    };
+
+    static PARTS = {
+        form: { template: "modules/yuuko-chat-interface-overhaul/templates/inline-avatar-picker.hbs" }
+    };
+    
+    // 覆寫 setPosition 以便在移動/縮放時自動存檔
+    setPosition(position={}) {
+        const newPosition = super.setPosition(position);
+        this._savePositionDebounced(newPosition);
+        return newPosition;
+    }
+
+    async _prepareContext(_options) {
+        return { avatars: this.avatars };
+    }
+
+    _onRender(context, options) {
+        super._onRender(context, options);
+
+        // 綁定點擊事件
+        this.element.querySelectorAll(".picker-item").forEach(btn => {
+            btn.addEventListener("click", (ev) => {
+                const label = btn.dataset.label;
+                
+                // 執行回呼 (插入文字)
+                if (this.callback) this.callback(label);
+                
+                // 關閉視窗
+                this.close();
+            });
+        });
+    }
+}

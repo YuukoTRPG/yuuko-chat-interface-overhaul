@@ -2,6 +2,11 @@
   "YCIO": {
     "WindowTitle": "悠子的文字聊天大修模組（GM可在設定更改這段標題）",
     "MinimizeIcon": "最小化",
+    "Warning": {
+      "NoLabeledAvatars": "目前的發言身分沒有設定任何帶註解的頭像",
+      "FailedMsg": "訊息發送失敗"
+    },
+
     "Tabs": {
       "Public": "公開訊息",
       "OOC": "場外"
@@ -51,6 +56,11 @@
         "Confirm": "確認",
         "Current": "當前頭像：",
         "UnlinkedWarning": "所選Token未連結角色資料<br>因此固定為Token圖片："
+    },
+    "Picker": {
+      "Title": "選擇插入表符",
+      "NoAvatars": "無可用表符（請在頭像選擇器中為想做為表符的頭像設定註解）"
     }
+
   }
 }

@@ -1,0 +1,18 @@
+<div class="inline-avatar-picker-container">
+    {{#if avatars.length}}
+    <div class="picker-grid">
+        {{#each avatars}}
+        <button type="button" class="picker-item" data-action="pick" data-label="{{this.label}}" title="{{this.label}}">
+            <div class="img-wrapper">
+                <img src="{{this.src}}" alt="{{this.label}}">
+            </div>
+            <span class="label">{{this.label}}</span>
+        </button>
+        {{/each}}
+    </div>
+    {{else}}
+    <p class="no-avatars" style="text-align:center; padding: 20px;">
+        {{localize "YCIO.Picker.NoAvatars"}}
+    </p>
+    {{/if}}
+</div>

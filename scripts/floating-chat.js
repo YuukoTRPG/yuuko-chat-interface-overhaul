@@ -10,7 +10,7 @@ import {prepareSpeakerList,
         getSpeakerFromSelection,
         hexToRgba} from "./chat-helpers.js"; //某些函式
 import { FLAG_SCOPE, FLAG_KEY, MODULE_ID } from "./config.js"; //某些常數，定義 Flag 作用域和 Key (用於打字狀態同步)
-import { AvatarSelector } from "./avatar-selector.js"; //頭像選擇器
+import { AvatarSelector, InlineAvatarPicker } from "./avatar-selector.js"; //頭像選擇器
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -713,7 +713,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // console.log("YCIO | 原始發送訊息：" + content); // Debug 用
     } catch (err) {
         console.error("YCIO | 訊息處理錯誤:", err);
-        ui.notifications.error("訊息發送失敗");
+        ui.notifications.error(game.i18n.localize("YCIO.Warning.FailedMsg")+"（"+err+"）");
     }
   }
 
@@ -765,7 +765,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
           if (found) {
               // [命中] 替換成圖片 HTML
               // style 設定確保圖片在文字行內垂直置中，高度設為 1.5 倍文字大小
-              return `<img src="${found.src}" class="ycio-inline-emote" alt="${tagLabel}">`;
+              return `<img src="${found.src}" class="YCIO-inline-emote" alt="${tagLabel}">`;
           }
           
           // [未命中] 回傳原始字串 (保留給 FVTT 原生處理，如 [[/r 1d6]])
@@ -866,9 +866,52 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       }
   }
 
-  // 預留給表符按鈕，目前先插入空括號
+  // 表符按鈕
   static onFormatInlineAvatar(event, target) {
-    FloatingChat._insertFormat(target, "[[", "]]");
+    // 1. 取得當前發話身份 (複製並簡化自 getSpeakerFromSelection 邏輯)
+    // 由於這是 static 方法，我們重新抓取一次 DOM 狀態
+    const wrapper = target.closest(".YCIO-floating-chat-window");
+    const speakerSelect = wrapper.querySelector("#chat-speaker-select");
+    const value = speakerSelect ? speakerSelect.value : "ooc";
+    const speakerInfo = getSpeakerFromSelection(value);
+
+    // 2. 解析 Actor/User 文件
+    let targetDoc = null;
+    if (speakerInfo.speaker.token) {
+        const token = canvas.tokens.get(speakerInfo.speaker.token);
+        if (token) targetDoc = token.actor;
+        else if (speakerInfo.speaker.scene) {
+             const scene = game.scenes.get(speakerInfo.speaker.scene);
+             const t = scene?.tokens.get(speakerInfo.speaker.token);
+             if (t) targetDoc = t.actor;
+        }
+    } else if (speakerInfo.speaker.actor) {
+        targetDoc = game.actors.get(speakerInfo.speaker.actor);
+    } else if (speakerInfo.user) {
+        targetDoc = speakerInfo.user;
+    }
+
+    if (!targetDoc) return;
+
+    // 3. 讀取並過濾列表 (只顯示有註解的)
+    const rawList = targetDoc.getFlag(MODULE_ID, "avatarList") || [];
+    const validList = rawList.filter(a => a.label && a.label.trim() !== "");
+
+    // 4. 防呆：如果沒有可用的表情
+    if (validList.length === 0) {
+        ui.notifications.warn("YCIO.Warning.NoLabeledAvatars", {localize: true});
+        // 如果還沒設定語言檔，暫時用 ui.notifications.warn("沒有設定註解的頭像可供使用");
+        return;
+    }
+
+    // 5. 定義回呼函式：當玩家選了圖片後要做什麼
+    const onPick = (label) => {
+        // 呼叫我們之前寫好的插入助手，插入 [[標籤]]
+        FloatingChat._insertFormat(target, `[[${label}]]`, "");
+    };
+
+    // 6. 開啟視窗
+    new InlineAvatarPicker(validList, onPick).render(true);
   }
 
   /* ========================================================= */
