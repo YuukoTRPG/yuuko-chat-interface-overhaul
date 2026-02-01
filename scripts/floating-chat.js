@@ -219,13 +219,21 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // 注意：傳入 'this' 作為 Application 實例，傳入 '$log' 作為 HTML
         Hooks.call("renderChatLog", this, $log);
 
-        // 有些系統可能會監聽 renderChatPopout，視情況也可以觸發，這邊先註解掉，但 renderChatLog 通常是通用的
-        // Hooks.call("renderChatPopout", this, $log);
+        // 開啟「程式捲動」鎖定，告訴系統現在是我們在控制，不是使用者在滑
+        this._programmaticScroll = true;
 
-        requestAnimationFrame(() => {
+        // 使用 setTimeout(0) 將執行序推遲到 Call Stack 清空後 (比 requestAnimationFrame 更晚一點)
+        // 確保 DOM 已經完全 Reflow 並且高度計算完畢
+        setTimeout(() => {
             log.scrollTop = log.scrollHeight;
             this._initializeContextMenu(log);
-        });
+
+            // 給予瀏覽器一點緩衝時間處理捲動，然後再解鎖
+            // 這可以防止「切換分頁瞬間」觸發 scroll 事件導致的邏輯誤判
+            setTimeout(() => {
+                this._programmaticScroll = false;
+            }, 50); 
+        }, 0);
     }
 
     // --- 選單元素，下拉選單選擇發言Token與監聽邏輯 ---
@@ -577,6 +585,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
    * 2. 觸發「載入舊訊息」
    */
   async _onChatScroll(event) {
+    if (this._programmaticScroll) return;
     const log = event.target;
     const jumpBtn = this.element.querySelector(".jump-to-bottom");
 

@@ -94,6 +94,7 @@
     list-style: none;   /* 移除列表的點點 */
     padding: 0px;
     margin: 0;
+    overflow-anchor: auto;
 }
 
 /* 載入中的讀取條 (撈取舊訊息時顯示) */
