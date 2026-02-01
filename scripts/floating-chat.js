@@ -238,6 +238,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             // 情況 1: 選擇 OOC
             if (value === "ooc") {
                 if (canvas.tokens) canvas.tokens.releaseAll();
+                this.changeTab("ooc", false);
                 return;
             }
 
@@ -380,19 +381,55 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // 3. 場景切換監聽 (自動切換分頁)
         register("canvasDraw", (canvas) => {
             const newSceneId = canvas.scene?.id;
-            if (this.activeTab !== "ooc" && newSceneId && this.activeTab !== newSceneId) {
+            // 如果新場景存在，且當前分頁不是該場景 -> 切換
+            // 這會讓分頁始終跟隨 GM 或玩家切換的場景
+            if (newSceneId && this.activeTab !== newSceneId) {
                 this.changeTab(newSceneId, false);
             }
         });
 
-        // 4. 訊息建立前攔截監聽 (Snapshot Avatar)
-        // 在訊息寫入資料庫前，將當前的頭像設定「烙印」到訊息的 flags 裡
+        // 4. 訊息建立前攔截監聽 (Snapshot Avatar & Force Speaker Identity)
         register("preCreateChatMessage", (messageDoc, initialData, context, userId) => {
-            // 呼叫 helper 計算當下應該是用哪張圖
-            // messageDoc 此時雖然還沒存檔，但已經具備 user, speaker 等屬性，足夠用來判斷
-            const finalAvatarUrl = resolveCurrentAvatar(messageDoc);
+            
+            const speakerSelect = this.element.querySelector("#chat-speaker-select");
+            const selection = speakerSelect ? speakerSelect.value : "ooc";
 
-            // 只要算得出來，就寫入 flags
+            // 判斷使用者是否使用了 /ooc 指令
+            // CONST.CHAT_MESSAGE_STYLES.OOC 的值為 1
+            const isOOCCommand = messageDoc.style === 1;
+
+            // 如果選單選的是 OOC，或者使用者手動打了 /ooc 指令
+            if (selection === "ooc" || isOOCCommand) {
+                // 強制清洗為 OOC 身分
+                messageDoc.updateSource({
+                    speaker: {
+                        actor: null,
+                        token: null,
+                        scene: null, // 確保徹底脫離場景
+                        alias: game.user.name 
+                    }
+                });
+            } 
+            else {
+                // 選單選的是 Token，且使用者沒打 /ooc -> 強制鎖定為該 Token
+                const [sceneId, tokenId] = selection.split(".");
+                
+                const scene = game.scenes.get(sceneId);
+                const token = scene?.tokens.get(tokenId);
+                const actorId = token?.actor?.id || null;
+
+                messageDoc.updateSource({
+                    speaker: {
+                        scene: sceneId,
+                        token: tokenId,
+                        actor: actorId,
+                        alias: token?.name || messageDoc.speaker.alias
+                    }
+                });
+            }
+
+            // [原有邏輯] 計算並寫入頭像快照
+            const finalAvatarUrl = resolveCurrentAvatar(messageDoc);
             if (finalAvatarUrl) {
                 messageDoc.updateSource({
                     [`flags.${MODULE_ID}.avatarUrl`]: finalAvatarUrl
@@ -492,14 +529,24 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
     this.activeTab = tabId;
 
-    // 1. 如果是場景 ID 且不是 ooc，連動切換 FVTT 場景
+    // 1. 連動切換 FVTT 場景 (僅當目標不是 ooc 時)
     if (triggerSceneView && tabId !== "ooc") {
         const scene = game.scenes.get(tabId);
         if (scene) await scene.view();
     }
 
-    // 2. 重新渲染視窗 (刷新 Tabs 樣式與訊息內容)
-    this.render();
+    // 2. 重新渲染並「等待」渲染完成 (解決 Race Condition 的關鍵)
+    await this.render();
+  }
+
+  /* --- 判斷訊息該去哪個分頁 --- */
+  _getMessageRoute(message) {
+      // 嚴格邏輯：只有帶有 Token ID 的訊息才屬於場景
+      // 如果沒有 Token (即使有 Scene ID，例如用 OOC 身分在場景發話)，一律歸類為 OOC
+      if (!message.speaker.token) return "ooc";
+      
+      // 有 Token 則回傳該 Token 所在的 Scene ID
+      return message.speaker.scene || "ooc";
   }
 
   /* --- 判斷訊息是否屬於當前分頁 (過濾器) --- */
@@ -603,24 +650,24 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
    * 插入新訊息 (由 main.js 的 createChatMessage Hook 呼叫)
    */
   async appendMessage(message) {
-    // 當訊息是自己發的，強制檢查並切換到對應分頁
-    if (message.isAuthor) {
-        const msgSceneId = message.speaker.scene;
-        const targetTab = msgSceneId || "ooc";
-        
-        if (this.activeTab !== targetTab) {
-            // 切換分頁 (不強制 view scene，因為如果是 Token 發話，上面的下拉選單已經處理過了)
-            this.changeTab(targetTab, false); 
-        }
+    // 1. 取得這則訊息該去哪 (使用核心路由)
+    const targetTab = this._getMessageRoute(message);
+
+    // 2. 判定是否需要自動跳轉
+    // 條件：是我發的 (isAuthor) 且 當前不在目標分頁
+    if (message.isAuthor && this.activeTab !== targetTab) {
+        // 等待切換完成 (包含 Render)
+        await this.changeTab(targetTab, false);
     }
 
-    // 如果訊息不屬於當前分頁，直接忽略，不插入 DOM
+    // 3. 如果訊息不屬於當前分頁 (且剛剛沒跳轉)，則忽略
     if (!this._isMessageVisibleInTab(message)) return;
  
+    // 4. 重新抓取 Log DOM (確保是切換後的新 DOM)
     const log = this.element.querySelector("#custom-chat-log");
     if (!log) return;
 
-    // 判斷使用者是否正在瀏覽舊訊息
+    // 判斷使用者是否正在瀏覽舊訊息 (在插入前判斷)
     const distanceToBottom = log.scrollHeight - log.scrollTop - log.clientHeight;
     const isAtBottom = distanceToBottom < 50;
 
@@ -630,13 +677,17 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
     const jumpBtn = this.element.querySelector(".jump-to-bottom");
 
-    // 自動捲動邏輯：
-    // 如果原本就在底部，或是自己發的訊息 -> 強制捲動到底部
-    if (isAtBottom || message.isAuthor) {
-        log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
+    // 5. 自動捲動邏輯
+    // 如果是我發的 -> 強制置底 (User Experience 核心)
+    // 或者原本就在底部 -> 保持置底
+    if (message.isAuthor || isAtBottom) {
+        // 使用 setTimeout 確保 DOM 佈局計算完成後再捲動 (雙重保險)
+        setTimeout(() => {
+            log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
+        }, 0);
         jumpBtn?.classList.remove("visible", "unread");
     } else {
-        // 否則 -> 顯示未讀提示
+        // 否則顯示未讀提示
         jumpBtn?.classList.add("visible");
         if (!message.isAuthor) {
             jumpBtn?.classList.add("unread");
