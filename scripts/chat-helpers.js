@@ -259,30 +259,49 @@ export function enrichMessageHTML(message, htmlElement) {
 }
 
 /**
- * 根據下拉選單的值，轉換為 Speaker 物件結構
+ * 根據下拉選單的值，解析出完整的身分資訊
  * @param {String} value - 下拉選單的值 (例如 "ooc" 或 "SceneID.TokenID")
- * @returns {Object} 包含 speaker 和 user 的物件，可供 resolveCurrentAvatar 使用
+ * @returns {Object} 包含 speaker, user, actorDoc, tokenDoc, isToken, isLinked
  */
 export function getSpeakerFromSelection(value) {
-    // 建構一個假 Message 物件，傳給 resolveCurrentAvatar 用
-    // 這是為了複用 resolveCurrentAvatar 的邏輯
-    let dummyMessage = { speaker: {}, user: null };
+    // 預設回傳結構 (OOC / User)
+    const result = {
+        speaker: { scene: null, token: null, actor: null, alias: game.user.name }, // 保持 FVTT speaker 結構
+        user: game.user,       // User Document
+        actorDoc: null,        // Actor Document
+        tokenDoc: null,        // Token Document
+        isToken: false,        // 是否為 Token
+        isLinked: false        // 是否為連結 (Linked) 角色
+    };
 
+    // 情況 1: OOC 或無值
     if (!value || value === "ooc") {
-        dummyMessage.user = game.user;
-    } else {
-        // value 格式是 "SceneID.TokenID"
-        const [sceneId, tokenId] = value.split(".");
-        dummyMessage.speaker = { scene: sceneId, token: tokenId, actor: null };
-        
-        // 嘗試找出 Actor ID
-        const scene = game.scenes.get(sceneId);
-        const token = scene?.tokens.get(tokenId);
-        if (token && token.actor) {
-            dummyMessage.speaker.actor = token.actor.id;
+        return result;
+    }
+
+    // 情況 2: 選擇了 Token (格式 "SceneID.TokenID")
+    const [sceneId, tokenId] = value.split(".");
+    
+    result.isToken = true;
+    result.speaker.scene = sceneId;
+    result.speaker.token = tokenId;
+
+    // 嘗試查找實體 (支援跨場景查找)
+    const scene = game.scenes.get(sceneId);
+    const tokenDoc = scene?.tokens.get(tokenId);
+
+    if (tokenDoc) {
+        result.tokenDoc = tokenDoc;
+        result.speaker.alias = tokenDoc.name;
+        result.isLinked = tokenDoc.actorLink; // 直接讀取屬性
+
+        if (tokenDoc.actor) {
+            result.actorDoc = tokenDoc.actor;
+            result.speaker.actor = tokenDoc.actor.id;
         }
     }
-    return dummyMessage;
+
+    return result;
 }
 
 /**

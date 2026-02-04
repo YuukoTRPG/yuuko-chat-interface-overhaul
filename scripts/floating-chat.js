@@ -792,56 +792,30 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /**
    * 解析並替換行內頭像標籤 ([[Tag]])
-   * 邏輯：檢查 Actor/User 的 avatarList，若有對應標籤則替換為 img，否則保留原文。
    */
   _parseInlineAvatars(content) {
       // 1. 取得當前發話身份
       const speakerSelect = this.element.querySelector("#chat-speaker-select");
       const value = speakerSelect ? speakerSelect.value : "ooc";
-      // 使用既有的 helper 取得身份資訊
-      const speakerInfo = getSpeakerFromSelection(value); 
+      
+      // 使用 helper 直接取得 Document
+      const { actorDoc, user } = getSpeakerFromSelection(value);
+      
+      // 優先使用 Actor，若無則使用 User (OOC)
+      const targetDoc = actorDoc || user;
 
-      let targetDoc = null;
-
-      // 2. 解析出真正的 Document 物件 (Actor 或 User) 以便讀取 Flag
-      if (speakerInfo.speaker.token) {
-          // A. Token 身份：嘗試從 Canvas 或 Scene 取得 Actor
-          const token = canvas.tokens.get(speakerInfo.speaker.token);
-          if (token) {
-              targetDoc = token.actor;
-          } else if (speakerInfo.speaker.scene) {
-              // 處理跨場景的情況
-              const scene = game.scenes.get(speakerInfo.speaker.scene);
-              const t = scene?.tokens.get(speakerInfo.speaker.token);
-              if (t) targetDoc = t.actor;
-          }
-      } else if (speakerInfo.speaker.actor) {
-          // B. 純 Actor 身份
-          targetDoc = game.actors.get(speakerInfo.speaker.actor);
-      } else if (speakerInfo.user) {
-          // C. User (OOC) 身份
-          targetDoc = speakerInfo.user;
-      }
-
-      // 3. 若找不到文件或該文件沒有設定頭像列表，直接回傳
+      // 若找不到文件 (罕見情況) 或該文件沒有設定頭像列表，直接回傳
       if (!targetDoc) return content;
       
       const avatarList = targetDoc.getFlag(MODULE_ID, "avatarList") || [];
       if (avatarList.length === 0) return content;
 
-      // 4. 正則替換核心
-      // 搜尋所有 [[內容]]
+      // 2. 正則替換核心 
       return content.replace(/\[\[(.*?)\]\]/g, (match, tagLabel) => {
-          // 在列表中尋找 label 相符的頭像
           const found = avatarList.find(a => a.label === tagLabel);
-          
           if (found) {
-              // [命中] 替換成圖片 HTML
-              // style 設定確保圖片在文字行內垂直置中，高度設為 1.5 倍文字大小
               return `<img src="${found.src}" class="YCIO-inline-emote" alt="${tagLabel}">`;
           }
-          
-          // [未命中] 回傳原始字串 (保留給 FVTT 原生處理，如 [[/r 1d6]])
           return match;
       });
   }
@@ -941,49 +915,35 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
   // 表符按鈕
   static onFormatInlineAvatar(event, target) {
-    // 1. 取得當前發話身份 (複製並簡化自 getSpeakerFromSelection 邏輯)
-    // 由於這是 static 方法，我們重新抓取一次 DOM 狀態
+    // 1. 取得 DOM 與發話身份
     const wrapper = target.closest(".YCIO-floating-chat-window");
     const speakerSelect = wrapper.querySelector("#chat-speaker-select");
     const value = speakerSelect ? speakerSelect.value : "ooc";
-    const speakerInfo = getSpeakerFromSelection(value);
-
-    // 2. 解析 Actor/User 文件
-    let targetDoc = null;
-    if (speakerInfo.speaker.token) {
-        const token = canvas.tokens.get(speakerInfo.speaker.token);
-        if (token) targetDoc = token.actor;
-        else if (speakerInfo.speaker.scene) {
-             const scene = game.scenes.get(speakerInfo.speaker.scene);
-             const t = scene?.tokens.get(speakerInfo.speaker.token);
-             if (t) targetDoc = t.actor;
-        }
-    } else if (speakerInfo.speaker.actor) {
-        targetDoc = game.actors.get(speakerInfo.speaker.actor);
-    } else if (speakerInfo.user) {
-        targetDoc = speakerInfo.user;
-    }
+    
+    // [修改] 使用新版 helper
+    const { actorDoc, user } = getSpeakerFromSelection(value);
+    const targetDoc = actorDoc || user;
 
     if (!targetDoc) return;
 
-    // 3. 讀取並過濾列表 (只顯示有註解的)
+    // 2. 讀取並過濾列表 (只顯示有註解的)
     const rawList = targetDoc.getFlag(MODULE_ID, "avatarList") || [];
     const validList = rawList.filter(a => a.label && a.label.trim() !== "");
 
-    // 4. 防呆：如果沒有可用的表情
+    // 3. 防呆：如果沒有可用的表情
     if (validList.length === 0) {
         ui.notifications.warn("YCIO.Warning.NoLabeledAvatars", {localize: true});
         // 如果還沒設定語言檔，暫時用 ui.notifications.warn("沒有設定註解的頭像可供使用");
         return;
     }
 
-    // 5. 定義回呼函式：當玩家選了圖片後要做什麼
+    // 4. 定義回呼函式：當玩家選了圖片後要做什麼
     const onPick = (label) => {
         // 呼叫我們之前寫好的插入助手，插入 [[標籤]]
         FloatingChat._insertFormat(target, `[[${label}]]`, "");
     };
 
-    // 6. 開啟視窗
+    // 5. 開啟視窗
     new InlineAvatarPicker(validList, onPick).render(true);
   }
 
@@ -1147,38 +1107,31 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       const speakerSelect = this.element.querySelector("#chat-speaker-select");
       const value = speakerSelect ? speakerSelect.value : "ooc";
       
-      // 1. 判斷是否為未連結 Token
-      let isUnlinked = false;
-      if (value !== "ooc") {
-          const [sceneId, tokenId] = value.split(".");
-          const scene = game.scenes.get(sceneId);
-          const tokenDoc = scene?.tokens.get(tokenId);
-          if (tokenDoc && !tokenDoc.actorLink) isUnlinked = true;
-      }
+      // 1. 使用 helper 取得完整資訊
+      // 我們直接解構出需要的資訊：Token 狀態、連結狀態、以及 speaker/user 物件
+      const { isToken, isLinked, speaker, user } = getSpeakerFromSelection(value);
+      
+      // 判斷是否為「未連結 Token」(是 Token 且 未連結)
+      const isUnlinked = isToken && !isLinked;
 
       // 2. 切換 CSS Class (控制按鈕變灰)
       btn.classList.toggle("ycio-disabled", isUnlinked);
 
-      // 3. 統一計算當前頭像 URL
-      // 無論是否連結，都計算出這張 Token 當下會用的圖片 (Token圖)
-      const dummyMessage = getSpeakerFromSelection(value);
-      const currentUrl = resolveCurrentAvatar(dummyMessage);
+      // 3. 計算當前頭像 URL
+      // resolveCurrentAvatar 需要 {speaker, user} 結構，helper 回傳的物件剛好包含這些
+      const currentUrl = resolveCurrentAvatar({ speaker, user });
 
-      // 4. 設定 Tooltip 內容
+      // 4. 設定 Tooltip 內容 (保持不變，只移除了解析邏輯)
       let tooltipContent = "";
 
       if (isUnlinked) {
-          // --- 未連結狀態：顯示警告文字 + 圖片 ---
-          // 移除了 || 後面的硬編碼文字
           tooltipContent = `
             <div style="text-align: left;">
                 <div style="margin-bottom: 5px; color: #ffcccc;">${game.i18n.localize("YCIO.Avatar.UnlinkedWarning")}</div>
                 <img src="${currentUrl}" style="max-width: 100px; max-height: 100px; border: 1px solid #666; border-radius: 4px; background: black;">
             </div>
           `;
-
       } else {
-          // --- 正常狀態：顯示標題 + 圖片 ---
           tooltipContent = `
             <div style="text-align: left;">
                 <div style="margin-bottom: 5px; font-weight: bold;">${game.i18n.localize("YCIO.Avatar.Current")}</div>
