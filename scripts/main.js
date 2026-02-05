@@ -63,7 +63,7 @@ Hooks.on("updateChatMessage", (message, changes, options, userId) => {
     if (floatingChatInstance?.rendered) {
         // 優化效能：只有當內容 (content)、密語對象 (whisper) 或盲骰狀態 (blind) 改變時，才需要重繪
         // 其他更新 (如 flags 變動) 如果不影響顯示則忽略
-        if (changes.content || changes.whisper || changes.blind) {
+        if (changes.content || changes.whisper || changes.blind || changes.flags || changes.rolls) {
             floatingChatInstance.updateMessageInDOM(message);
         }
     }

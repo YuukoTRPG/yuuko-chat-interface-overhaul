@@ -62,18 +62,19 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
     /* ============================================= */
 
     async _prepareContext(_options) {
-        // 1. 讀取並遷移資料結構
+        // 更新時保留的舊資料結構遷移
         // 舊格式: ["url"] -> 新格式: [{src: "url", label: ""}]
-        let savedAvatars = this.target.getFlag(MODULE_ID, "avatarList") || [];
-        
-        // 簡單的遷移邏輯：如果有字串，就轉成物件
+        //let savedAvatars = this.target.getFlag(MODULE_ID, "avatarList") || [];
+        // 遷移邏輯：如果有字串，就轉成物件
+        /*
         const hasLegacyData = savedAvatars.some(a => typeof a === 'string');
         if (hasLegacyData) {
             savedAvatars = savedAvatars.map(a => typeof a === 'string' ? { src: a, label: "" } : a);
             // 靜默更新資料結構 (不等待)
             this.target.setFlag(MODULE_ID, "avatarList", savedAvatars);
-        }
+        }*/
 
+        const savedAvatars = this.target.getFlag(MODULE_ID, "avatarList") || [];
         const currentAvatar = this.target.getFlag(MODULE_ID, "currentAvatar") || "";
 
         // 3. 取得預設頭像 (保持你原本的邏輯)

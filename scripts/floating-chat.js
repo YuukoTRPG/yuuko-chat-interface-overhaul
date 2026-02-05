@@ -607,9 +607,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * 載入歷史訊息 (無限捲動核心)
+   * 載入歷史訊息 (無限捲動)
    */
-　　async _loadOlderMessages(logElement) {
+  async _loadOlderMessages(logElement) {
     this._isLoadingOlder = true;
 
     const firstMessageEl = logElement.querySelector(".message");
@@ -617,7 +617,14 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     
     const firstMsgId = firstMessageEl.dataset.messageId;
     const allMessages = game.messages.contents;
-    const currentIndex = allMessages.findIndex(m => m.id === firstMsgId);
+
+    // 用 Map 查找物件 + indexOf，比 findIndex 遍歷更快
+    const anchorMsg = game.messages.get(firstMsgId);
+    
+    // 如果該訊息剛好被刪除導致找不到，直接中止
+    if (!anchorMsg) { this._isLoadingOlder = false; return; }
+
+    const currentIndex = allMessages.indexOf(anchorMsg);
     
     if (currentIndex <= 0) { this._isLoadingOlder = false; return; }
 
@@ -630,10 +637,14 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         const msg = allMessages[searchIndex];
         // 只有符合當前分頁的才加入
         if (this._isMessageVisibleInTab(msg)) {
-            olderMessages.unshift(msg);
+            // 用 push (O(1)) 取代 unshift (O(N))
+            olderMessages.push(msg);
         }
         searchIndex--;
     }
+    
+    // 因為是用 push 收集 (新->舊)，需要反轉回正確的時間序 (舊->新)
+    olderMessages.reverse();
     // -------------------------------------
 
     if (olderMessages.length === 0) { this._isLoadingOlder = false; return; }
