@@ -18,9 +18,6 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   
   constructor(options={}) {
     super(options);
-    // 預設分頁：ooc
-    this.activeTab = "ooc";
-    this._messageCache = new Map(); //初始化 HTML 快取容器
 
     // --- 設定視窗標題 (使用 i18n，優先使用設定中的標題) ---
     const customTitle = game.settings.get(MODULE_ID, "windowTitle");
@@ -43,9 +40,16 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // console.log("YCIO | 主視窗位置已儲存", pos);
     }, 500);
 
+    // 預設分頁：ooc
+    this.activeTab = "ooc";
+    //初始化 HTML 快取容器
+    this._messageCache = new Map(); 
+
     // --- 狀態追蹤變數 ---
     this._isLoadingOlder = false;       // 防止重複觸發載入歷史訊息
     this._programmaticScroll = false;   // 用於區分「程式捲動」與「手動捲動」
+    this._lastSpeakerValue = null;      //記錄上一次的發言身分，預設為 null
+    this._lastFlashTime = 0;            // 記錄上一次觸發閃爍的時間
     
     // --- 打字狀態變數 ---
     this._typingTimeout = null;         // 倒數計時器
@@ -207,6 +211,22 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
+   * 覆寫 render 方法
+   */
+  async render(options, _options) {
+        //目的：在 DOM 被銷毀重繪之前，先「快照」當前的發言身分
+        //這能確保我們捕捉到使用者「最後一眼看到」的狀態
+        // 如果視窗已經存在 DOM 中，嘗試抓取當前的選單值
+        const select = this.element?.querySelector("#chat-speaker-select");
+        if (select) {
+            this._lastSpeakerValue = select.value;
+        }
+        
+        // 執行原本的渲染邏輯 (這會銷毀舊 DOM 並建立新 DOM)
+        return super.render(options, _options);
+  }
+
+  /**
    * 渲染後的邏輯 (DOM Listeners & Hooks)
    */
   _onRender(context, options) {
@@ -262,7 +282,38 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // 1. 發話身分選單
         const speakerSelect = this.element.querySelector("#chat-speaker-select");
         if (speakerSelect) {
+            const currentValue = speakerSelect.value;
+            const now = Date.now();
+            const ANIMATION_DURATION = 1200; // 動畫持續時間 (毫秒)，配合 CSS
+
+            // 如果這是第一次渲染 (null) 不閃爍
+            if (this._lastSpeakerValue !== null && this._lastSpeakerValue !== currentValue) {
+                this._lastFlashTime = now; // 偵測到變動，更新閃爍時間戳
+            }
+            // 更新紀錄
+            this._lastSpeakerValue = currentValue;
+
+            // --- 執行閃爍邏輯 ---
+            // 判斷條件：如果「現在時間」距離「最後閃爍時間」在動畫長度內
+            // 這確保了即使 DOM 因為切換分頁被重建，新長出來的 DOM 也會因為符合時間差而繼續閃爍
+            if (now - this._lastFlashTime < ANIMATION_DURATION) {
+                speakerSelect.classList.remove("YCIO-pulse-animation");
+                void speakerSelect.offsetWidth; // 強制 Reflow
+                speakerSelect.classList.add("YCIO-pulse-animation");
+            }
+            
             speakerSelect.addEventListener("change", async (ev) => {
+                // 手動變更時，立即更新時間戳並觸發閃爍
+                this._lastFlashTime = Date.now();
+                
+                // 立即觸發視覺回饋 (不用等下一次 Render)
+                speakerSelect.classList.remove("YCIO-pulse-animation");
+                void speakerSelect.offsetWidth;
+                speakerSelect.classList.add("YCIO-pulse-animation");
+                
+                // 更新紀錄，防止下一次 Render 誤判為變化
+                this._lastSpeakerValue = ev.target.value;
+                
                 const value = ev.target.value;
                 if (value === "ooc") {
                     if (canvas.tokens) canvas.tokens.releaseAll();
@@ -469,6 +520,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
       // 設定 CSS 變數，即時改變外觀
       this.element.style.setProperty('--ycio-bg', rgba);
+
+      // 設定玩家顏色變數 (V13 使用 .css 取得色碼 string)
+      const userColor = game.user.color?.css ?? "#f5f5f5";
+      this.element.style.setProperty('--user-color', userColor);
   }
 
   /**
