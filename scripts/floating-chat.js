@@ -242,9 +242,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         if (log) {
             log.addEventListener("scroll", this._onChatScroll.bind(this));
             
-            const $log = $(log);
-            Hooks.call("renderChatLog", this, $log);
-
+            // 如果 options.parts 存在，代表這只是切換分頁或輸入框更新，不需要讓其他模組整個重寫
+            if (!options.parts) {
+                const $log = $(log);
+                Hooks.call("renderChatLog", this, $log);
+            }
             this._programmaticScroll = true;
             setTimeout(() => {
                 log.scrollTop = log.scrollHeight;
