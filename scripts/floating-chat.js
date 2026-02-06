@@ -18,8 +18,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   
   constructor(options={}) {
     super(options);
-    // 預設分頁：若有場景則為場景ID，否則為 ooc
-    this.activeTab = canvas.scene?.id || "ooc";
+    // 預設分頁：ooc
+    this.activeTab = "ooc";
+    this._messageCache = new Map(); //初始化 HTML 快取容器
 
     // --- 設定視窗標題 (使用 i18n，優先使用設定中的標題) ---
     const customTitle = game.settings.get(MODULE_ID, "windowTitle");
@@ -162,19 +163,46 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
     const renderedMessages = [];
     for (const m of filteredMessages) {
-      const html = await m.renderHTML(); // HTMLElement (jQuery object in v12, Element in v13)
-      enrichMessageHTML(m, html[0] || html); // 注入頭像，相容 jQuery 與原生 DOM
-      renderedMessages.push({ id: m.id, html: html.outerHTML }); // 使用修改後的 outerHTML
+        let finalHtml = "";
+
+        // 快取檢查
+        if (this._messageCache.has(m.id)) {
+            // 直接讀取快取
+            finalHtml = this._messageCache.get(m.id);
+        } else {
+            // 執行渲染與 DOM 處理
+            const html = await m.renderHTML();
+            
+            // 轉為原生 DOM (相容 V12/V13)
+            const element = html instanceof jQuery ? html[0] : html;
+            
+            enrichMessageHTML(m, element); // 注入頭像
+            
+            // 儲存為字串 (outerHTML)
+            finalHtml = element.outerHTML;
+            
+            // 寫入快取
+            this._messageCache.set(m.id, finalHtml);
+        }
+
+        renderedMessages.push({ id: m.id, html: finalHtml });
     }
 
     // 準備發話身份列表 (Speakers)，呼叫chat-helpers.js的函式
     const speakers = prepareSpeakerList();
 
+    // --- 狀態暫存機制 ---
+    // 嘗試讀取當前 DOM 中的輸入框內容 (如果視窗已經存在)
+    // 為了防止局部渲染 "input" 區塊時，使用者打到一半的字被清空
+    const inputEl = this.element?.querySelector("#chat-message-input");
+    const draftContent = inputEl ? inputEl.value : "";
+
     return { 
         messages: renderedMessages,
         scenes: scenes,
         activeTab: this.activeTab,
-        speakers: speakers
+        speakers: speakers,
+        draftContent: draftContent
     };
   }
 
@@ -205,170 +233,137 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     // --- 每次渲染時套用最新的背景設定 ---
     this._applyCustomStyles();
 
-    // --- 聊天記錄區域 ---
-    const log = this.element.querySelector("#custom-chat-log");
-    if (log) {
-        log.addEventListener("scroll", this._onChatScroll.bind(this));
-        
-        // 為了目前的向下相容，需要將這個容器視為一個 "ChatLog"，未來可能需要維護
-        // 1. 轉換為 jQuery 物件 (因為大多數系統如 CoC7e 仍依賴 jQuery 方法如 .find(), .on())
-        const $log = $(log);
+    // 判斷這次渲染了哪些部分 (如果是初次渲染，parts 會是 undefined，代表全部)
+    const parts = options.parts || ["tabs", "content", "input"];
 
-        // 2. 手動觸發 'renderChatLog' Hook
-        // 這會告訴系統 (CoC7e, D&D5e 等) 和其他模組 (Dice So Nice 等)訊息渲染完成
-        // 注意：傳入 'this' 作為 Application 實例，傳入 '$log' 作為 HTML
-        Hooks.call("renderChatLog", this, $log);
+    // --- A. 內容區 (Content) 事件綁定 ---
+    if (parts.includes("content")) {
+        const log = this.element.querySelector("#custom-chat-log");
+        if (log) {
+            log.addEventListener("scroll", this._onChatScroll.bind(this));
+            
+            const $log = $(log);
+            Hooks.call("renderChatLog", this, $log);
 
-        // 開啟「程式捲動」鎖定，告訴系統現在是我們在控制，不是使用者在滑
-        this._programmaticScroll = true;
-
-        // 使用 setTimeout(0) 將執行序推遲到 Call Stack 清空後 (比 requestAnimationFrame 更晚一點)
-        // 確保 DOM 已經完全 Reflow 並且高度計算完畢
-        setTimeout(() => {
-            log.scrollTop = log.scrollHeight;
-            this._initializeContextMenu(log);
-
-            // 給予瀏覽器一點緩衝時間處理捲動，然後再解鎖
-            // 這可以防止「切換分頁瞬間」觸發 scroll 事件導致的邏輯誤判
+            this._programmaticScroll = true;
             setTimeout(() => {
-                this._programmaticScroll = false;
-            }, 50); 
-        }, 0);
+                log.scrollTop = log.scrollHeight;
+                this._initializeContextMenu(log);
+                setTimeout(() => { this._programmaticScroll = false; }, 50); 
+            }, 0);
+        }
     }
 
-    // --- 選單元素，下拉選單選擇發言Token與監聽邏輯 ---
-    const speakerSelect = this.element.querySelector("#chat-speaker-select");
-
-    if (speakerSelect) {
-        speakerSelect.addEventListener("change", async (ev) => {
-            const value = ev.target.value;
-            
-            // 情況 1: 選擇 OOC
-            if (value === "ooc") {
-                if (canvas.tokens) canvas.tokens.releaseAll();
-                this.changeTab("ooc", false);
-                return;
-            }
-
-            // 情況 2: 選擇某個 Token (格式: SceneID.TokenID)
-            const [sceneId, tokenId] = value.split(".");
-            
-            // 2.1 如果目標在不同場景 -> 轉場
-            if (canvas.scene?.id !== sceneId) {
-                const scene = game.scenes.get(sceneId);
-                if (scene) await scene.view(); 
-            }
-
-            // 2.2 選取 Token 並切換分頁
-            if (canvas.scene?.id === sceneId) {
-                const token = canvas.tokens.placeables.find(t => t.id === tokenId);
-                if (token) {
-                    token.control({ releaseOthers: true }); // 選取 Token
-                    this.changeTab(sceneId, false);         // 切換分頁
+    // --- B. 輸入區 (Input) 事件綁定 ---
+    // 包含：發話身分選單、頭像按鈕、顏色選擇器、輸入框、發送按鈕
+    if (parts.includes("input")) {
+        // 1. 發話身分選單
+        const speakerSelect = this.element.querySelector("#chat-speaker-select");
+        if (speakerSelect) {
+            speakerSelect.addEventListener("change", async (ev) => {
+                const value = ev.target.value;
+                if (value === "ooc") {
+                    if (canvas.tokens) canvas.tokens.releaseAll();
+                    this.changeTab("ooc", false);
+                    return;
                 }
-            }
-        });
-    }
-
-    // --- 頭像設定按鈕 ---
-    const avatarBtn = this.element.querySelector("#chat-avatar-btn");
-    if (avatarBtn) {
-        avatarBtn.addEventListener("click", (ev) => {
-            // 如果按鈕是 disabled 狀態，直接擋掉，不執行任何動作
-            if (avatarBtn.classList.contains("ycio-disabled")) {
-                ev.preventDefault();
-                ev.stopPropagation();
-                return;
-            }
-
-            // 1. 判斷現在選的是誰 (下拉選單的值)
-            const speakerSelect = this.element.querySelector("#chat-speaker-select");
-            const value = speakerSelect ? speakerSelect.value : "ooc";
-            
-            let targetDoc;
-
-            if (value === "ooc") {
-                targetDoc = game.user; // 目標是 User
-            } else {
-                // value 格式是 "SceneID.TokenID"
                 const [sceneId, tokenId] = value.split(".");
-                const scene = game.scenes.get(sceneId);
-                const token = scene?.tokens.get(tokenId);
-                if (token && token.actor) {
-                    targetDoc = token.actor; // 目標是 Actor
+                if (canvas.scene?.id !== sceneId) {
+                    const scene = game.scenes.get(sceneId);
+                    if (scene) await scene.view(); 
                 }
-            }
+                if (canvas.scene?.id === sceneId) {
+                    const token = canvas.tokens.placeables.find(t => t.id === tokenId);
+                    if (token) {
+                        token.control({ releaseOthers: true });
+                        this.changeTab(sceneId, false);
+                    }
+                }
+            });
+            
+            // 監聽變化以更新 Tooltip
+            speakerSelect.addEventListener("change", () => this._updateAvatarBtnTooltip());
+        }
 
-            if (targetDoc) {
-                new AvatarSelector(targetDoc).render(true);
-            }
-        });
-    }
-    // --- 初始化 頭像按鈕的Tooltip ---
-    this._updateAvatarBtnTooltip();
-    // --- 監聽下拉選單變化，更新 Tooltip ---
-    if (speakerSelect) {
-        speakerSelect.addEventListener("change", () => this._updateAvatarBtnTooltip());
-    }
-    // --- 監聽頭像變更 Hook (由 AvatarSelector 觸發)，更新 Tooltip ---
-    // 檢查是否已經註冊過這個 Hook，避免重複註冊
-    const hookName = "YCIO_AvatarChanged";
-    if (!this._hooks.some(h => h.hook === hookName)) {
-        const id = Hooks.on(hookName, () => this._updateAvatarBtnTooltip());
-        this._hooks.push({ hook: hookName, id });
-    }
-
-    // --- 文字顏色選擇器的顏色記憶 ---
-    const colorPicker = this.element.querySelector("#chat-text-color-picker");
-    if (colorPicker) {
-        // 1. [讀取] 從設定中取得最後一次的顏色，並套用
-        const savedColor = game.settings.get(MODULE_ID, "lastUsedTextColor");
-        colorPicker.value = savedColor;
+        // 2. 頭像設定按鈕
+        const avatarBtn = this.element.querySelector("#chat-avatar-btn");
+        if (avatarBtn) {
+            avatarBtn.addEventListener("click", (ev) => {
+                // 頭像按鈕邏輯
+                if (avatarBtn.classList.contains("ycio-disabled")) {
+                    ev.preventDefault(); ev.stopPropagation(); return;
+                }
+                const speakerSelect = this.element.querySelector("#chat-speaker-select");
+                const value = speakerSelect ? speakerSelect.value : "ooc";
+                let targetDoc;
+                if (value === "ooc") {
+                    targetDoc = game.user;
+                } else {
+                    const [sceneId, tokenId] = value.split(".");
+                    const scene = game.scenes.get(sceneId);
+                    const token = scene?.tokens.get(tokenId);
+                    if (token && token.actor) targetDoc = token.actor;
+                }
+                if (targetDoc) new AvatarSelector(targetDoc).render(true);
+            });
+        }
         
-        // 2. [監聽] 當顏色改變時
-        colorPicker.addEventListener("change", async (ev) => {
-            const color = ev.target.value;
-            // [儲存] 將新顏色寫入設定 (以便下次重整或切換分頁時讀取)
-            await game.settings.set(MODULE_ID, "lastUsedTextColor", color);
-        });
+        // 重新計算 Tooltip 狀態
+        this._updateAvatarBtnTooltip();
+
+        // 3. 顏色選擇器 (包含恢復記憶顏色)
+        const colorPicker = this.element.querySelector("#chat-text-color-picker");
+        if (colorPicker) {
+            const savedColor = game.settings.get(MODULE_ID, "lastUsedTextColor");
+            colorPicker.value = savedColor; // 重新填入記憶顏色
+            
+            colorPicker.addEventListener("change", async (ev) => {
+                const color = ev.target.value;
+                await game.settings.set(MODULE_ID, "lastUsedTextColor", color);
+            });
+        }
+
+        // 4. 輸入框與發送按鈕
+        const input = this.element.querySelector("#chat-message-input");
+        const sendBtn = this.element.querySelector("#chat-send-btn");
+        
+        if (input) {
+            input.addEventListener("keydown", this._onChatKeyDown.bind(this));
+            input.addEventListener("input", () => this._adjustInputHeight(input));
+            input.addEventListener("input", this._onTypingInput.bind(this));
+            
+            // [新增] 如果有草稿內容，重新調整高度
+            if (input.value) this._adjustInputHeight(input);
+        }
+
+        if (sendBtn && input) {
+            sendBtn.addEventListener("click", async () => {
+                 const content = input.value.trim();
+                 if (content) {
+                     this._stopTypingBroadcast();
+                     await this._processMessage(content);
+                     input.value = "";
+                     input.focus();
+                     this._adjustInputHeight(input);
+                 }
+            });
+        }
+
+        // 5. 更新打字狀態顯示 (因為 DOM 重建了，要重新抓元素)
+        this._updateTypingDisplay();
     }
 
-    // --- 輸入框與按鈕 ---
-    const input = this.element.querySelector("#chat-message-input");
-    const sendBtn = this.element.querySelector("#chat-send-btn");
-    
-    if (input) {
-        input.addEventListener("keydown", this._onChatKeyDown.bind(this));
-        input.addEventListener("input", () => this._adjustInputHeight(input));
-        input.addEventListener("input", this._onTypingInput.bind(this));
-    }
-
-    if (sendBtn && input) {
-        sendBtn.addEventListener("click", async () => {
-             const content = input.value.trim();
-             if (content) {
-                 this._stopTypingBroadcast();
-                 await this._processMessage(content);
-                 input.value = "";
-                 input.focus();
-                 this._adjustInputHeight(input);
-             }
+    // --- C. 分頁列 (Tabs) 事件綁定 ---
+    if (parts.includes("tabs")) {
+        const tabs = this.element.querySelectorAll(".tabs .item");
+        tabs.forEach(tab => {
+            tab.addEventListener("click", (ev) => {
+                ev.preventDefault();
+                const tabId = ev.currentTarget.dataset.tab;
+                this.changeTab(tabId);
+            });
         });
     }
-
-    // --- 手動綁定分頁切換 (解決點擊無效問題) ---
-    // 穩健的做法，確保每次渲染後點擊都有效
-    const tabs = this.element.querySelectorAll(".tabs .item");
-    tabs.forEach(tab => {
-        tab.addEventListener("click", (ev) => {
-            ev.preventDefault();
-            const tabId = ev.currentTarget.dataset.tab;
-            this.changeTab(tabId);
-        });
-    });
-
-    // --- 打字狀態顯示 ---
-    this._updateTypingDisplay();
 
     // --- Hooks 註冊 (只需註冊一次) ---
     if (!this._mainHooksRegistered) {
@@ -544,7 +539,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     // 2. 重新渲染並「等待」渲染完成 (解決 Race Condition 的關鍵)
-    await this.render();
+    await this.render({ parts: ["content", "tabs", "input"] });
   }
 
   /* --- 判斷訊息該去哪個分頁 --- */
@@ -719,6 +714,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
    * 移除 DOM 中的訊息 (由 main.js 的 deleteChatMessage Hook 呼叫)
    */
   deleteMessageFromDOM(messageId) {
+    this.invalidateCache(messageId); //清除快取
+
     const log = this.element.querySelector("#custom-chat-log");
     const el = log?.querySelector(`[data-message-id="${messageId}"]`);
     if (el) {
@@ -732,6 +729,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
    * 無論是內容更新、權限變更、公開/隱藏，都統一由此方法處理
    */
   async updateMessageInDOM(message) {
+    this.invalidateCache(message.id); //訊息更新清除快取
     const log = this.element.querySelector("#custom-chat-log");
     if (!log) return;
 
@@ -759,6 +757,18 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     // 這時候不能只用 append，因為這可能是一條舊訊息
     await this._insertMessageSmartly(message, log);
   }
+
+    /**
+     * 清除特定訊息的快取，強迫下次重繪
+     * @param {string|null} messageId - 指定 ID 則清除單筆，null 則清除全部
+     */
+    invalidateCache(messageId = null) {
+        if (messageId) {
+            this._messageCache.delete(messageId);
+        } else {
+            this._messageCache.clear();
+        }
+    }
 
   /* ========================================================= */
   /* 5. 輸入框邏輯 (Input Handling)                           */
