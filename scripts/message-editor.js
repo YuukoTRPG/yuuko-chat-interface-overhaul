@@ -39,25 +39,81 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     };
 
     async _prepareContext(_options) {
+        // 先執行還原，讓編輯器顯示 [[標籤]]
+        const restoredContent = this._restoreInlineAvatars(this.message.content);
         return {
-            originalContent: this.message.content
+            originalContent: restoredContent
         };
+    }
+
+    // 還原邏輯：將 HTML 圖片轉回 [[標籤]]
+    _restoreInlineAvatars(content) {
+        // 尋找擁有 class="YCIO-inline-emote" 的 img 標籤，並抓取 alt 屬性中的文字
+        const regex = /<img[^>]+class=["']YCIO-inline-emote["'][^>]*alt=["'](.*?)["'][^>]*>/g;
+        return content.replace(regex, (match, altText) => {
+            return `[[${altText}]]`;
+        });
+    }
+
+    // 解析邏輯：將 [[標籤]] 轉為 HTML 圖片
+    _parseInlineAvatars(content) {
+        // 取得這則訊息原本的發言者 (Actor/User)
+        const targetDoc = this._getTargetDoc();
+        if (!targetDoc) return content;
+
+        const avatarList = targetDoc.getFlag(MODULE_ID, "avatarList") || [];
+        if (avatarList.length === 0) return content;
+
+        // 正則替換
+        return content.replace(/\[\[(.*?)\]\]/g, (match, tagLabel) => {
+            const found = avatarList.find(a => a.label === tagLabel);
+            if (found) {
+                // 必須加上 class="YCIO-inline-emote" 以便下次還原
+                return `<img src="${found.src}" class="YCIO-inline-emote" alt="${tagLabel}">`;
+            }
+            return match;
+        });
+    }
+
+    // 取得目標文件：判斷這則訊息是誰發的
+    _getTargetDoc() {
+        const message = this.message;
+        let targetDoc = null;
+        
+        // 1. 優先找訊息指定的 Actor
+        if (message.speaker.actor) targetDoc = game.actors.get(message.speaker.actor);
+        
+        // 2. 其次找訊息指定 Token 的 Actor
+        if (!targetDoc && message.speaker.token) {
+            const token = canvas.tokens.get(message.speaker.token);
+            targetDoc = token?.actor;
+        }
+        
+        // 3. 最後找訊息的作者 (User)
+        if (!targetDoc) targetDoc = message.author ?? message.user;
+        
+        return targetDoc;
     }
 
     // --- Actions ---
 
     static async onUpdateMessage(event, target) {
-        // 取得輸入框內容
+        // 在 ApplicationV2 的 static action 中，this 指向的是應用程式實例 (app)
+        const app = this; 
+        
         const form = target.closest("form");
         const textarea = form.querySelector("textarea");
-        const newContent = textarea.value.trim();
+        const rawContent = textarea.value.trim(); // 這是包含 [[標籤]] 的原始文字
 
-        // 如果內容有變，執行更新
-        if (newContent !== this.message.content) {
-            await this.message.update({ content: newContent });
+        // 執行解析：[[標籤]] -> <img ...>
+        const finalContent = app._parseInlineAvatars(rawContent);
+
+        // 如果內容有變 (比較解析後的結果與原本的 HTML)，執行更新
+        if (finalContent !== app.message.content) {
+            await app.message.update({ content: finalContent });
         }
         
-        this.close();
+        app.close();
     }
 
     static onCancel(event, target) {
@@ -67,17 +123,7 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     // 編輯器專用的表符插入邏輯 (因為沒有下拉選單，改為讀取訊息原本的 speaker)
     static onFormatInlineAvatar(event, target) {
         const app = this; // ApplicationV2 實例
-        const message = app.message;
-
-        // 嘗試從訊息的 speaker 解析 Actor
-        let targetDoc = null;
-        if (message.speaker.actor) targetDoc = game.actors.get(message.speaker.actor);
-        if (!targetDoc && message.speaker.token) {
-            const token = canvas.tokens.get(message.speaker.token);
-            targetDoc = token?.actor;
-        }
-        // 如果都不是，Fallback 到發訊者 User
-        if (!targetDoc) targetDoc = message.author ?? message.user;
+        const targetDoc = app._getTargetDoc(); //呼叫輔助方法
 
         if (!targetDoc) return;
 
