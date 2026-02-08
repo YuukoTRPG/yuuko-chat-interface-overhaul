@@ -498,8 +498,22 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         register("createScene", () => this.render());
         register("deleteScene", () => this.render());
         register("updateScene", (scene, changes) => {
-            // 只有當名字、導航顯示或權限變更時才重繪，節省效能
-            if (changes.name || changes.navName || ('visible' in changes) || ('ownership' in changes)) {
+            // 取得所有變更的屬性名稱 (Keys)
+            const keys = Object.keys(changes);
+
+            // 1. 檢查是否涉及權限變更 (包含 ownership, ownership.default, ownership.UserID...)
+            // 使用 includes 可以同時捕捉 "ownership" 和 "ownership.xxxx"
+            const ownershipChanged = keys.some(k => k.includes("ownership"));
+
+            // 2. 檢查是否涉及導覽列顯示 (navigation) 或 可見度 (visible)
+            const visibilityChanged = keys.includes("navigation") || keys.includes("visible");
+
+            // 3. 檢查名稱變更
+            const nameChanged = keys.includes("name") || keys.includes("navName");
+
+            // 只有當上述任一條件成立時，才觸發重繪
+            if (ownershipChanged || visibilityChanged || nameChanged) {
+                // console.log("YCIO | 偵測到場景關鍵變更，觸發重繪", changes); // Debug 用
                 this.render();
             }
         });
