@@ -8,10 +8,26 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     constructor(message) {
         super({ window: { title: game.i18n.localize("YCIO.Editor.WindowTitle") } });
         this.message = message;
+
+        // 讀取並還原視窗位置
+        const savedPos = game.settings.get(MODULE_ID, "messageEditorPosition");
+        if (savedPos && !foundry.utils.isEmpty(savedPos)) {
+            if (Number.isFinite(savedPos.left)) this.position.left = Math.max(1, savedPos.left);
+            if (Number.isFinite(savedPos.top)) this.position.top = Math.max(1, savedPos.top);
+            if (Number.isFinite(savedPos.width)) this.position.width = savedPos.width;
+            if (Number.isFinite(savedPos.height)) this.position.height = savedPos.height;
+        }
+
+        // 防抖動儲存視窗位置與大小
+        this._savePositionDebounced = foundry.utils.debounce((pos) => {
+            game.settings.set(MODULE_ID, "messageEditorPosition", pos);
+        }, 500);
     }
+    
 
     static DEFAULT_OPTIONS = {
         id: "YCIO-message-editor",
+        classes: ["YCIO-message-editor"],
         tag: "form",
         window: {
             icon: "fas fa-edit",
@@ -38,12 +54,36 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         form: { template: "modules/yuuko-chat-interface-overhaul/templates/chat-editor.hbs" }
     };
 
+    setPosition(position={}) {
+        const newPosition = super.setPosition(position);
+        this._savePositionDebounced(newPosition);
+        return newPosition;
+    }
+
     async _prepareContext(_options) {
         // 先執行還原，讓編輯器顯示 [[標籤]]
         const restoredContent = this._restoreInlineAvatars(this.message.content);
         return {
             originalContent: restoredContent
         };
+    }
+
+    /**
+     * 渲染後的邏輯
+     */
+    _onRender(context, options) {
+        super._onRender(context, options);
+
+        // 讀取儲存在設定中的「上次使用的文字顏色」
+        const savedColor = game.settings.get(MODULE_ID, "lastUsedTextColor");
+
+        // 找到編輯器視窗內的顏色選擇器，this.element 在 ApplicationV2 中是 HTML 元素本身
+        const colorPicker = this.element.querySelector("#chat-text-color-picker");
+
+        // 如果找到了，就套用顏色
+        if (colorPicker && savedColor) {
+            colorPicker.value = savedColor;
+        }
     }
 
     // 還原邏輯：將 HTML 圖片轉回 [[標籤]]

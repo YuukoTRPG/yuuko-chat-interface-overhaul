@@ -781,87 +781,130 @@
    ========================================================= */
 
 /* 1. 編輯器主容器 */
-.YCIO-floating-chat-window .YCIO-message-editor,
 /* 兼容 ApplicationV2 視窗結構 (如果視窗沒有套用 YCIO-floating-chat-window class) */
-.window-content .YCIO-message-editor {
+
+.YCIO-message-editor-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;         /* 撐滿父容器 */
+    background: rgba(0, 0, 0, 0.4); /* 深色背景 */
+    padding: 4px;         /* 整體內縮一點點 */
+    gap: 2px;             /* 設定所有元素之間的緊湊間距 */
+    box-sizing: border-box;
+}
+
+.YCIO-message-editor .window-content {
     display: flex;
     flex-direction: column;
     height: 100%;
     background: rgba(0, 0, 0, 0.2); /* 與原版輸入區一致的深色背景 */
-    padding: 5px;
-    gap: 5px;
+    padding: 2px;
+    overflow: hidden;
+    gap: 0px;
     box-sizing: border-box;
 }
 
 /* 2. 工具列 (Toolbar) */
 /* 強制覆寫原本 absolute 定位，改為 flex 佈局的一部份 */
-.YCIO-message-editor .chat-toolbar {
+.YCIO-message-editor-container .chat-toolbar {
     position: relative; /* 不再是 absolute */
     right: auto;
     bottom: auto;
+    flex: 0 0 auto;
     display: flex;
     justify-content: flex-end; /* 靠右對齊 */
     background: transparent; /* 移除背景色，因為編輯器背景已經夠深了 */
-    padding: 0;
-    margin-bottom: 5px;
+    gap: 5px;
+    padding: 2px 5px;
+    margin-bottom: 0px;
     border: none;
 }
 
 /* 確保按鈕樣式與主視窗一致 */
-.YCIO-message-editor .chat-toolbar button {
-    color: #ccc; /* 預設文字顏色 */
-    width: 28px; /* 稍微大一點點，方便點擊 */
-    height: 28px;
-    border-radius: 4px;
-    transition: background 0.2s, color 0.2s;
+.YCIO-message-editor-container .chat-toolbar button {
+    color: var(--color-text-light-highlight);
+    cursor: pointer;
+    padding: 0px 0px;
+    height: 24px;
+    width: 24px;
+    line-height: 24px;
 }
 
-.YCIO-message-editor .chat-toolbar button:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+.YCIO-message-editor-container .chat-toolbar button:hover {
+    color: var(--color-text-light-heading);
+    text-shadow: 0 0 5px var(--color-shadow-primary);
+}
+
+.YCIO-message-editor-container .chat-toolbar button:hover .color-control-group {
+    display: flex;
+    align-items: center;
+    border: 1px solid #474747;
+    border-radius: 2px;
+    padding-top: 1px;
+    padding-bottom: 1px;
+    padding-left: 2px;
+    padding-right: 2px;
+}
+
+.YCIO-message-editor-container .chat-toolbar .color-control-group #chat-text-color-picker {
+    background: none;
+    color: var(--color-text-light-highlight);
+    cursor: pointer;
+    padding: 4px 0px;
+    height: 24px;
+    width: 30px;
+    line-height: 24px;
+}
+.YCIO-message-editor-container .chat-toolbar .color-control-group #chat-text-color-picker::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+.YCIO-message-editor-container .chat-toolbar .color-control-group #chat-text-color-picker::-webkit-color-swatch {
+    border: none;
 }
 
 /* 3. 輸入框區域 (Input Wrapper) */
-.YCIO-message-editor .input-wrapper {
+.YCIO-message-editor-container .input-wrapper {
     flex: 1; /* 佔滿剩餘高度 */
     display: flex;
     flex-direction: column;
+    min-height: 0;
     border-radius: 4px;
     overflow: hidden; /* 防止圓角破圖 */
 }
 
 /* 文字輸入框本體 */
-.YCIO-message-editor textarea.YCIO-chat-entry {
+.YCIO-message-editor-container textarea.YCIO-chat-entry {
     flex: 1; /* 撐滿 input-wrapper */
     width: 100%;
+    height: 100%;
     min-height: 120px; /* 給予足夠的編輯空間 */
     resize: none; /* 禁止手動拉伸，由視窗大小控制 */
-    border: 1px solid #444;
+    border: none;
     background: #222;
     color: #eee;
-    padding: 8px;
+    padding: 4px;
     font-size: 14px; /* 字體稍微大一點，易於編輯 */
     line-height: 1.5;
     box-sizing: border-box;
     outline: none;
 }
 
-.YCIO-message-editor textarea.YCIO-chat-entry:focus {
+.YCIO-message-editor-container textarea.YCIO-chat-entry:focus {
     border-color: #777;
     background: #1a1a1a;
 }
 
 /* 4. 底部按鈕區 (Form Footer) */
-.YCIO-message-editor .form-footer {
+.YCIO-message-editor-container .form-footer {
     display: flex;
-    gap: 8px;
-    margin-top: 5px;
-    padding-top: 5px;
+    gap: 4px;
+    margin-top: 2px;
+    padding-top: 2px;
     border-top: 1px solid #444; /* 分隔線 */
 }
 
 /* 通用按鈕樣式 */
-.YCIO-message-editor .form-footer button {
+.YCIO-message-editor-container .form-footer button {
     height: 32px;
     border: 1px solid #555;
     border-radius: 4px;
@@ -875,25 +918,25 @@
 }
 
 /* 取消按鈕 (左邊，灰色系) */
-.YCIO-message-editor .form-footer button[data-action="cancel"] {
+.YCIO-message-editor-container .form-footer button[data-action="cancel"] {
     background: #333;
     color: #aaa;
 }
 
-.YCIO-message-editor .form-footer button[data-action="cancel"]:hover {
+.YCIO-message-editor-container .form-footer button[data-action="cancel"]:hover {
     background: #444;
     color: #fff;
     border-color: #666;
 }
 
 /* 更新按鈕 (右邊，強調色 - 類似原本的發送按鈕) */
-.YCIO-message-editor .form-footer button[data-action="updateMessage"] {
+.YCIO-message-editor-container .form-footer button[data-action="updateMessage"] {
     background: #2d4f2d; /* 深綠色底，代表確認 */
     color: #dfd;
     border-color: #4a7a4a;
 }
 
-.YCIO-message-editor .form-footer button[data-action="updateMessage"]:hover {
+.YCIO-message-editor-container .form-footer button[data-action="updateMessage"]:hover {
     background: #3a633a;
     color: #fff;
     border-color: #5c9c5c;
