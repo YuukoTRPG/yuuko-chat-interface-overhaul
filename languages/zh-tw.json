@@ -57,10 +57,16 @@
         "Current": "當前頭像：",
         "UnlinkedWarning": "所選Token未連結角色資料<br>因此固定為Token圖片："
     },
+
     "Picker": {
       "Title": "選擇插入表符",
       "NoAvatars": "無可用表符（請在頭像選擇器中為想做為表符的頭像設定註解）"
-    }
+    },
 
+    "Editor": {
+      "WindowTitle": "編輯訊息",
+      "Edit": "編輯訊息",
+      "Update": "確認編輯訊息"
+    }
   }
 }

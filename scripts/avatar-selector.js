@@ -25,7 +25,7 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     static DEFAULT_OPTIONS = {
-        id: "ycio-avatar-selector",
+        id: "YCIO-avatar-selector",
         classes: ["avatar-selector-window"],
         tag: "div",
         window: {

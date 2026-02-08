@@ -1,0 +1,32 @@
+<footer class="chat-input-area YCIO-message-editor">
+    {{! 工具列復用，保留原本的 data-action }}
+    <div class="chat-toolbar" style="justify-content: flex-end; margin-bottom: 5px;">
+        <button type="button" data-action="formatBold" title={{localize 'YCIO.Input.Bold'}}><i class="fas fa-bold"></i></button>
+        <button type="button" data-action="formatItalic" title={{localize 'YCIO.Input.Italic'}}><i class="fas fa-italic"></i></button>
+        <button type="button" data-action="formatStrikethrough" title={{localize 'YCIO.Input.Strikethrough'}}><i class="fas fa-strikethrough"></i></button>
+        
+        <div class="color-control-group" style="display: inline-flex; align-items: center; gap: 2px;">
+            <button type="button" data-action="applyTextColor" title={{localize 'YCIO.Input.TextColor'}}>
+                <i class="fas fa-font"></i>
+            </button>
+            <input type="color" value="#444444" id="chat-text-color-picker" title={{localize 'YCIO.Input.SelectColor'}}>
+        </div>
+
+        <button type="button" data-action="formatInlineAvatar" title={{localize 'YCIO.Input.InlineAvatar'}}><i class="far fa-smile"></i></button>
+    </div>
+
+    {{! 輸入框class="YCIO-chat-entry" }}
+    <div class="input-wrapper">
+        <textarea class="YCIO-chat-entry" name="content" style="min-height: 100px;">{{originalContent}}</textarea>
+    </div>
+
+    {{! 底部按鈕區 }}
+    <div class="form-footer" style="display: flex; gap: 5px; margin-top: 5px;">
+        <button type="button" data-action="cancel" style="flex: 1;">
+            <i class="fas fa-times"></i> {{localize 'Cancel'}}
+        </button>
+        <button type="button" data-action="updateMessage" style="flex: 2;">
+            <i class="fas fa-save"></i> {{localize 'YCIO.Editor.Update'}}
+        </button>
+    </div>
+</footer>

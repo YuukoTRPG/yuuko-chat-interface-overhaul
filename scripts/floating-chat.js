@@ -343,7 +343,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         if (avatarBtn) {
             avatarBtn.addEventListener("click", (ev) => {
                 // 頭像按鈕邏輯
-                if (avatarBtn.classList.contains("ycio-disabled")) {
+                if (avatarBtn.classList.contains("YCIO-disabled")) {
                     ev.preventDefault(); ev.stopPropagation(); return;
                 }
                 const speakerSelect = this.element.querySelector("#chat-speaker-select");
@@ -519,7 +519,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       const rgba = hexToRgba(colorHex, opacity);
 
       // 設定 CSS 變數，即時改變外觀
-      this.element.style.setProperty('--ycio-bg', rgba);
+      this.element.style.setProperty('--YCIO-bg', rgba);
 
       // 設定玩家顏色變數 (V13 使用 .css 取得色碼 string)
       const userColor = game.user.color?.css ?? "#f5f5f5";
@@ -928,10 +928,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
    * @param {String} endTag - 結束標籤 (如 "</b>")
    */
   static _insertFormat(target, startTag, endTag) {
-    // 1. 找到輸入框 (透過 ID 尋找最穩健)
-    // 由於這是 Static 方法，我們透過 target 往上找最近的視窗，再找裡面的輸入框
-    const wrapper = target.closest(".ycio-floating-chat-window") || document;
-    const textarea = wrapper.querySelector("#chat-message-input");
+    // 1. 找到輸入框
+    const wrapper = target.closest(".window-content"); 
+    const textarea = wrapper?.querySelector(".YCIO-chat-entry");
     
     if (!textarea) return;
 
@@ -980,9 +979,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   static onApplyTextColor(event, target) {
-      // 1. 找到同一視窗內的色盤 Input
-      const wrapper = target.closest(".YCIO-floating-chat-window");
-      const picker = wrapper.querySelector("#chat-text-color-picker");
+      // 1. 找到視窗內的色盤 Input
+      const wrapper = target.closest(".window-content");
+      const picker = wrapper?.querySelector("input[type=color]"); // 找同一視窗內的色盤
       
       if (picker) {
           const color = picker.value;
@@ -1193,7 +1192,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       const isUnlinked = isToken && !isLinked;
 
       // 2. 切換 CSS Class (控制按鈕變灰)
-      btn.classList.toggle("ycio-disabled", isUnlinked);
+      btn.classList.toggle("YCIO-disabled", isUnlinked);
 
       // 3. 計算當前頭像 URL
       // resolveCurrentAvatar 需要 {speaker, user} 結構，helper 回傳的物件剛好包含這些

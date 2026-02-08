@@ -5,11 +5,11 @@
 
 .YCIO-floating-chat-window {
     /* --- 定義 CSS 變數預設值 --- */
-    --ycio-bg: rgba(0, 0, 0, 0.8);
+    --YCIO-bg: rgba(0, 0, 0, 0.8);
 
     display: flex;
     flex-direction: column; /* 垂直排列：分頁 -> 內容 -> 輸入框 */
-    background: var(--ycio-bg);/* 視窗背景色 (預設半透明黑) */
+    background: var(--YCIO-bg);/* 視窗背景色 (預設半透明黑) */
     color: white; /* 預設文字顏色 */
     padding: 0;
 }
@@ -270,7 +270,7 @@
     cursor: pointer;
 }
 
-.YCIO-floating-chat-window #chat-avatar-btn.ycio-disabled {
+.YCIO-floating-chat-window #chat-avatar-btn.YCIO-disabled {
     opacity: 0.5;               /* 變半透明 */
     filter: grayscale(100%);    /* 變灰階 (選用) */
     cursor: not-allowed;        /* 滑鼠移上去變成紅色禁止符號 */
@@ -725,7 +725,7 @@
 
 
 /* =========================================================
-   Inline Avatar Picker 樣式 
+   9. Inline Avatar Picker 樣式 
    ========================================================= */
 .inline-avatar-picker-container .picker-grid {
     display: grid;
@@ -774,4 +774,128 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
+}
+
+/* =========================================================
+   10. 訊息編輯器 (Message Editor)
+   ========================================================= */
+
+/* 1. 編輯器主容器 */
+.YCIO-floating-chat-window .YCIO-message-editor,
+/* 兼容 ApplicationV2 視窗結構 (如果視窗沒有套用 YCIO-floating-chat-window class) */
+.window-content .YCIO-message-editor {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.2); /* 與原版輸入區一致的深色背景 */
+    padding: 5px;
+    gap: 5px;
+    box-sizing: border-box;
+}
+
+/* 2. 工具列 (Toolbar) */
+/* 強制覆寫原本 absolute 定位，改為 flex 佈局的一部份 */
+.YCIO-message-editor .chat-toolbar {
+    position: relative; /* 不再是 absolute */
+    right: auto;
+    bottom: auto;
+    display: flex;
+    justify-content: flex-end; /* 靠右對齊 */
+    background: transparent; /* 移除背景色，因為編輯器背景已經夠深了 */
+    padding: 0;
+    margin-bottom: 5px;
+    border: none;
+}
+
+/* 確保按鈕樣式與主視窗一致 */
+.YCIO-message-editor .chat-toolbar button {
+    color: #ccc; /* 預設文字顏色 */
+    width: 28px; /* 稍微大一點點，方便點擊 */
+    height: 28px;
+    border-radius: 4px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.YCIO-message-editor .chat-toolbar button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+/* 3. 輸入框區域 (Input Wrapper) */
+.YCIO-message-editor .input-wrapper {
+    flex: 1; /* 佔滿剩餘高度 */
+    display: flex;
+    flex-direction: column;
+    border-radius: 4px;
+    overflow: hidden; /* 防止圓角破圖 */
+}
+
+/* 文字輸入框本體 */
+.YCIO-message-editor textarea.YCIO-chat-entry {
+    flex: 1; /* 撐滿 input-wrapper */
+    width: 100%;
+    min-height: 120px; /* 給予足夠的編輯空間 */
+    resize: none; /* 禁止手動拉伸，由視窗大小控制 */
+    border: 1px solid #444;
+    background: #222;
+    color: #eee;
+    padding: 8px;
+    font-size: 14px; /* 字體稍微大一點，易於編輯 */
+    line-height: 1.5;
+    box-sizing: border-box;
+    outline: none;
+}
+
+.YCIO-message-editor textarea.YCIO-chat-entry:focus {
+    border-color: #777;
+    background: #1a1a1a;
+}
+
+/* 4. 底部按鈕區 (Form Footer) */
+.YCIO-message-editor .form-footer {
+    display: flex;
+    gap: 8px;
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid #444; /* 分隔線 */
+}
+
+/* 通用按鈕樣式 */
+.YCIO-message-editor .form-footer button {
+    height: 32px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+/* 取消按鈕 (左邊，灰色系) */
+.YCIO-message-editor .form-footer button[data-action="cancel"] {
+    background: #333;
+    color: #aaa;
+}
+
+.YCIO-message-editor .form-footer button[data-action="cancel"]:hover {
+    background: #444;
+    color: #fff;
+    border-color: #666;
+}
+
+/* 更新按鈕 (右邊，強調色 - 類似原本的發送按鈕) */
+.YCIO-message-editor .form-footer button[data-action="updateMessage"] {
+    background: #2d4f2d; /* 深綠色底，代表確認 */
+    color: #dfd;
+    border-color: #4a7a4a;
+}
+
+.YCIO-message-editor .form-footer button[data-action="updateMessage"]:hover {
+    background: #3a633a;
+    color: #fff;
+    border-color: #5c9c5c;
+    box-shadow: 0 0 5px rgba(0, 255, 0, 0.2);
 }

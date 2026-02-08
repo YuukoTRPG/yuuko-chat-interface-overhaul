@@ -96,7 +96,7 @@ export function registerSettings() {
              // 當設定變更時，如果頭像選擇視窗剛好是開著的，就重繪它以即時反映變更
              // 使用 V13 標準方式尋找 AppV2 實例，遍歷所有應用程式實例，找到 ID 符合的並重繪
              for (const app of foundry.applications.instances.values()) {
-                 if (app.id === "ycio-avatar-selector") {
+                 if (app.id === "YCIO-avatar-selector") {
                      app.render();
                  }
              }

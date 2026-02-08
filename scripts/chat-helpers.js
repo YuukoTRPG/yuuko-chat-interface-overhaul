@@ -8,6 +8,7 @@
  * 遍歷場景與 Token，回傳符合下拉選單格式的陣列
  */
 import { MODULE_ID } from "./config.js";
+import { MessageEditor } from "./message-editor.js";
 
 export function prepareSpeakerList() {
     // 1. 找出當前選中的 Token (用於標記 selected)
@@ -82,6 +83,25 @@ export function getChatContextOptions() {
           const element = li instanceof jQuery ? li[0] : li;
           const message = game.messages.get(element.dataset.messageId);
           return message?.update({whisper: ChatMessage.getWhisperRecipients("gm").map(u => u.id), blind: false});
+        }
+      },
+      {
+        name: "YCIO.Editor.Edit", // 記得去語言檔加這個 Key，或暫時寫死 "編輯訊息"
+        icon: '<i class="fas fa-edit"></i>',
+        condition: li => {
+          const element = li instanceof jQuery ? li[0] : li;
+          const message = game.messages.get(element.dataset.messageId);
+          
+          // 條件：(我是作者 或 我是GM) 且 訊息不是系統擲骰 (避免改壞擲骰資料)
+          // 簡單判斷：沒有 rolls 陣列，或 rolls 為空
+          const isRoll = message.rolls.length > 0;
+          return (message.isAuthor || game.user.isGM) && !isRoll; 
+        },
+        callback: li => {
+          const element = li instanceof jQuery ? li[0] : li;
+          const message = game.messages.get(element.dataset.messageId);
+          // 啟動編輯器
+          new MessageEditor(message).render(true);
         }
       },
       {
