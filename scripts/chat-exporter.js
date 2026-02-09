@@ -9,7 +9,6 @@ import { MODULE_ID } from "./config.js";
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 // --- 1. 導出設定視窗 (Dialog) ---
-// (這部分保持不變，與之前相同)
 export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     static DEFAULT_OPTIONS = {
         id: "YCIO-export-dialog",
@@ -26,6 +25,8 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     };
 
     async _prepareContext(_options) {
+        // 準備場景列表供 GM 勾選
+        // 包含 OOC 與所有場景 (不管權限，因為是 GM)
         const tabs = [
             { id: "ooc", label: "OOC (通用頻道)", checked: true }
         ];
@@ -34,7 +35,7 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
             tabs.push({ 
                 id: s.id, 
                 label: s.navName || s.name, 
-                checked: true 
+                checked: true // 預設全選
             });
         });
 
@@ -42,9 +43,11 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     }
 
     static async onDoExport(event, target) {
+        // 取得表單資料
         const formData = new FormData(event.target.closest("form"));
         const selectedTabs = [];
         
+        // 解析勾選的項目
         for (const [key, value] of formData.entries()) {
             if (value === "on") selectedTabs.push(key);
         }
@@ -54,8 +57,9 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
             return;
         }
 
+        // 關閉視窗並開始執行導出
         this.close();
-        ui.notifications.info("正在準備導出，包含 CSS 樣式與圖片轉換，請稍候...");
+        ui.notifications.info("正在準備導出，包含圖片轉換可能需要一些時間，請稍候...");
         
         const exporter = new ChatExporter();
         await exporter.generateAndDownload(selectedTabs);
@@ -69,48 +73,20 @@ class ChatExporter {
     }
 
     /**
-     * [新增] 抓取並合併關鍵 CSS 檔案
-     */
-    async _getCombinedCSS() {
-        // 定義我們要抓取的 CSS 清單
-        const cssFiles = [
-            "css/style.css",                                      // 1. FVTT 核心樣式 (V13 通常是 style.css)
-            "fonts/fontawesome/css/all.min.css",                  // 2. FontAwesome 圖示
-            `systems/${game.system.id}/${game.system.id}.css`,    // 3. 遊戲系統樣式 (例如 dnd5e.css)
-            `modules/${MODULE_ID}/styles/module.css`              // 4. 本模組樣式
-        ];
-
-        let combinedCSS = "";
-
-        // 使用 Promise.all 並行下載所有 CSS
-        const responses = await Promise.all(cssFiles.map(async (path) => {
-            try {
-                const res = await fetch(path);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                let text = await res.text();
-                
-                // [小優化] 加上註解方便除錯
-                return `\n/* --- Source: ${path} --- */\n` + text;
-            } catch (err) {
-                console.warn(`[YCIO] 無法讀取 CSS: ${path}`, err);
-                return ""; // 讀取失敗就回傳空字串，不讓程式崩潰
-            }
-        }));
-
-        return responses.join("\n");
-    }
-
-    /**
      * 主流程：生成並下載
      */
     async generateAndDownload(selectedTabs) {
-        // 1. 讀取並合併所有 CSS
-        this.cssContent = await this._getCombinedCSS();
+        // 1. 讀取模組的 CSS 檔案內容
+        try {
+            const cssResponse = await fetch(`modules/${MODULE_ID}/styles/module.css`);
+            this.cssContent = await cssResponse.text();
+        } catch (e) {
+            console.error("無法讀取 CSS", e);
+            this.cssContent = "";
+        }
 
         // 2. 準備 HTML 結構
         const dateStr = new Date().toISOString().split('T')[0];
-        
-        // 這裡我們加上 .vtt.game class 到 body，模擬 FVTT 環境
         let fullHtml = `
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -118,78 +94,22 @@ class ChatExporter {
     <meta charset="UTF-8">
     <title>聊天紀錄導出 - ${dateStr}</title>
     <style>
-        /* 嵌入合併後的 CSS */
+        /* 重置基礎樣式，模擬 FVTT 環境 */
+        body { margin: 0; padding: 0; background-color: #303030; font-family: "Signika", sans-serif; height: 100vh; overflow: hidden; }
+        /* 嵌入模組 CSS */
         ${this.cssContent}
         
-        /* --- 導出檔案的修正樣式 (Override) --- */
-        
-        /* 強制重置 body 背景與高度 */
-        body { 
-            margin: 0; 
-            padding: 0; 
-            background-color: #303030; /* FVTT 經典深灰底 */
-            background-image: url("ui/denim075.png"); /* 嘗試引用 FVTT 材質，離線可能失效，但有背景色當備案 */
-            font-family: "Signika", sans-serif; 
-            height: 100vh; 
-            overflow: hidden; 
-        }
-
-        /* 讓外框適應全螢幕 */
-        .YCIO-floating-chat-window { 
-            position: relative; 
-            height: 100%; 
-            width: 100%; 
-            top: 0; 
-            left: 0; 
-            border: none; 
-            background: rgba(0, 0, 0, 0.5); /* 稍微調暗背景 */
-        }
-
-        /* 導航列樣式微調 */
-        .export-nav { 
-            background: url("ui/denim075.png") repeat; /* 模擬視窗標題列材質 */
-            background-color: #222;
-            padding: 8px; 
-            border-bottom: 2px solid #000; 
-            display: flex; 
-            gap: 5px; 
-            flex-shrink: 0;
-            box-shadow: 0 0 10px #000;
-        }
-
-        .export-nav button { 
-            background: #444; 
-            color: #ccc; 
-            border: 1px solid #111; 
-            padding: 6px 12px; 
-            cursor: pointer; 
-            border-radius: 4px; 
-            font-family: "Signika", sans-serif;
-            font-size: 14px;
-        }
-
-        .export-nav button:hover {
-            background: #555;
-            color: #fff;
-            border-color: #888;
-        }
-
-        .export-nav button.active { 
-            background: #f0f0e0; 
-            color: #111; 
-            font-weight: bold; 
-            border: 1px solid #fff;
-            box-shadow: 0 0 5px #ffd700;
-        }
-
+        /* 導出專用樣式調整 */
+        .YCIO-floating-chat-window { position: relative; height: 100%; width: 100%; top: 0; left: 0; border: none; }
+        .export-nav { background: #222; padding: 10px; border-bottom: 1px solid #555; display: flex; gap: 5px; flex-shrink: 0;}
+        .export-nav button { background: #444; color: #ccc; border: 1px solid #555; padding: 5px 10px; cursor: pointer; border-radius: 4px; }
+        .export-nav button.active { background: #eee; color: #111; font-weight: bold; }
         .tab-content { display: none; flex: 1; overflow: hidden; height: 100%; }
         .tab-content.active { display: flex; flex-direction: column; }
-        
-        /* 調整 Log 內距，讓它不要貼邊 */
-        #custom-chat-log { flex: 1; overflow-y: auto; padding: 10px 20px; }
+        #custom-chat-log { flex: 1; overflow-y: auto; padding: 10px; }
     </style>
 </head>
-<body class="vtt game system-${game.system.id}"> 
+<body>
     <div class="YCIO-floating-chat-window">
         <div class="export-nav" id="nav-container">
             ${selectedTabs.map(tabId => {
@@ -217,10 +137,13 @@ class ChatExporter {
         </div>
     </div>
     <script>
+        // 簡單的分頁切換邏輯
         function switchTab(tabId) {
+            // 隱藏所有分頁
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.export-nav button').forEach(el => el.classList.remove('active'));
             
+            // 顯示目標分頁
             const target = document.getElementById('tab-' + tabId);
             if (target) target.classList.add('active');
             
@@ -228,6 +151,7 @@ class ChatExporter {
             if (btn) btn.classList.add('active');
         }
         
+        // 預設開啟第一個分頁
         const firstTab = "${selectedTabs[0]}";
         if (firstTab) switchTab(firstTab);
     </script>
@@ -250,41 +174,50 @@ class ChatExporter {
      * 處理單一分頁的訊息：撈取 -> 渲染 -> 圖片轉碼
      */
     async _processMessagesForTab(tabId) {
-        // (此段邏輯保持不變，負責撈取訊息、enrichMessageHTML 和轉 Base64)
-        // 為了節省篇幅，這裡省略重複代碼，請保留你原本的 _processMessagesForTab 和 _convertImageToBase64
-        // ...
-        
-        // 只是為了確保上下文，將原本的邏輯貼在下面:
+        // 1. 撈取訊息 (複製 floating-chat.js 的過濾邏輯，但不限制數量)
         const allMessages = game.messages.contents;
         const targetMessages = allMessages.filter(msg => {
+            // GM 導出時，通常希望能看到所有訊息，但也可以加上 msg.visible 判斷
+            // 這裡我們假設 GM 想備份所有看得到的
             const msgSceneId = msg.speaker.scene;
             const msgTokenId = msg.speaker.token;
+
             if (tabId === "ooc") return !msgTokenId;
             return msgSceneId === tabId && !!msgTokenId;
         });
 
+        // 2. 建立一個暫存的容器來處理 DOM
         const container = document.createElement("div");
 
         for (const msg of targetMessages) {
+            // 渲染原始 HTML
             const html = await msg.renderHTML();
-            enrichMessageHTML(msg, html); 
+            // 注入頭像與 YCIO 結構 (重複利用既有函式)
+            enrichMessageHTML(msg, html); // 此時 html 已經變成 <li class="message ...">...</li>
+
             container.appendChild(html);
         }
 
+        // 3. 【關鍵】將容器內的所有圖片轉為 Base64
+        // 這一步最花時間，我們使用 Promise.all 並行處理
         const images = Array.from(container.querySelectorAll("img"));
         await Promise.all(images.map(img => this._convertImageToBase64(img)));
 
         return container.innerHTML;
     }
 
+    /**
+     * 將 img 標籤的 src 替換為 Base64
+     */
     async _convertImageToBase64(imgElement) {
-        // (此段邏輯保持不變)
         const src = imgElement.src;
+        // 略過已經是 base64 的圖片
         if (src.startsWith("data:")) return;
 
         try {
+            // 建立一個 Image 物件來載入圖片
             const image = new Image();
-            image.crossOrigin = "Anonymous"; 
+            image.crossOrigin = "Anonymous"; // 嘗試處理跨域問題
             image.src = src;
 
             await new Promise((resolve, reject) => {
@@ -292,17 +225,21 @@ class ChatExporter {
                 image.onerror = reject;
             });
 
+            // 使用 Canvas 繪製並轉碼
             const canvas = document.createElement("canvas");
             canvas.width = image.naturalWidth;
             canvas.height = image.naturalHeight;
             const ctx = canvas.getContext("2d");
             ctx.drawImage(image, 0, 0);
 
+            // 替換原本 DOM 的 src
             imgElement.src = canvas.toDataURL("image/png");
+            // 移除 srcset 避免瀏覽器優先使用舊連結
             imgElement.removeAttribute("srcset");
             
         } catch (err) {
-            console.warn(`[YCIO] 圖片轉碼失敗: ${src}`, err);
+            console.warn(`[YCIO] 圖片轉碼失敗 (可能因跨域限制): ${src}`, err);
+            // 失敗時保持原連結，不中斷流程
         }
     }
 }
