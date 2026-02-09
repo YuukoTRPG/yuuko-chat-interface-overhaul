@@ -72,8 +72,17 @@
       "Update": "確認編輯訊息"
     },
     
-    "Expoter":{
-      "Title": "導出聊天紀錄"
+    "Exporter": {
+      "Title": "導出聊天紀錄",
+      "Description": "請選擇要導出的頻道分頁。導出過程會將所有圖片轉換為內嵌格式，這可能需要幾分鐘的時間。",
+      "OOCLabel": "場外",
+      "OOCButton": "場外",
+      "WarningNoSelection": "請至少選擇一個要導出的分頁",
+      "InfoPreparing": "正在準備導出，包含圖片轉換可能需要一些時間，請稍候...",
+      "InfoDownloadingCSS": "正在下載並封裝樣式表...",
+      "InfoComplete": "導出完成！",
+      "ButtonStart": "開始導出",
+      "HtmlTitle": "聊天紀錄導出"
     }
   }
 }
