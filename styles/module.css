@@ -957,9 +957,9 @@
 }
 
 .YCIO-export-form .notes {
-    margin: 0 0 5px 0; /* 縮減間距 */
+    margin: 0 0 5px 0; 
     color: #ccc;
-    font-size: 0.9em;  /* 字稍微縮小一點，更緊湊 */
+    font-size: 0.9em;  
     flex-shrink: 0;    /* 防止說明文字被擠壓 */
 }
 
@@ -1005,12 +1005,9 @@
     margin-left: 4px;
     font-size: 13px;
     line-height: 1.2;
-    
-    /* 截斷三寶 */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    
     flex: 1; /* 佔滿剩餘寬度 */
 }
 
