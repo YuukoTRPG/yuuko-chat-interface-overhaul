@@ -86,7 +86,7 @@ export function getChatContextOptions() {
         }
       },
       {
-        name: "YCIO.Editor.Edit", // 記得去語言檔加這個 Key，或暫時寫死 "編輯訊息"
+        name: "YCIO.Editor.Edit",
         icon: '<i class="fas fa-edit"></i>',
         condition: li => {
           const element = li instanceof jQuery ? li[0] : li;

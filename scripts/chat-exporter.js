@@ -13,7 +13,7 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     static DEFAULT_OPTIONS = {
         id: "YCIO-export-dialog",
         tag: "form",
-        window: { title: "YCIO.Exporter.Title", icon: "fas fa-file-export", resizable: false },
+        window: { title: "YCIO.Exporter.Title", icon: "fas fa-file-export", resizable: true },
         position: { width: 400, height: "auto" },
         actions: {
             doExport: ChatExportDialog.onDoExport

@@ -1,19 +1,19 @@
-<div class="standard-form">
-    <p class="notes" style="margin-bottom: 10px; color: #ccc;">
+<div class="standard-form YCIO-export-form">
+    <p class="notes">
         {{localize "YCIO.Exporter.Description"}}
     </p>
 
-    <div class="form-group-stacked" style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.2); padding: 5px; border: 1px solid #444;">
+    <div class="form-group-stacked export-tab-list">
         {{#each tabs}}
-        <label class="checkbox" style="display: flex; align-items: center; margin-bottom: 4px;">
+        <label class="checkbox">
             <input type="checkbox" name="{{this.id}}" {{#if this.checked}}checked{{/if}}>
-            <span style="margin-left: 5px;">{{this.label}}</span>
+            <span>{{this.label}}</span>
         </label>
         {{/each}}
     </div>
 
-    <footer class="sheet-footer flexrow" style="margin-top: 10px; gap: 5px;">
-        <button type="submit" data-action="doExport" style="background: #2d4f2d; color: #fff;">
+    <footer class="sheet-footer flexrow">
+        <button type="submit" data-action="doExport">
             <i class="fas fa-file-export"></i> {{localize "YCIO.Exporter.ButtonStart"}}
         </button>
     </footer>
