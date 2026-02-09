@@ -13,7 +13,7 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     static DEFAULT_OPTIONS = {
         id: "YCIO-export-dialog",
         tag: "form",
-        window: { title: "導出聊天紀錄", icon: "fas fa-file-export", resizable: false },
+        window: { title: "YCIO.Exporter.Title", icon: "fas fa-file-export", resizable: false },
         position: { width: 400, height: "auto" },
         actions: {
             doExport: ChatExportDialog.onDoExport
@@ -28,7 +28,7 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
         // 準備場景列表供 GM 勾選
         // 包含 OOC 與所有場景 (不管權限，因為是 GM)
         const tabs = [
-            { id: "ooc", label: "OOC (通用頻道)", checked: true }
+            { id: "ooc", label: game.i18n.localize("YCIO.Exporter.OOCLabel"), checked: true }
         ];
 
         game.scenes.forEach(s => {
@@ -53,13 +53,13 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
         }
 
         if (selectedTabs.length === 0) {
-            ui.notifications.warn("請至少選擇一個要導出的分頁");
+            ui.notifications.warn(game.i18n.localize("YCIO.Exporter.WarningNoSelection"));
             return;
         }
 
         // 關閉視窗並開始執行導出
         this.close();
-        ui.notifications.info("正在準備導出，包含圖片轉換可能需要一些時間，請稍候...");
+        ui.notifications.info(game.i18n.localize("YCIO.Exporter.InfoPreparing"));
         
         const exporter = new ChatExporter();
         await exporter.generateAndDownload(selectedTabs);
@@ -76,10 +76,28 @@ class ChatExporter {
      * 主流程：生成並下載
      */
     async generateAndDownload(selectedTabs) {
-        // 1. 讀取模組的 CSS 檔案內容
+        // 1. 讀取 CSS 內容
         try {
-            const cssResponse = await fetch(`modules/${MODULE_ID}/styles/module.css`);
-            this.cssContent = await cssResponse.text();
+            ui.notifications.info(game.i18n.localize("YCIO.Exporter.InfoDownloadingCSS"));
+
+            // Step A: 先抓全域所有 CSS (包含 Core, System 和其他模組)
+            const globalCSS = await this._fetchGlobalCSS();
+
+            // Step B: [新增] 強制單獨再抓一次 module.css
+            // 這樣我們可以把它放在字串的最尾端，確保它的權重贏過前面抓到的任何東西
+            let moduleCSS = "";
+            try {
+                const response = await fetch(`modules/${MODULE_ID}/styles/module.css`);
+                if (response.ok) {
+                    moduleCSS = await response.text();
+                }
+            } catch (err) {
+                console.warn("[YCIO] 無法單獨讀取 module.css", err);
+            }
+
+            // Step C: 組合 (將 module.css 放在最後面)
+            this.cssContent = globalCSS + "\n/* --- YCIO Module CSS Priority Override --- */\n" + moduleCSS;
+
         } catch (e) {
             console.error("無法讀取 CSS", e);
             this.cssContent = "";
@@ -92,11 +110,13 @@ class ChatExporter {
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>聊天紀錄導出 - ${dateStr}</title>
+    <title>${game.i18n.localize("YCIO.Exporter.HtmlTitle")} - ${dateStr}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Signika:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
         /* 重置基礎樣式，模擬 FVTT 環境 */
         body { margin: 0; padding: 0; background-color: #303030; font-family: "Signika", sans-serif; height: 100vh; overflow: hidden; }
-        /* 嵌入模組 CSS */
+        /* 嵌入抓取到的所有 CSS */
         ${this.cssContent}
         
         /* 導出專用樣式調整 */
@@ -113,7 +133,7 @@ class ChatExporter {
     <div class="YCIO-floating-chat-window">
         <div class="export-nav" id="nav-container">
             ${selectedTabs.map(tabId => {
-                const label = tabId === "ooc" ? "OOC" : (game.scenes.get(tabId)?.navName || game.scenes.get(tabId)?.name || tabId);
+                const label = tabId === "ooc" ? game.i18n.localize("YCIO.Exporter.OOCButton") : (game.scenes.get(tabId)?.navName || game.scenes.get(tabId)?.name || tabId);
                 return `<button onclick="switchTab('${tabId}')" data-tab="${tabId}">${label}</button>`;
             }).join("")}
         </div>
@@ -137,19 +157,44 @@ class ChatExporter {
         </div>
     </div>
     <script>
-        // 簡單的分頁切換邏輯
+        // A. 簡單的分頁切換邏輯
         function switchTab(tabId) {
-            // 隱藏所有分頁
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.export-nav button').forEach(el => el.classList.remove('active'));
             
-            // 顯示目標分頁
             const target = document.getElementById('tab-' + tabId);
             if (target) target.classList.add('active');
             
             const btn = document.querySelector('.export-nav button[data-tab="' + tabId + '"]');
             if (btn) btn.classList.add('active');
         }
+
+        // B. 通用擲骰展開互動 (Event Delegation)
+        // 監聽整個頁面的點擊事件，不用對每個骰子綁定
+        document.addEventListener('click', function(e) {
+            // 1. 找到被點擊的骰子區塊
+            const diceRoll = e.target.closest('.dice-roll');
+            if (!diceRoll) return;
+
+            // 2. 標準動作：切換 expanded class (適用於標準系統)
+            diceRoll.classList.toggle('expanded');
+
+            // 3. 強制動作：處理像 CoC 這種用 style="display:none" 的北爛系統
+            // 搜尋該區塊內常見的隱藏容器 class
+            const tooltips = diceRoll.querySelectorAll('.dice-tooltip');
+            
+            tooltips.forEach(tp => {
+                // 如果當前是隱藏的 (檢查行內樣式)
+                if (tp.style.display === 'none') {
+                    // 清空 display 屬性，讓它回歸 CSS 控制 (通常就會顯示了)
+                    tp.style.display = ''; 
+                } 
+                // 如果當前是顯示的 (且外層已經移除 expanded，我們手動把它藏回去)
+                else if (!diceRoll.classList.contains('expanded')) {
+                    tp.style.display = 'none';
+                }
+            });
+        });
         
         // 預設開啟第一個分頁
         const firstTab = "${selectedTabs[0]}";
@@ -167,7 +212,7 @@ class ChatExporter {
         a.click();
         URL.revokeObjectURL(url);
         
-        ui.notifications.info("導出完成！");
+        ui.notifications.info(game.i18n.localize("YCIO.Exporter.InfoComplete"));
     }
 
     /**
@@ -241,5 +286,32 @@ class ChatExporter {
             console.warn(`[YCIO] 圖片轉碼失敗 (可能因跨域限制): ${src}`, err);
             // 失敗時保持原連結，不中斷流程
         }
+    }
+
+    /**
+     * 抓取當前網頁所有載入的 CSS 內容
+     */
+    async _fetchGlobalCSS() {
+        // 1. 抓取所有 <link rel="stylesheet"> 標籤
+        const links = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
+        
+        // 2. 異步並行下載所有 CSS 檔案內容
+        const cssPromises = links.map(async (link) => {
+            try {
+                // 忽略非同源 (CORS) 的外部樣式，避免報錯 (通常 Google Fonts 等會擋)
+                // 但 FVTT 本地的樣式 (系統、核心、模組) 都能抓到
+                const response = await fetch(link.href);
+                if (response.ok) {
+                    return await response.text();
+                }
+            } catch (e) {
+                console.warn(`[YCIO] 導出略過無法讀取的 CSS: ${link.href}`);
+            }
+            return "";
+        });
+
+        // 3. 等待全部下載完成並合併成一個大字串
+        const allCss = await Promise.all(cssPromises);
+        return allCss.join("\n");
     }
 }
