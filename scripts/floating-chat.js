@@ -11,6 +11,7 @@ import {prepareSpeakerList,
         hexToRgba} from "./chat-helpers.js"; //某些函式
 import { FLAG_SCOPE, FLAG_KEY, MODULE_ID } from "./config.js"; //某些常數，定義 Flag 作用域和 Key (用於打字狀態同步)
 import { AvatarSelector, InlineAvatarPicker } from "./avatar-selector.js"; //頭像選擇器
+import { ChatExportDialog } from "./chat-exporter.js"; //聊天記錄匯出
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -91,7 +92,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       formatItalic: FloatingChat.onFormatItalic,
       formatStrikethrough: FloatingChat.onFormatStrikethrough,
       applyTextColor: FloatingChat.onApplyTextColor,
-      formatInlineAvatar: FloatingChat.onFormatInlineAvatar
+      formatInlineAvatar: FloatingChat.onFormatInlineAvatar,
+      exportLog: FloatingChat.onExportLog
     }
   };
 
@@ -206,7 +208,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         scenes: scenes,
         activeTab: this.activeTab,
         speakers: speakers,
-        draftContent: draftContent
+        draftContent: draftContent,
+        isGM: game.user.isGM
     };
   }
 
@@ -1036,6 +1039,12 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
     // 5. 開啟視窗
     new InlineAvatarPicker(validList, onPick).render(true);
+  }
+
+  // Action: 開啟聊天紀錄導出視窗
+  static onExportLog(event, target) {
+      if (!game.user.isGM) return;
+      new ChatExportDialog().render(true);
   }
 
   /* ========================================================= */

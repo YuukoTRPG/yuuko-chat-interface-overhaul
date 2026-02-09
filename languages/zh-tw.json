@@ -20,7 +20,10 @@
       "Bold": "粗體",
       "Italic": "斜體",
       "Strikethrough": "刪除線",
-      "TextColor": "文字顏色"
+      "TextColor": "文字顏色",
+      "SelectColor": "選擇顏色",
+      "InlineAvatar": "從頭像插入表符",
+      "ExportLog": "導出訊息紀錄"
     },
     "Speaker": {
       "OOC": "場外"
@@ -67,6 +70,10 @@
       "WindowTitle": "編輯訊息",
       "Edit": "編輯訊息",
       "Update": "確認編輯訊息"
+    },
+    
+    "Expoter":{
+      "Title": "導出聊天紀錄"
     }
   }
 }
