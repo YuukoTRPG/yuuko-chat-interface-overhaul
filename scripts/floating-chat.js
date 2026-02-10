@@ -274,6 +274,34 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
             // Scroll 監聽
             log.addEventListener("scroll", this._onChatScroll.bind(this));
+
+            // 接管系統的選單按鈕
+            // 監聽整個 log 區域的點擊事件
+            log.addEventListener("click", (ev) => {
+                // 檢查被點擊的元素是否為 [data-context-menu] 或其子元素 (例如 icon)
+                const btn = ev.target.closest("[data-context-menu]");
+                
+                if (btn) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+
+                    // 找到這顆按鈕所屬的訊息元素
+                    const messageEl = btn.closest(".message");
+                    
+                    if (messageEl) {
+                        // 手動派發一個 "contextmenu" (右鍵) 事件
+                        // 這會觸發我們在 _initializeContextMenu 中設定好的選單
+                        const contextEvent = new MouseEvent("contextmenu", {
+                            bubbles: true,
+                            cancelable: true,
+                            view: window,
+                            clientX: ev.clientX, // 讓選單出現在滑鼠點擊的位置
+                            clientY: ev.clientY
+                        });
+                        messageEl.dispatchEvent(contextEvent);
+                    }
+                }
+            });
             
             this._programmaticScroll = true;
             setTimeout(() => {
@@ -1266,6 +1294,53 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
       btn.dataset.tooltip = tooltipContent;
       btn.dataset.tooltipClass = "YCIO-avatar-tooltip";
+  }
+
+  /* ========================================================= */
+  /* 10. 原生 ChatLog 相容性介面 (Native Compatibility Shim)   */
+  /* 為了讓系統透過 renderChatMessage 綁定的按鈕能正常運作，  */
+  /* 我們必須實作 ChatLog 的標準方法，因為系統會呼叫 app.method()        */
+  /* ========================================================= */
+
+  /**
+   * 許多系統的刪除按鈕會呼叫此方法
+   * @param {string} messageId 
+   * @param {Object} [options]
+   */
+  async deleteMessage(messageId, {deleteAll=false}={}) {
+      if (deleteAll) {
+          return game.messages.flush();
+      }
+      const message = game.messages.get(messageId);
+      if (message) return message.delete();
+  }
+
+  /**
+   * 許多系統的更新/編輯按鈕會呼叫此方法
+   * @param {ChatMessage} message 
+   * @param {Object} updateData 
+   */
+  async updateMessage(message, updateData) {
+      return message.update(updateData);
+  }
+
+  /**
+   * 捲動到底部 (某些系統發話後會主動呼叫這個)
+   */
+  scrollBottom() {
+      // 呼叫我們自己的跳轉邏輯
+      const log = this.element.querySelector("#custom-chat-log");
+      if (log) {
+           log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
+      }
+  }
+
+  /**
+   * 某些系統會呼叫此方法來強制重繪 (雖然我們有 Hook 監聽，但實作它以防萬一)
+   */
+  async postOne(message, notify=false) {
+      // YCIO 架構下，appendMessage 已經由 Hook 觸發，
+      // 這裡留空或做簡單檢查即可，避免重複插入
   }
 
 }
