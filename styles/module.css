@@ -132,11 +132,18 @@
 }
 
 /* 訊息標頭 (發訊者、時間等) */
-.YCIO-floating-chat-window .chat-message .message-header {
-    font-size: 0.85rem;
-    border-bottom: 1px solid #777;
+.YCIO-floating-chat-window .chat-message .message-body .message-header {
+    border-bottom: 1px solid rgba(0,0,0,0.1); /* 讓分隔線淡一點 */
     margin-bottom: 4px;
 }
+
+.YCIO-floating-chat-window .chat-message .message-body .message-header * {
+    font-size: 0.7rem; /*字體大小*/
+    color: #000 /*內部字的顏色*/
+}
+
+
+
 
 /* --- 圖片與卡牌處理 --- */
 
@@ -235,17 +242,6 @@
     display: flex;
     flex-direction: column;
     color: #000; /* 內部字的顏色 */
-}
-
-.YCIO-floating-chat-window .message-sender {
-    color: #000; /* 內部字的顏色 */
-}
-
-/* 微調原本的 header，取消下底線(可選)，或是調整間距 */
-.YCIO-floating-chat-window .chat-message .message-header {
-    border-bottom: 1px solid rgba(0,0,0,0.1); /* 讓分隔線淡一點 */
-    margin-bottom: 4px;
-    padding-bottom: 2px;
 }
 
 /* =========================================================
