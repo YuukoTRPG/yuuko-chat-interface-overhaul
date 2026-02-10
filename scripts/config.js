@@ -110,6 +110,24 @@ export function registerSettings() {
              }
         }
     });
+
+    // 訊息渲染模式的設定，renderChatLog/renderChatMessage/停用Hook
+    game.settings.register(MODULE_ID, "hookCompatibilityMode", {
+        name: "YCIO.Settings.HookMode.Name", // "渲染相容模式"
+        hint: "YCIO.Settings.HookMode.Hint", // "若訊息互動失效或出現雙重判定，請調整此選項。"
+        scope: "world",
+        config: true,
+        default: "standard", // 預設使用標準模式
+        type: String,
+        choices: {
+            "standard": "YCIO.Settings.HookMode.Standard", // "標準 (D&D 5e, PF2e) - 僅觸發 renderChatMessage",
+            "legacy": "YCIO.Settings.HookMode.Legacy",     // "舊版相容 (CoC 7e) - 同時觸發 renderChatLog",
+            "none": "YCIO.Settings.HookMode.None"          // "停用 Hook (SR 5e) - 防止雙重綁定"
+        },
+        onChange: () => {
+             ui.notifications.info(game.i18n.localize("YCIO.Settings.HookMode.Changed"));
+        }
+    });
     
     console.log("YCIO | 設定 (Settings) 已註冊");
 }
