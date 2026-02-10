@@ -20,7 +20,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   constructor(options={}) {
     super(options);
 
-    // --- 設定視窗標題 (使用 i18n，優先使用設定中的標題) ---
+    // --- 設定視窗標題 (i18n，優先使用設定中的標題) ---
     const customTitle = game.settings.get(MODULE_ID, "windowTitle");
     this.options.window.title = customTitle || game.i18n.localize("YCIO.WindowTitle");
 
@@ -167,31 +167,33 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         }
     }
 
-    const renderedMessages = [];
-    for (const m of filteredMessages) {
-        let finalHtml = "";
+    // 不回傳 renderedMessages 字串陣列給 Handlebars，而是把 DOM 元素準備好，存在 this._contextMessageElements 供 _onRender 使用
+    this._contextMessageElements = []; 
 
-        // 快取檢查
+    for (const m of filteredMessages) {
+        let messageElement;
+
+        // 快取檢查 (現在 Map 裡存的是 HTMLElement)
         if (this._messageCache.has(m.id)) {
-            // 直接讀取快取
-            finalHtml = this._messageCache.get(m.id);
+            messageElement = this._messageCache.get(m.id);
         } else {
-            // 執行渲染與 DOM 處理
+            // 1. 渲染與 DOM 處理
             const html = await m.renderHTML();
+            messageElement = html instanceof jQuery ? html[0] : html;
             
-            // 轉為原生 DOM (相容 V12/V13)
-            const element = html instanceof jQuery ? html[0] : html;
-            
-            enrichMessageHTML(m, element); // 注入頭像
-            
-            // 儲存為字串 (outerHTML)
-            finalHtml = element.outerHTML;
-            
-            // 寫入快取
-            this._messageCache.set(m.id, finalHtml);
+            enrichMessageHTML(m, messageElement); // 注入頭像
+
+            // 2. 手動觸發 renderChatMessage
+            // 讓系統(尤其CoC這北七系統) 有機會把事件綁定到這個單一元素上
+            // 只在元素產生時做一次，以後切換分頁都不再做
+            const $element = $(messageElement);
+            Hooks.call("renderChatMessage", m, $element, m.system || {});
+
+            // 3. 寫入快取 (存 DOM 物件)
+            this._messageCache.set(m.id, messageElement);
         }
 
-        renderedMessages.push({ id: m.id, html: finalHtml });
+        this._contextMessageElements.push(messageElement);
     }
 
     // 準備發話身份列表 (Speakers)，呼叫chat-helpers.js的函式
@@ -204,7 +206,6 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     const draftContent = inputEl ? inputEl.value : "";
 
     return { 
-        messages: renderedMessages,
         scenes: scenes,
         activeTab: this.activeTab,
         speakers: speakers,
@@ -263,13 +264,18 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     if (parts.includes("content")) {
         const log = this.element.querySelector("#custom-chat-log");
         if (log) {
+            // 將準備好的 DOM 元素注入容器
+            // 因為 this._contextMessageElements 裡的是「活的」DOM 物件
+            // 瀏覽器會保留上面的事件監聽器 (Event Listeners)
+            if (this._contextMessageElements && this._contextMessageElements.length > 0) {
+                const fragment = document.createDocumentFragment();
+                this._contextMessageElements.forEach(el => fragment.appendChild(el));
+                log.appendChild(fragment);
+            }
+
+            // Scroll 監聽
             log.addEventListener("scroll", this._onChatScroll.bind(this));
             
-            // 如果 options.parts 存在，代表這只是切換分頁或輸入框更新，不需要讓其他模組整個重寫
-            if (!options.parts) {
-                const $log = $(log);
-                Hooks.call("renderChatLog", this, $log);
-            }
             this._programmaticScroll = true;
             setTimeout(() => {
                 log.scrollTop = log.scrollHeight;
