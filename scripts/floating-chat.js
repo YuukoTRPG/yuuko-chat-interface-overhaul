@@ -1335,12 +1335,4 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       }
   }
 
-  /**
-   * 某些系統會呼叫此方法來強制重繪 (雖然我們有 Hook 監聽，但實作它以防萬一)
-   */
-  async postOne(message, notify=false) {
-      // YCIO 架構下，appendMessage 已經由 Hook 觸發，
-      // 這裡留空或做簡單檢查即可，避免重複插入
-  }
-
 }
