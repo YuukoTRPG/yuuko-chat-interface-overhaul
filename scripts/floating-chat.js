@@ -8,7 +8,8 @@ import {prepareSpeakerList,
         enrichMessageHTML,
         resolveCurrentAvatar,
         getSpeakerFromSelection,
-        hexToRgba} from "./chat-helpers.js"; //某些函式
+        hexToRgba,
+        triggerRenderHooks} from "./chat-helpers.js"; //某些函式
 import { FLAG_SCOPE, FLAG_KEY, MODULE_ID } from "./config.js"; //某些常數，定義 Flag 作用域和 Key (用於打字狀態同步)
 import { AvatarSelector, InlineAvatarPicker } from "./avatar-selector.js"; //頭像選擇器
 import { ChatExportDialog } from "./chat-exporter.js"; //聊天記錄匯出
@@ -185,7 +186,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
             // 2. 觸發函式，根據Config決定是 renderChatLog 或 renderChatMessage 綁定事件監聽
             // 只在元素產生時做一次，以後切換分頁都不再做
-            this._triggerRenderHooks(m, messageElement);
+            triggerRenderHooks(this, m, messageElement);
 
             // 3. 寫入快取 (存 DOM 物件)
             this._messageCache.set(m.id, messageElement);
@@ -769,7 +770,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     log.appendChild(htmlElement); 
 
     // 針對這一條新訊息觸發函式，根據設定決定 renderChatLog 或renderChatMessage
-    this._triggerRenderHooks(message, htmlElement);
+    triggerRenderHooks(this, message, htmlElement);
     // 並同步寫入快取 (這很重要，如此下次切換分頁時，這條帶有事件的 DOM 才會被保留)
     this._messageCache.set(message.id, htmlElement);
 
@@ -834,7 +835,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         enrichMessageHTML(message, newHtml); // 放入頭像
         
         // 綁定事件
-        this._triggerRenderHooks(message, newHtml);
+        triggerRenderHooks(this, message, newHtml);
         // 更新快取
         this._messageCache.set(message.id, newHtml instanceof jQuery ? newHtml[0] : newHtml);
         
@@ -1185,7 +1186,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       enrichMessageHTML(message, newHtml); // 放入頭像
 
       // --- 綁定事件與快取 ---
-      this._triggerRenderHooks(message, newHtml);
+      triggerRenderHooks(this, message, newHtml);
 
       // 2. 寫入快取 (確保之後切換分頁時，這個帶有事件的 DOM 能被重複使用)
       // 注意：要存入原生的 DOM 元素 (如果是 jQuery 物件要取 [0])
@@ -1266,32 +1267,5 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       btn.dataset.tooltip = tooltipContent;
       btn.dataset.tooltipClass = "YCIO-avatar-tooltip";
   }
-
-  /* ========================================================= */
-  /* 10. 其他輔助方法*/
-  /* ========================================================= */
-
-    /**
-     * 統一處理 Hook 觸發邏輯
-     * @param {HTMLElement} htmlElement - 訊息的 DOM 元素
-     */
-    _triggerRenderHooks(message, htmlElement) {
-        const mode = game.settings.get(MODULE_ID, "hookCompatibilityMode");
-        
-        // 模式 3: 停用 (例如：SR 5e) 完全不觸發任何 Hook，避免雙重綁定
-        if (mode === "none") {
-            return;
-        }
-
-        const $html = $(htmlElement);
-
-        // 模式 1 & 2: 標準與舊版都會觸發 renderChatMessage 這是為了讓大部份第三方模組能正常運作
-        Hooks.call("renderChatMessage", message, $html, message.system || {});
-
-        // 模式 2: 舊版相容 (例如：CoC 7e) 額外觸發 renderChatLog 以綁定老舊系統的事件
-        if (mode === "legacy") {
-            Hooks.call("renderChatLog", this, $html);
-        }
-    }
 
 }

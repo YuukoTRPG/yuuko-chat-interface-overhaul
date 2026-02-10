@@ -118,11 +118,12 @@ export function registerSettings() {
         scope: "world",
         config: true,
         default: "standard", // 預設使用標準模式
+        requiresReload: true,
         type: String,
         choices: {
             "standard": "YCIO.Settings.HookMode.Standard", // "標準 (D&D 5e, PF2e) - 僅觸發 renderChatMessage",
             "legacy": "YCIO.Settings.HookMode.Legacy",     // "舊版相容 (CoC 7e) - 同時觸發 renderChatLog",
-            "none": "YCIO.Settings.HookMode.None"          // "停用 Hook (SR 5e) - 防止雙重綁定"
+            "clone": "YCIO.Settings.HookMode.Clone"        // "隔離 (SR 5e) - 使用 DOM 副本觸發 Hook"
         },
         onChange: () => {
              ui.notifications.info(game.i18n.localize("YCIO.Settings.HookMode.Changed"));

@@ -333,3 +333,34 @@ export function hexToRgba(hex, opacity) {
     const b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
+
+/**
+ * 處理系統相容性的 Hook 觸發邏輯
+ * @param {ApplicationV2} app - 呼叫此函式的應用程式實例 (FloatingChat)
+ * @param {ChatMessage} message - 訊息文件
+ * @param {HTMLElement} htmlElement - 訊息的 DOM 元素
+ */
+export function triggerRenderHooks(app, message, htmlElement) {
+    const mode = game.settings.get(MODULE_ID, "hookCompatibilityMode");
+    
+    // 將原生 DOM 包裝成 jQuery 物件
+    let $html = $(htmlElement);
+
+    // --- 模式 3: 隔離模式 (Clone) ---
+    // 專門針對 Shadowrun 5e 這類「全域 + 局部」雙重綁定的系統。
+    // 我們傳送一個複製品給 Hook，讓系統去綁定那個不會被使用的複製品，
+    // 但第三方模組依然能讀取複製品的資料來顯示特效。
+    if (mode === "clone") {
+        $html = $html.clone(); // 建立一個隔離的內容
+    }
+
+    // 1. 觸發 renderChatMessage
+    // 如果是 clone 模式，這裡是把隔離的內容傳出去
+    Hooks.call("renderChatMessage", message, $html, message.system || {});
+
+    // --- 模式 2: 舊版相容 (Legacy) ---
+    // 例如 CoC 7e，需要 renderChatLog 才能運作
+    if (mode === "legacy") {
+        Hooks.call("renderChatLog", app, $html);
+    }
+}
