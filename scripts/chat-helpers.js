@@ -231,10 +231,23 @@ export function enrichMessageHTML(message, htmlElement) {
   // 相容性處理，無論傳進來的是 jQuery 物件還是 HTMLElement (V13標準)，統一轉為原生 DOM
     const element = htmlElement instanceof jQuery ? htmlElement[0] : htmlElement;
 
-    // 1. 取得頭像 (注意：這裡直接呼叫同檔案的函式，不用 this)
+    // --- DOM 淨化：清理發話者區域 (Clean Sender) ---
+    const shouldCleanSender = game.settings.get(MODULE_ID, "cleanMessageSender");
+    if (shouldCleanSender) {
+        const senderEl = element.querySelector('.message-sender');
+        if (senderEl) {
+            // 取得純文字名稱。優先順序：訊息別名 (Token Name) -> 發話者/作者名稱 -> 預設字串
+            const rawName = message.speaker?.alias || message.author?.name || message.user?.name || "Unknown";
+            
+            // 使用 textContent 會直接抹除裡面的所有 HTML 標籤 (img, span, div)，只留下純文字，確保不會有其他系統殘留的節點
+            senderEl.textContent = rawName;
+        }
+    }
+
+    // 取得頭像 (注意：這裡直接呼叫同檔案的函式，不用 this)
     const avatarUrl = getAvatarUrl(message);
 
-    // [修改開始] 判斷是否為無頭像模式
+    // 判斷是否為無頭像模式
     if (avatarUrl === "__NO_AVATAR__") {
         // A. 無頭像模式
         // 為了讓 CSS 方便處理 (如果需要微調邊距)，我們可以加個 class
@@ -252,7 +265,7 @@ export function enrichMessageHTML(message, htmlElement) {
         element.appendChild(bodyDiv);
     } else {
         // B. 正常頭像模式，繼續插入頭像
-        // 2. 建立頭像 DOM
+        // 建立頭像 DOM
         const avatarDiv = document.createElement("div");
         avatarDiv.classList.add("message-avatar");
         const img = document.createElement("img");
@@ -260,15 +273,15 @@ export function enrichMessageHTML(message, htmlElement) {
         img.alt = message.speaker.alias || "Avatar";
         avatarDiv.appendChild(img);
 
-        // 3. 建立右側內容容器 (message-body)
+        // 建立右側內容容器 (message-body)
         const bodyDiv = document.createElement("div");
         bodyDiv.classList.add("message-body");
 
-        // 4. 移動原本的內容
+        // 移動原本的內容
         const children = Array.from(element.childNodes);
         children.forEach(child => bodyDiv.appendChild(child));
 
-        // 5. 重新組裝
+        // 重新組裝
         element.appendChild(avatarDiv);
         element.appendChild(bodyDiv);
     }

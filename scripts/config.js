@@ -128,6 +128,21 @@ export function registerSettings() {
              ui.notifications.info(game.i18n.localize("YCIO.Settings.HookMode.Changed"));
         }
     });
+
+    // 淨化發言者名稱 (清理其他系統/模組塞入的頭像或徽章)
+    game.settings.register(MODULE_ID, "cleanMessageSender", {
+        name: "YCIO.Settings.CleanSender.Name",
+        hint: "YCIO.Settings.CleanSender.Hint",
+        scope: "world",
+        config: true,
+        type: Boolean,
+        // 補充邏輯：如果當前系統是 D&D 5e或某些其他系統，預設值就是 true，否則為 false
+        default: ["dnd5e"].includes(game.system.id),
+        onChange: () => {
+             // 建議提示重整，因為這會影響已經渲染出的聊天訊息 DOM
+             ui.notifications.info(game.i18n.localize("YCIO.Settings.CleanSender.Changed"));
+        }
+    });
     
     console.log("YCIO | 設定 (Settings) 已註冊");
 }
