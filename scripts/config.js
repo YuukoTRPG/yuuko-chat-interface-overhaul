@@ -113,8 +113,8 @@ export function registerSettings() {
 
     // 訊息渲染模式的設定，renderChatLog/renderChatMessage/停用Hook
     game.settings.register(MODULE_ID, "hookCompatibilityMode", {
-        name: "YCIO.Settings.HookMode.Name", // "渲染相容模式"
-        hint: "YCIO.Settings.HookMode.Hint", // "若訊息互動失效或出現雙重判定，請調整此選項。"
+        name: "YCIO.Settings.HookMode.Name",
+        hint: "YCIO.Settings.HookMode.Hint",
         scope: "world",
         config: true,
         default: "standard", // 預設使用標準模式
@@ -122,7 +122,6 @@ export function registerSettings() {
         type: String,
         choices: {
             "standard": "YCIO.Settings.HookMode.Standard", // "標準 (D&D 5e, PF2e) - 僅觸發 renderChatMessage",
-            "legacy": "YCIO.Settings.HookMode.Legacy",     // "舊版相容 (CoC 7e) - 同時觸發 renderChatLog",
             "clone": "YCIO.Settings.HookMode.Clone"        // "隔離 (SR 5e) - 使用 DOM 副本觸發 Hook"
         },
         onChange: () => {

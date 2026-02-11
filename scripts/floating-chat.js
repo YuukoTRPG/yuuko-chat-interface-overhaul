@@ -263,13 +263,27 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     if (parts.includes("content")) {
         const log = this.element.querySelector("#custom-chat-log");
         if (log) {
-            // 將準備好的 DOM 元素注入容器
-            // 因為 this._contextMessageElements 裡的是「活的」DOM 物件
-            // 瀏覽器會保留上面的事件監聽器 (Event Listeners)
-            if (this._contextMessageElements && this._contextMessageElements.length > 0) {
-                const fragment = document.createDocumentFragment();
-                this._contextMessageElements.forEach(el => fragment.appendChild(el));
-                log.appendChild(fragment);
+            if (!log.dataset.hooksBound) {
+                // 將準備好的 DOM 元素注入容器
+                // 因為 this._contextMessageElements 裡的是「活的」DOM 物件
+                // 瀏覽器會保留上面的事件監聽器 (Event Listeners)
+                if (this._contextMessageElements && this._contextMessageElements.length > 0) {
+                    const fragment = document.createDocumentFragment();
+                    this._contextMessageElements.forEach(el => fragment.appendChild(el));
+                    log.appendChild(fragment);
+                }
+
+                // 準備傳給 Hook 的 jQuery 物件，如果是隔離模式 (Clone)，複製假容器給它綁定
+                let $hookLog = $(log);
+                const mode = game.settings.get(MODULE_ID, "hookCompatibilityMode");
+                if (mode === "clone") {
+                    $hookLog = $hookLog.clone();
+                }
+
+                // 全域觸發一次 renderChatLog
+                Hooks.call("renderChatLog", this, $hookLog, {});
+                // 標記為已綁定
+                log.dataset.hooksBound = "true";
             }
 
             // Scroll 監聽
@@ -646,7 +660,57 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     // 2. 重新渲染並「等待」渲染完成 (解決 Race Condition 的關鍵)
-    await this.render({ parts: ["content", "tabs", "input"] });
+    await this.render({ parts: ["tabs", "input"] });
+
+    // 3. 呼叫自定義的 DOM 抽換方法
+    await this._refreshChatLogDOM();
+  }
+
+  /**
+   * 手動抽換聊天容器內的訊息，避免摧毀容器本身
+   */
+  async _refreshChatLogDOM() {
+      const log = this.element.querySelector("#custom-chat-log");
+      if (!log) return;
+
+      // 1. 過濾出屬於新分頁的最新 50 筆訊息
+      const allMessages = game.messages.contents;
+      const filteredMessages = [];
+      for (let i = allMessages.length - 1; i >= 0; i--) {
+          const msg = allMessages[i];
+          if (this._isMessageVisibleInTab(msg)) {
+              filteredMessages.unshift(msg);
+              if (filteredMessages.length >= 50) break;
+          }
+      }
+
+      // 2. 清空當前容器內的 DOM 節點 (不摧毀容器本身)
+      // 使用 replaceChildren 效能極佳，且不會破壞原本被移出畫面的節點
+      log.replaceChildren();
+
+      // 3. 組裝新分頁的 DOM
+      const fragment = document.createDocumentFragment();
+      for (const m of filteredMessages) {
+          let messageElement;
+
+          if (this._messageCache.has(m.id)) {
+              messageElement = this._messageCache.get(m.id);
+          } else {
+              const html = await m.renderHTML();
+              messageElement = html instanceof jQuery ? html[0] : html;
+              enrichMessageHTML(m, messageElement);
+              
+              // 觸發單筆訊息的 Hook
+              triggerRenderHooks(this, m, messageElement);
+              
+              this._messageCache.set(m.id, messageElement);
+          }
+          fragment.appendChild(messageElement);
+      }
+
+      // 4. 一次性塞入容器並置底
+      log.appendChild(fragment);
+      log.scrollTop = log.scrollHeight;
   }
 
   /* --- 判斷訊息該去哪個分頁 --- */
