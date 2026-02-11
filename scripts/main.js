@@ -38,7 +38,7 @@ Hooks.once('ready', () => {
  */
 Hooks.on('createChatMessage', (message, options, userId) => {
     //Debug用
-    console.log("YCIO | 新訊息原始資料 (Debug):", message);
+    //console.log("YCIO Debug | 新訊息原始資料:", message);
     // 檢查視窗是否已建立且已渲染 (rendered)，避免報錯
     if (floatingChatInstance?.rendered) {
         floatingChatInstance.appendMessage(message);

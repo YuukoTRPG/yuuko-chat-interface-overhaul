@@ -280,8 +280,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                     $hookLog = $hookLog.clone();
                 }
 
+                // 取得設定：決定隔離模式與參數型別
+                const cloneMode = game.settings.get(MODULE_ID, "hookCompatibilityMode") === "clone";
+                const argType = game.settings.get(MODULE_ID, "hookArgumentType");
+                //準備基底元素 (決定要不要 Clone)
+                let baseElement = cloneMode ? log.cloneNode(true) : log;
+                //準備最終傳遞的參數型別 (決定是 jQuery 還是原生 DOM)
+                let finalHookArgument = argType === "jquery" ? $(baseElement) : baseElement;
                 // 全域觸發一次 renderChatLog
-                Hooks.call("renderChatLog", this, $hookLog, {});
+                Hooks.call("renderChatLog", this, finalHookArgument, {});
                 // 標記為已綁定
                 log.dataset.hooksBound = "true";
             }
@@ -315,7 +322,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                         messageEl.dispatchEvent(contextEvent);
                     }
                 }
-            });
+            }, { capture: true });
             
             this._programmaticScroll = true;
             setTimeout(() => {
@@ -480,7 +487,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // 2. 打字狀態同步
         register("updateUser", (user, changes) => {
-            console.log("YCIO Debug | User Update:", user.name, changes);
+            //console.log("YCIO Debug | 使用者狀態更新:", user.name, changes);
             if (changes.flags?.[FLAG_SCOPE]) this._updateTypingDisplay();
         });
 
@@ -820,9 +827,14 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
     const fragment = document.createDocumentFragment();
     for (const msg of olderMessages) {
-        const html = await msg.renderHTML();
-        enrichMessageHTML(msg, html); // 放入頭像
-        fragment.appendChild(html);
+        const rawHtml = await msg.renderHTML();
+        const htmlElement = rawHtml instanceof jQuery ? rawHtml[0] : rawHtml; // 正規化提取原生 DOM
+        enrichMessageHTML(msg, htmlElement); //放入頭像
+
+        triggerRenderHooks(this, msg, htmlElement);
+        this._messageCache.set(msg.id, htmlElement);
+
+        fragment.appendChild(htmlElement);
     }
     logElement.insertBefore(fragment, logElement.firstChild);
 
@@ -857,11 +869,12 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     const distanceToBottom = log.scrollHeight - log.scrollTop - log.clientHeight;
     const isAtBottom = distanceToBottom < 50;
 
-    const htmlElement = await message.renderHTML();
+    const rawHtml = await message.renderHTML();
+    const htmlElement = rawHtml instanceof jQuery ? rawHtml[0] : rawHtml; // 正規化提取原生 DOM
     enrichMessageHTML(message, htmlElement); // 放入頭像
     log.appendChild(htmlElement); 
 
-    // 針對這一條新訊息觸發函式，根據設定決定 renderChatLog 或renderChatMessage
+    // 針對這一條新訊息觸發函式
     triggerRenderHooks(this, message, htmlElement);
     // 並同步寫入快取 (這很重要，如此下次切換分頁時，這條帶有事件的 DOM 才會被保留)
     this._messageCache.set(message.id, htmlElement);
@@ -923,15 +936,16 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
     // 狀況 B: 我有權限看，且它已經在畫面上 -> 更新內容
     if (el) {
-        const newHtml = await message.renderHTML();
-        enrichMessageHTML(message, newHtml); // 放入頭像
+        const rawHtml = await message.renderHTML();
+        const htmlElement = rawHtml instanceof jQuery ? rawHtml[0] : rawHtml; // 正規化提取原生 DOM
+        enrichMessageHTML(message, htmlElement); // 放入頭像
         
         // 綁定事件
-        triggerRenderHooks(this, message, newHtml);
+        triggerRenderHooks(this, message, htmlElement);
         // 更新快取
-        this._messageCache.set(message.id, newHtml instanceof jQuery ? newHtml[0] : newHtml);
+        this._messageCache.set(message.id, htmlElement);
         
-        el.replaceWith(newHtml);
+        el.replaceWith(htmlElement);
         return;
     }
 
@@ -1274,16 +1288,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
    * 根據時間戳記，將訊息插入到 DOM 中正確的排序位置
    */
   async _insertMessageSmartly(message, log) {
-      const newHtml = await message.renderHTML();
-      enrichMessageHTML(message, newHtml); // 放入頭像
+      const rawHtml = await message.renderHTML();
+      const htmlElement = rawHtml instanceof jQuery ? rawHtml[0] : rawHtml; // 正規化提取原生 DOM
+      enrichMessageHTML(message, htmlElement); // 放入頭像
 
       // --- 綁定事件與快取 ---
-      triggerRenderHooks(this, message, newHtml);
+      triggerRenderHooks(this, message, htmlElement);
 
       // 2. 寫入快取 (確保之後切換分頁時，這個帶有事件的 DOM 能被重複使用)
-      // 注意：要存入原生的 DOM 元素 (如果是 jQuery 物件要取 [0])
-      this._messageCache.set(message.id, newHtml instanceof jQuery ? newHtml[0] : newHtml);
-      // ---------------------------------------
+      this._messageCache.set(message.id, htmlElement); // 統一存原生 DOM
 
       const targetTime = message.timestamp;
 
@@ -1300,10 +1313,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
       if (nextElement) {
           // 找到了，插在它前面
-          log.insertBefore(newHtml, nextElement);
+          log.insertBefore(htmlElement, nextElement);
       } else {
           // 沒找到 (代表我是最新的，或是目前載入的訊息都比我舊) -> 插在最後面
-          log.appendChild(newHtml);
+          log.appendChild(htmlElement)
           
           // 如果原本就在底部，順便捲動一下
           const distanceToBottom = log.scrollHeight - log.scrollTop - log.clientHeight;

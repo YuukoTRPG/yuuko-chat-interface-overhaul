@@ -351,23 +351,23 @@ export function hexToRgba(hex, opacity) {
  * 處理系統相容性的 Hook 觸發邏輯
  * @param {ApplicationV2} app - 呼叫此函式的應用程式實例 (FloatingChat)
  * @param {ChatMessage} message - 訊息文件
- * @param {HTMLElement} htmlElement - 訊息的 DOM 元素
+ * @param {HTMLElement} htmlElement - 訊息的原生 DOM 元素
  */
 export function triggerRenderHooks(app, message, htmlElement) {
-    const mode = game.settings.get(MODULE_ID, "hookCompatibilityMode");
-    
-    // 將原生 DOM 包裝成 jQuery 物件
-    let $html = $(htmlElement);
+    // 1. 取得設定：決定隔離模式與參數型別
+    const cloneMode = game.settings.get(MODULE_ID, "hookCompatibilityMode") === "clone";
+    const argType = game.settings.get(MODULE_ID, "hookArgumentType") || "jquery"; 
 
-    // --- 隔離模式 (Clone) ---
-    // 專門針對 Shadowrun 5e 這類「全域 + 局部」雙重綁定的系統。
-    // 我們傳送一個複製品給 Hook，讓系統去綁定那個不會被使用的複製品，
-    // 但第三方模組依然能讀取複製品的資料來顯示特效。
-    if (mode === "clone") {
-        $html = $html.clone(); // 建立一個隔離的內容
+    // 2. 準備基底元素 (決定要不要 Clone)
+    // 由於 htmlElement 已經在 enrichMessageHTML 中被確保為原生 DOM，可以使用原生的 cloneNode(true) 進行深層複製
+    let baseElement = cloneMode ? htmlElement.cloneNode(true) : htmlElement;
+
+    // 根據設定，觸發對應世代的 Hook
+    if (argType === "native") {
+        // 現代版本，傳遞原生 DOM，並使用 V13 全新的 Hook 名稱
+        Hooks.callAll("renderChatMessageHTML", message, baseElement, message.system || {});
+    } else {
+        // 傳統相容，傳遞 jQuery 物件，使用舊的 Hook 名稱
+        Hooks.callAll("renderChatMessage", message, $(baseElement), message.system || {});
     }
-
-    // 1. 觸發 renderChatMessage
-    // 如果是 clone 模式，這裡是把隔離的內容傳出去
-    Hooks.call("renderChatMessage", message, $html, message.system || {});
 }
