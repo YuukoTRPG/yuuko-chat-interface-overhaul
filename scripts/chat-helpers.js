@@ -92,10 +92,42 @@ export function getChatContextOptions() {
           const element = li instanceof jQuery ? li[0] : li;
           const message = game.messages.get(element.dataset.messageId);
           
-          // 條件：(我是作者 或 我是GM) 且 訊息不是系統擲骰 (避免改壞擲骰資料)
-          // 簡單判斷：沒有 rolls 陣列，或 rolls 為空
-          const isRoll = message.rolls.length > 0;
-          return (message.isAuthor || game.user.isGM) && !isRoll; 
+          // 1. 基本權限檢查：只有作者或 GM 能編輯
+          if (!message?.isAuthor && !game.user.isGM) return false;
+
+          // 2. 資料層級檢查：如果是擲骰資料 (rolls 陣列 或 type 為 ROLL)，則禁止
+          if (message.rolls.length > 0) return false;
+          // 檢查 V13 的訊息類型常數 (ROLL = 5)
+          if (message.type === CONST.CHAT_MESSAGE_TYPES.ROLL) return false;
+
+          // 3. 內容檢查：避免編輯到內容為空的純系統訊息 (完全由 Flags/Template 渲染的)
+          // 如果 content 不存在或 trim 後為空字串，視為不可編輯
+          if (!message.content || message.content.trim().length === 0) return false;
+
+          // 4. DOM 特徵黑名單檢查：
+          // 如果訊息 HTML 內部包含以下任何一個 Class，視為某種發言訊息以外的訊息，禁止編輯
+          const systemUISelectors = [
+              ".dice-roll",     // 核心擲骰結構
+              ".roll",          // 核心擲骰結構2
+              ".chat-card",     // 核心與系統卡片 (D&D 5e, PF2e 等物品/法術卡)
+              ".card-draw",     // 牌庫抽牌
+              ".table-draw",    // 骰表結果
+              ".content-link",  // 內容連結
+              ".roll-card",     // 第三方模組常見樣式
+              ".roll-result",   // 第三方模組常見樣式 
+              ".dice-result",   // 第三方模組常見樣式 
+              ".dice-total",     // 第三方模組常見樣式 
+              ".inline-roll",    // 插入擲骰
+              ".item-card",     // 通用物品卡片樣式
+              ".midi-chat-card" // Midi-QOL 自動化模組專用卡片
+          ];
+          
+          // 使用 querySelector 檢查 element (li) 內部是否包含上述任何選擇器
+          // 只要命中一個，hasSystemUI 就會是 true
+          const hasSystemUI = systemUISelectors.some(selector => element.querySelector(selector));
+          
+          // 當沒有以上特徵時，才允許編輯
+          return !hasSystemUI; 
         },
         callback: li => {
           const element = li instanceof jQuery ? li[0] : li;

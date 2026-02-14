@@ -164,3 +164,53 @@ export function registerSettings() {
     
     console.log("YCIO | 設定 (Settings) 已註冊");
 }
+
+// ================
+// 設定介面排版
+// ================
+Hooks.on("renderSettingsConfig", (app, html, data) => {
+    // 確保取得正確的 DOM 根節點 (相容 FVTT 不同的渲染模式)
+    const root = app.element ? app.element : (html instanceof HTMLElement ? html : document);
+
+    /**
+     * 定義專門用來插入標題的輔助函數
+     * @param {string} settingKey - 設定的鍵值 (例如 "hookArgumentType")
+     * @param {string} title - 你想要顯示的標題文字
+     * @param {string} icon - FontAwesome 圖示 (例如 "fas fa-plug")
+     */
+    const injectHeader = (settingKey, title, icon) => {
+        // 直接組合出 FVTT 生成的 ID
+        const targetId = `settings-config-yuuko-chat-interface-overhaul.${settingKey}`;
+        const inputElement = root.querySelector(`[id="${targetId}"]`);
+        
+        if (!inputElement) {
+            //console.warn(`YCIO Debug | 找不到設定項: ${settingKey}，跳過排版。`);
+            return;
+        }
+
+        const formGroup = inputElement.closest(".form-group");
+        if (!formGroup) return;
+
+        // 防呆：如果這個標題已經被插入過了，就不要重複插入
+        if (formGroup.previousElementSibling && formGroup.previousElementSibling.classList.contains("ycio-setting-header")) {
+            return;
+        }
+
+        // 在該設定項之前插入大標題與分隔線
+        formGroup.insertAdjacentHTML("beforebegin", `
+            <div class="ycio-setting-header" style="margin-top: 25px; margin-bottom: 10px; border-bottom: 2px solid var(--color-border-light);">
+                <h3 style="margin: 0; padding-bottom: 5px; color: var(--color-text-highlight); font-family: var(--font-primary); font-size: 1.25rem;">
+                    <i class="${icon}"></i> ${title}
+                </h3>
+            </div>
+        `);
+    };
+
+    // 開始執行排版，可以自由增加或修改這裡的項目
+    // 在「自訂視窗標題」前面加上【介面與視覺設定】標題
+    injectHeader("windowTitle", "介面與視覺設定", "fas fa-desktop");
+    // 在「系統相容性」前面加上【進階與相容性設定】標題
+    injectHeader("hookArgumentType", "進階與相容性設定", "fas fa-cogs");
+
+    //console.log("YCIO Debug | 設定介面排版注入完成。");
+});
