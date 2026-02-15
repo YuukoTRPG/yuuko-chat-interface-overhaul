@@ -121,9 +121,33 @@ export function registerSettings() {
         // 補充邏輯：如果當前系統是 D&D 5e或某些其他系統，預設值就是 true，否則為 false
         default: ["dnd5e"].includes(game.system.id),
         onChange: () => {
-             // 建議提示重整，因為這會影響已經渲染出的聊天訊息 DOM
+             // 提示重整，因為這會影響已經渲染出的聊天訊息 DOM
              ui.notifications.info(game.i18n.localize("YCIO.Settings.CleanSender.Changed"));
         }
+    });
+
+    // 通知音效路徑 (World - GM Only)
+    game.settings.register(MODULE_ID, "notificationSoundPath", {
+        name: "YCIO.Settings.NotificationSound.Name",
+        hint: "YCIO.Settings.NotificationSound.Hint",
+        scope: "world",     // GM 統一控制
+        config: true,
+        type: String,
+        filePicker: "audio", // V13: 顯示音訊檔案選擇器
+        default: `modules/${MODULE_ID}/sounds/page.mp3`, // 預設路徑
+        onChange: () => {
+             // 僅提示變更
+        }
+    });
+
+    // 承上一個設定，OOC 是否播放音效 (World - GM Only)
+    game.settings.register(MODULE_ID, "playOnOOC", {
+        name: "YCIO.Settings.PlayOnOOC.Name",
+        hint: "YCIO.Settings.PlayOnOOC.Hint",
+        scope: "world",     // GM 統一控制
+        config: true,
+        type: Boolean,
+        default: true       // 預設開啟
     });
 
     // 決定訊息物件要傳遞原生 DOM 或 jQuery 物件

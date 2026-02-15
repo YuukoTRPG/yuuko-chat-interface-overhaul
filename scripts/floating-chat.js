@@ -875,9 +875,36 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
+   * 播放新訊息通知音效邏輯：排除自己、檢查路徑、檢查 OOC 設定
+   */
+  _playNotification(message) {
+      // 1. 自己的訊息不播放
+      if (message.isAuthor) return;
+
+      // 2. 檢查是否有設定音效檔案
+      const soundPath = game.settings.get(MODULE_ID, "notificationSoundPath");
+      if (!soundPath) return;
+
+      // 3. OOC 判斷
+      // 沒有連結 Token 視為 OOC
+      const isOOC = !message.speaker.token;
+      const playOnOOC = game.settings.get(MODULE_ID, "playOnOOC");
+
+      // 如果是 OOC 訊息且設定為不播放，則跳出
+      if (isOOC && !playOnOOC) return;
+
+      // 4. 播放音效 (使用 FVTT 核心 AudioHelper)
+      // volume 預設 0.8，也可以讀取 game.settings.get("core", "globalInterfaceVolume")
+      AudioHelper.play({ src: soundPath, volume: 0.8, autoplay: true, loop: false }, false);
+  }
+
+  /**
    * 插入新訊息 (由 main.js 的 createChatMessage Hook 呼叫)
    */
   async appendMessage(message) {
+    // 一旦開始有新訊息，就嘗試播放音效 (邏輯判斷都在函式內)
+    this._playNotification(message);
+
     // 1. 取得這則訊息該去哪 (使用核心路由)
     const targetTab = this._getMessageRoute(message);
 
