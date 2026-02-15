@@ -50,8 +50,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     // --- 狀態追蹤變數 ---
     this._isLoadingOlder = false;       // 防止重複觸發載入歷史訊息
     this._programmaticScroll = false;   // 用於區分「程式捲動」與「手動捲動」
-    this._lastSpeakerValue = null;      //記錄上一次的發言身分，預設為 null
+    this._lastSpeakerValue = null;      // 記錄上一次的發言身分，預設為 null
     this._lastFlashTime = 0;            // 記錄上一次觸發閃爍的時間
+    this._scrollCheckInterval = null;   // 捲動檢查計時器
     
     // --- 打字狀態變數 ---
     this._typingTimeout = null;         // 倒數計時器
@@ -463,6 +464,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         this._updateTypingDisplay();
     }
 
+    //啟動或重置捲動檢查計時器 (每 1000ms 檢查一次)
+    if (this._scrollCheckInterval) clearInterval(this._scrollCheckInterval);
+    this._scrollCheckInterval = setInterval(() => this._toggleJumpToBottomButton(), 1000);
+
     // --- C. 分頁列 (Tabs) 事件綁定 ---
     if (parts.includes("tabs")) {
         const tabs = this.element.querySelectorAll(".tabs .item");
@@ -603,6 +608,13 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   async close(options) {
         // 防呆：確保 options 是一個物件，如果它是 undefined 就設為空物件
         options = options || {};
+
+        // 無論是強制關閉還是最小化，都清除計時器
+        // (如果是最小化，使用者看不到視窗，也不需要檢查捲動，節省效能)
+        if (this._scrollCheckInterval) {
+            clearInterval(this._scrollCheckInterval);
+            this._scrollCheckInterval = null;
+        }
 
         // 如果傳入 force: true (例如模組卸載、或是程式碼強制關閉時)，才真正執行關閉
         if (options.force) {
@@ -760,23 +772,41 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   async _onChatScroll(event) {
     if (this._programmaticScroll) return;
     const log = event.target;
-    const jumpBtn = this.element.querySelector(".jump-to-bottom");
 
-    const distanceToBottom = log.scrollHeight - log.scrollTop - log.clientHeight;
+    // 呼叫共用邏輯來控制按鈕
+    this._toggleJumpToBottomButton();
 
-    // 距離底部 > 100px 顯示按鈕
-    if (distanceToBottom > 100) {
-        jumpBtn?.classList.add("visible");
-    } 
-    // 接近底部 < 50px 隱藏按鈕，並清除未讀標記
-    else if (distanceToBottom < 50) {
-        jumpBtn?.classList.remove("visible", "unread");
-    }
-
-    // 接近頂部 < 50px 且不在載入中 -> 載入歷史訊息
+    // 載入舊訊息的邏輯
     if (log.scrollTop < 50 && !this._isLoadingOlder) {
         await this._loadOlderMessages(log);
     }
+  }
+
+  /**
+   * 共用的置底按鈕狀態檢查邏輯
+   * 供 Scroll 事件與 setInterval 呼叫
+   */
+  _toggleJumpToBottomButton() {
+      const log = this.element?.querySelector("#custom-chat-log");
+      const jumpBtn = this.element?.querySelector(".jump-to-bottom");
+      
+      // 防呆：如果視窗已關閉或 DOM 不存在則不執行
+      if (!log || !jumpBtn) return;
+
+      const distanceToBottom = log.scrollHeight - log.scrollTop - log.clientHeight;
+      const THRESHOLD_SHOW = 100; // 距離底部超過 100px 顯示
+      const THRESHOLD_HIDE = 50;  // 距離底部小於 50px 隱藏
+
+      if (distanceToBottom > THRESHOLD_SHOW) {
+          // 只有當按鈕還沒顯示時才加 class (微幅效能優化)
+          if (!jumpBtn.classList.contains("visible")) {
+              jumpBtn.classList.add("visible");
+          }
+      } 
+      else if (distanceToBottom < THRESHOLD_HIDE) {
+          // 在底部：隱藏按鈕，並順便移除未讀狀態
+          jumpBtn.classList.remove("visible", "unread");
+      }
   }
 
   /**

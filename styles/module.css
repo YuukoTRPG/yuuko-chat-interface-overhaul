@@ -139,7 +139,12 @@
 
 .YCIO-floating-chat-window .chat-message .message-body .message-header * {
     font-size: 0.7rem; /*字體大小*/
-    color: #000 /*內部字的顏色*/
+    color: #000; /*內部字的顏色*/
+
+    /*以下是文字馬賽克樣式*/
+    /*color: transparent;
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.9);    
+    filter: blur(2px);*/
 }
 
 
