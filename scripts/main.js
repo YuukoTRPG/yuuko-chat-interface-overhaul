@@ -21,11 +21,31 @@ Hooks.once('init', () => {
 
 Hooks.once('ready', () => {
     console.log("YCIO | 模組準備就緒 (Ready)");
+    // 初始化原生側邊欄顯示狀態
+    updateNativeSidebarVisibility();
     // 建立視窗實例
     floatingChatInstance = new FloatingChat();
     // 渲染視窗 (參數 true 代表強制顯示)
     floatingChatInstance.render(true);
 });
+
+//更新原生側邊欄的可見度，讀取設定並切換 Body Class
+function updateNativeSidebarVisibility() {
+    const mode = game.settings.get("yuuko-chat-interface-overhaul", "hideNativeSidebar");
+    const isGM = game.user.isGM;
+    
+    // 判斷是否需要隱藏
+    let shouldHide = false;
+    if (mode === "all") shouldHide = true;
+    else if (mode === "gm") shouldHide = !isGM; // 如果是 GM 模式，且不是 GM，就隱藏
+
+    // 操作 CSS Class
+    if (shouldHide) {
+        document.body.classList.add("YCIO-hide-native-ui");
+    } else {
+        document.body.classList.remove("YCIO-hide-native-ui");
+    }
+}
 
 /* -------------------------------------------- */
 /* 聊天訊息同步 Hooks (Chat Message Sync)      */
@@ -68,3 +88,6 @@ Hooks.on("updateChatMessage", (message, changes, options, userId) => {
         }
     }
 });
+
+//當 GM 修改 "hideNativeSidebar" 設定時觸發，更新側邊聊天欄顯示
+Hooks.on("YCIO_UpdateSidebarVisibility", updateNativeSidebarVisibility);

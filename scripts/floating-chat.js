@@ -474,7 +474,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             input.addEventListener("input", () => this._adjustInputHeight(input));
             input.addEventListener("input", this._onTypingInput.bind(this));
             
-            // [新增] 如果有草稿內容，重新調整高度
+            // 如果有草稿內容，重新調整高度
             if (input.value) this._adjustInputHeight(input);
         }
 

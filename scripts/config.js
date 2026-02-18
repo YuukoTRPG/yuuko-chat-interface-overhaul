@@ -92,6 +92,22 @@ export function registerSettings() {
         onChange: () => Hooks.callAll("YCIO_UpdateStyle") // 觸發自定義 Hook
     });
 
+    // 是否隱藏原生側邊欄 (World - GM Only)
+    game.settings.register(MODULE_ID, "hideNativeSidebar", {
+        name: "YCIO.Settings.HideNativeSidebar.Name",
+        hint: "YCIO.Settings.HideNativeSidebar.Hint",
+        scope: "world",     // GM 統一控制
+        config: true,
+        type: String,
+        choices: {
+            "none": "YCIO.Settings.HideNativeSidebar.Choices.None", // 顯示 (預設)
+            "all": "YCIO.Settings.HideNativeSidebar.Choices.All",   // 全部隱藏
+            "gm": "YCIO.Settings.HideNativeSidebar.Choices.GM"      // 僅 GM 顯示
+        },
+        default: "none",
+        onChange: () => Hooks.callAll("YCIO_UpdateSidebarVisibility") // 觸發主程式的監聽器
+    });
+
     // 預設頭像來源 (Client)
     game.settings.register(MODULE_ID, "useTokenAvatarDefault", {
         name: "YCIO.Settings.UseTokenAvatar.Name",

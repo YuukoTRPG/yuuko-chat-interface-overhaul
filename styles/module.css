@@ -1106,3 +1106,28 @@
     border-color: #5c9c5c;
     box-shadow: 0 0 5px rgba(0, 255, 0, 0.2);
 }
+
+/* =========================================================
+   12. 原生聊天介面隱藏 (Native Chat Interface Hiding)
+   透過 body class 控制顯示狀態
+   ========================================================= */
+
+/* 隱藏側邊欄的「聊天訊息」分頁按鈕 */
+body.YCIO-hide-native-ui #sidebar-tabs li:has(button[data-tab="chat"]) {
+    display: none !important;
+}
+
+/* 隱藏聊天側邊欄的內容區域 */
+body.YCIO-hide-native-ui .chat-sidebar {
+    display: none !important;
+}
+
+/* 隱藏右下談出的訊息與輸入區 */
+body.YCIO-hide-native-ui #chat-notifications {
+    display: none !important;
+}
+
+/* 隱藏彈出式聊天視窗 (Popout) - 防止有人把原生聊天室彈出來 */
+body.YCIO-hide-native-ui #chat-popout {
+    display: none !important;
+}

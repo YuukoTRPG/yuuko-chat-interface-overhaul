@@ -47,6 +47,15 @@
             "Name": "聊天視窗背景透明度",
             "Hint": "調整視窗背景的透明度（0為完全透明）。"
         },
+        "HideNativeSidebar": {
+            "Name": "是否隱藏FVTT內建原生聊天UI",
+            "Hint": "包含側邊欄與右下彈出式氣泡訊息。",
+            "Choices": {
+              "None": "不隱藏",
+              "All": "隱藏",
+              "GM": "僅GM不隱藏"
+            }
+        },
         "UseTokenAvatar": {
             "Name": "(實驗性)使用 Token 圖片作為預設頭像",
             "Hint": "勾選：預設使用場景上的 Token 圖片。\n未勾選：預設使用角色卡面 (Actor) 圖片。"
