@@ -595,7 +595,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         });
 
         // 5. 場景列表更新監聽 (新增/刪除/改名，還有選擇Token時重繪)
-        register("controlToken", () => this.render());
+        register("controlToken", () => this.render({ parts: ["input", "tabs"] }));
         register("createScene", () => this.render());
         register("deleteScene", () => this.render());
         register("updateScene", (scene, changes) => {
