@@ -8,8 +8,16 @@ import {prepareSpeakerList,
         enrichMessageHTML,
         resolveCurrentAvatar,
         getSpeakerFromSelection,
-        hexToRgba,
-        triggerRenderHooks} from "./chat-helpers.js"; //某些函式
+        triggerRenderHooks,
+        insertTextFormat,
+        autoResizeTextarea,
+        applyWindowStyles,
+        shouldPlayNotification,
+        getMessageRouteId,
+        isMessageVisibleInTab,
+        generateTypingStatusHTML,
+        parseInlineAvatars,
+        generateAvatarTooltip} from "./chat-helpers.js"; //某些函式
 import { FLAG_SCOPE, FLAG_KEY, MODULE_ID } from "./config.js"; //某些常數，定義 Flag 作用域和 Key (用於打字狀態同步)
 import { AvatarSelector, InlineAvatarPicker } from "./avatar-selector.js"; //頭像選擇器
 import { ChatExportDialog } from "./chat-exporter.js"; //聊天記錄匯出
@@ -186,7 +194,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     // 從最新訊息開始往回找，直到湊滿 50 筆符合當前分頁的訊息
     for (let i = allMessages.length - 1; i >= 0; i--) {
         const msg = allMessages[i];
-        if (this._isMessageVisibleInTab(msg)) {
+        if (isMessageVisibleInTab(msg, this.activeTab)) {
             filteredMessages.unshift(msg); 
             if (filteredMessages.length >= 50) break;
         }
@@ -614,23 +622,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * 讀取Config設定並套用 CSS 變數
+   * 呼叫helper讀取Config設定並套用 CSS 變數
    */
   _applyCustomStyles() {
-      if (!this.element) return;
-
-      const colorHex = game.settings.get(MODULE_ID, "backgroundColor");
-      const opacity = game.settings.get(MODULE_ID, "backgroundOpacity");
-
-      // 呼叫 Helper RGB轉換
-      const rgba = hexToRgba(colorHex, opacity);
-
-      // 設定 CSS 變數，即時改變外觀
-      this.element.style.setProperty('--YCIO-bg', rgba);
-
-      // 設定玩家顏色變數 (V13 使用 .css 取得色碼 string)
-      const userColor = game.user.color?.css ?? "#f5f5f5";
-      this.element.style.setProperty('--user-color', userColor);
+      applyWindowStyles(this.element, game.user);
   }
 
   /**
@@ -728,7 +723,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       const filteredMessages = [];
       for (let i = allMessages.length - 1; i >= 0; i--) {
           const msg = allMessages[i];
-          if (this._isMessageVisibleInTab(msg)) {
+          if (isMessageVisibleInTab(msg, this.activeTab)) {
               filteredMessages.unshift(msg);
               if (filteredMessages.length >= 50) break;
           }
@@ -761,16 +756,6 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       // 4. 一次性塞入容器並置底
       log.appendChild(fragment);
       log.scrollTop = log.scrollHeight;
-  }
-
-  /* --- 判斷訊息該去哪個分頁 --- */
-  _getMessageRoute(message) {
-      // 嚴格邏輯：只有帶有 Token ID 的訊息才屬於場景
-      // 如果沒有 Token (即使有 Scene ID，例如用 OOC 身分在場景發話)，一律歸類為 OOC
-      if (!message.speaker.token) return "ooc";
-      
-      // 有 Token 則回傳該 Token 所在的 Scene ID
-      return message.speaker.scene || "ooc";
   }
 
   /* --- 判斷訊息是否屬於當前分頁 (過濾器) --- */
@@ -870,7 +855,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     while (olderMessages.length < BATCH_SIZE && searchIndex >= 0) {
         const msg = allMessages[searchIndex];
         // 只有符合當前分頁的才加入
-        if (this._isMessageVisibleInTab(msg)) {
+        if (isMessageVisibleInTab(msg, this.activeTab)) {
             // 用 push (O(1)) 取代 unshift (O(N))
             olderMessages.push(msg);
         }
@@ -906,29 +891,14 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * 播放新訊息通知音效邏輯：排除自己、檢查路徑、檢查 OOC 設定
+   * 播放新訊息通知音效，呼叫helper
    */
   _playNotification(message) {
-      // 1. 自己的訊息不播放
-      if (message.isAuthor) return;
-
-      // 2. 檢查是否有設定音效檔案
-      const soundPath = game.settings.get(MODULE_ID, "notificationSoundPath");
-      if (!soundPath) return;
-
-      // 3. OOC 判斷
-      // 沒有連結 Token 視為 OOC
-      const isOOC = !message.speaker.token;
-      const playOnOOC = game.settings.get(MODULE_ID, "playOnOOC");
-
-      // 如果是 OOC 訊息且設定為不播放，則跳出
-      if (isOOC && !playOnOOC) return;
-
-      // 4. 播放音效 (使用 FVTT 核心 AudioHelper)
-      // volume 預設 0.8，也可以讀取 game.settings.get("core", "globalInterfaceVolume")
-      AudioHelper.play({ src: soundPath, volume: 0.8, autoplay: true, loop: false }, false);
-  }
-
+    if (shouldPlayNotification(message)) {
+        const soundPath = game.settings.get(MODULE_ID, "notificationSoundPath");
+        AudioHelper.play({ src: soundPath, volume: game.settings.get("core", "globalInterfaceVolume"), autoplay: true, loop: false }, false);
+    }
+}
   /**
    * 插入新訊息 (由 main.js 的 createChatMessage Hook 呼叫)
    */
@@ -937,7 +907,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     this._playNotification(message);
 
     // 1. 取得這則訊息該去哪 (使用核心路由)
-    const targetTab = this._getMessageRoute(message);
+    const targetTab = getMessageRouteId(message);
 
     // 2. 判定是否需要自動跳轉
     // 條件：是我發的 (isAuthor) 且 當前不在目標分頁
@@ -947,7 +917,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     // 3. 如果訊息不屬於當前分頁 (且剛剛沒跳轉)，則忽略
-    if (!this._isMessageVisibleInTab(message)) return;
+    if (!isMessageVisibleInTab(message, this.activeTab)) return;
  
     // 4. 重新抓取 Log DOM (確保是切換後的新 DOM)
     const log = this.element.querySelector("#custom-chat-log");
@@ -1082,8 +1052,13 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
    * 呼叫 FVTT 核心處理訊息 (支援 /r, /w 等指令)
    */
   async _processMessage(content) {
-    // 先進行行內頭像替換 (Pre-processing)
-    content = this._parseInlineAvatars(content);
+    // 在 Class 內決定「誰」是發話者 (UI 狀態邏輯)
+    const speakerSelect = this.element.querySelector("#chat-speaker-select");
+    const value = speakerSelect ? speakerSelect.value : "ooc";
+    const { actorDoc, user } = getSpeakerFromSelection(value);
+    const targetDoc = actorDoc || user;
+    // 呼叫 Helper 進行行內頭像替換
+    content = parseInlineAvatars(content, targetDoc);
 
     try {
         // 將處理過(可能包含 img 標籤)的內容送給核心
@@ -1096,126 +1071,43 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * 解析並替換行內頭像標籤 ([[Tag]])
-   */
-  _parseInlineAvatars(content) {
-      // 1. 取得當前發話身份
-      const speakerSelect = this.element.querySelector("#chat-speaker-select");
-      const value = speakerSelect ? speakerSelect.value : "ooc";
-      
-      // 使用 helper 直接取得 Document
-      const { actorDoc, user } = getSpeakerFromSelection(value);
-      
-      // 優先使用 Actor，若無則使用 User (OOC)
-      const targetDoc = actorDoc || user;
-
-      // 若找不到文件 (罕見情況) 或該文件沒有設定頭像列表，直接回傳
-      if (!targetDoc) return content;
-      
-      const avatarList = targetDoc.getFlag(MODULE_ID, "avatarList") || [];
-      if (avatarList.length === 0) return content;
-
-      // 2. 正則替換核心 
-      return content.replace(/\[\[(.*?)\]\]/g, (match, tagLabel) => {
-          const found = avatarList.find(a => a.label === tagLabel);
-          if (found) {
-              return `<img src="${found.src}" class="YCIO-inline-emote" alt="${tagLabel}">`;
-          }
-          return match;
-      });
-  }
-
-  /**
-   * 輸入框自動長高 (Auto-grow Textarea)
+   * 輸入框自動長高，呼叫Helper
    */
   _adjustInputHeight(input) {
-    input.style.height = 'auto'; // 先重置才能算出正確的 scrollHeight
-    
-    // 限制最大高度為視窗的一半
+    // 傳入最大高度 (視窗高度的一半)
     const maxHeight = this.element.clientHeight * 0.5;
-    const scrollHeight = input.scrollHeight;
-
-    if (scrollHeight > maxHeight) {
-        input.style.height = `${maxHeight}px`;
-        input.style.overflowY = "auto";
-    } else {
-        input.style.height = `${scrollHeight}px`;
-        input.style.overflowY = "hidden";
-    }
-  }
+    autoResizeTextarea(input, maxHeight);
+}
 
   /* ========================================================= */
   /* 7. 格式工具列邏輯 (Formatting Toolbar)               */
   /* ========================================================= */
 
-  /**
-   * 通用格式化助手：在 Textarea 游標處插入 HTML 標籤
-   * @param {HTMLElement} target - 觸發事件的按鈕 DOM
-   * @param {String} startTag - 開始標籤 (如 "<b>")
-   * @param {String} endTag - 結束標籤 (如 "</b>")
-   */
-  static _insertFormat(target, startTag, endTag) {
-    // 1. 找到輸入框
-    const wrapper = target.closest(".window-content"); 
-    const textarea = wrapper?.querySelector(".YCIO-chat-entry");
-    
-    if (!textarea) return;
-
-    // 2. 取得當前游標位置與選取範圍
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-
-    // 3. 進行字串切割與重組
-    const selectedText = text.substring(start, end);
-    const beforeText = text.substring(0, start);
-    const afterText = text.substring(end);
-
-    // 組合新字串
-    const newText = beforeText + startTag + selectedText + endTag + afterText;
-    
-    // 4. 更新輸入框內容
-    textarea.value = newText;
-
-    // 5. 處理游標位置
-    textarea.focus();
-    
-    if (start === end) {
-      // 狀況 A: 沒有選取文字 -> 游標停在標籤中間 (方便直接打字)
-      // 位置 = 前段文字長度 + 開始標籤長度
-      textarea.setSelectionRange(start + startTag.length, start + startTag.length);
-    } else {
-      // 狀況 B: 有選取文字 -> 保持選取狀態 (包住原本的文字)
-      // 起點 = 前段 + tag，終點 = 前段 + tag + 原文長度
-      textarea.setSelectionRange(start + startTag.length, end + startTag.length);
+    // --- 各個按鈕的具體實作 ---
+    static onFormatBold(event, target) {
+        const textarea = target.closest(".window-content")?.querySelector(".YCIO-chat-entry");
+        insertTextFormat(textarea, "<b>", "</b>");
     }
-  }
 
-  // --- 各個按鈕的具體實作 ---
+    static onFormatItalic(event, target) {
+        const textarea = target.closest(".window-content")?.querySelector(".YCIO-chat-entry");
+        insertTextFormat(textarea, "<i>", "</i>");
+    }
 
-  static onFormatBold(event, target) {
-    FloatingChat._insertFormat(target, "<b>", "</b>");
-  }
+    static onFormatStrikethrough(event, target) {
+        const textarea = target.closest(".window-content")?.querySelector(".YCIO-chat-entry");
+        insertTextFormat(textarea, "<s>", "</s>");
+    }
 
-  static onFormatItalic(event, target) {
-    FloatingChat._insertFormat(target, "<i>", "</i>");
-  }
-
-  static onFormatStrikethrough(event, target) {
-    FloatingChat._insertFormat(target, "<s>", "</s>");
-  }
-
-  static onApplyTextColor(event, target) {
-      // 1. 找到視窗內的色盤 Input
-      const wrapper = target.closest(".window-content");
-      const picker = wrapper?.querySelector("input[type=color]"); // 找同一視窗內的色盤
-      
-      if (picker) {
-          const color = picker.value;
-          // 2. 插入標籤
-          FloatingChat._insertFormat(target, `<span style="color:${color}">`, `</span>`);
-      }
-  }
+    static onApplyTextColor(event, target) {
+        const wrapper = target.closest(".window-content");
+        const picker = wrapper?.querySelector("input[type=color]");
+        const textarea = wrapper?.querySelector(".YCIO-chat-entry");
+        
+        if (picker && textarea) {
+            insertTextFormat(textarea, `<span style="color:${picker.value}">`, `</span>`);
+        }
+    }
 
   // 表符按鈕
   static onFormatInlineAvatar(event, target) {
@@ -1243,8 +1135,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
     // 4. 定義回呼函式：當玩家選了圖片後要做什麼
     const onPick = (label) => {
-        // 呼叫我們之前寫好的插入助手，插入 [[標籤]]
-        FloatingChat._insertFormat(target, `[[${label}]]`, "");
+        const textarea = target.closest(".window-content")?.querySelector(".YCIO-chat-entry");
+        insertTextFormat(textarea, `[[${label}]]`, "");
     };
 
     // 5. 開啟視窗
@@ -1318,45 +1210,21 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     const indicator = this.element.querySelector("#typing-indicator");
     if (!indicator) return;
 
-    // 1. 取得正在打字的人
-    const typingUsers = game.users.filter(u => u.getFlag(FLAG_SCOPE, FLAG_KEY) === true);
-    // 2. 取得正在「請等一下」的人
-    const waitingUsers = game.users.filter(u => u.getFlag(FLAG_SCOPE, "isWaiting") === true);
+    // 呼叫 Helper 取得 HTML
+    const htmlContent = generateTypingStatusHTML();
 
-    const statusParts = [];
-
-    // 組合打字字串
-    if (typingUsers.length > 0) {
-        const names = typingUsers.map(u => u.name).join(", ");
-        const typingText = game.i18n.localize("YCIO.Input.Typing"); // e.g. "正在輸入..."
-        statusParts.push(`${names} ${typingText}`);
-    }
-
-    // 組合等待字串
-    if (waitingUsers.length > 0) {
-        const names = waitingUsers.map(u => u.name).join(", ");
-        // 請記得在語言檔新增這個 Key，例如："表示請等一下"
-        const waitingText = game.i18n.localize("YCIO.Input.IsWaiting"); 
-        
-        // 這裡用 span 包起來，並加上 class
-        statusParts.push(`<span class="YCIO-status-waiting">${names} ${waitingText}</span>`);
-    }
-
-    // 3. 顯示結果
-    if (statusParts.length > 0) {
-        // 因為字串裡包含 HTML 標籤，必須用 innerHTML
-        indicator.innerHTML = statusParts.join(" | ");
+    if (htmlContent) {
+        indicator.innerHTML = htmlContent;
         indicator.classList.add("active");
     } else {
         indicator.classList.remove("active");
-        // 動畫結束後清空
         setTimeout(() => { 
             if(!indicator.classList.contains("active")) {
                 indicator.textContent = game.i18n.localize("YCIO.Input.TypingNone"); 
             }
         }, 300);
     }
-  }
+}
 
   /* ========================================================= */
   /* 9. 右鍵選單 (Context Menu)                               */
@@ -1436,47 +1304,31 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   /* 9.更新頭像按鈕的 Tooltip (顯示當前圖片預覽) */
   /* ========================================================= */
   _updateAvatarBtnTooltip() {
-      const btn = this.element.querySelector("#chat-avatar-btn");
-      if (!btn) return;
+    const btn = this.element.querySelector("#chat-avatar-btn");
+    if (!btn) return;
 
-      const speakerSelect = this.element.querySelector("#chat-speaker-select");
-      const value = speakerSelect ? speakerSelect.value : "ooc";
-      
-      // 1. 使用 helper 取得完整資訊
-      // 我們直接解構出需要的資訊：Token 狀態、連結狀態、以及 speaker/user 物件
-      const { isToken, isLinked, speaker, user } = getSpeakerFromSelection(value);
-      
-      // 判斷是否為「未連結 Token」(是 Token 且 未連結)
-      const isUnlinked = isToken && !isLinked;
+    const speakerSelect = this.element.querySelector("#chat-speaker-select");
+    const value = speakerSelect ? speakerSelect.value : "ooc";
+    
+    // 1. 使用 helper 取得完整資訊
+    // 我們直接解構出需要的資訊：Token 狀態、連結狀態、以及 speaker/user 物件
+    const { isToken, isLinked, speaker, user } = getSpeakerFromSelection(value);
+    
+    // 判斷是否為「未連結 Token」(是 Token 且 未連結)
+    const isUnlinked = isToken && !isLinked;
 
-      // 2. 切換 CSS Class (控制按鈕變灰)
-      btn.classList.toggle("YCIO-disabled", isUnlinked);
+    // 2. 切換 CSS Class (控制按鈕變灰)
+    btn.classList.toggle("YCIO-disabled", isUnlinked);
 
-      // 3. 計算當前頭像 URL
-      // resolveCurrentAvatar 需要 {speaker, user} 結構，helper 回傳的物件剛好包含這些
-      const currentUrl = resolveCurrentAvatar({ speaker, user });
+    // 3. 計算當前頭像 URL
+    // resolveCurrentAvatar 需要 {speaker, user} 結構，helper 回傳的物件剛好包含這些
+    const currentUrl = resolveCurrentAvatar({ speaker, user });
 
-      // 4. 設定 Tooltip 內容 (保持不變，只移除了解析邏輯)
-      let tooltipContent = "";
+    // 呼叫 Helper
+    const tooltipContent = generateAvatarTooltip(isUnlinked, currentUrl);
 
-      if (isUnlinked) {
-          tooltipContent = `
-            <div style="text-align: left;">
-                <div style="margin-bottom: 5px; color: #ffcccc;">${game.i18n.localize("YCIO.Avatar.UnlinkedWarning")}</div>
-                <img src="${currentUrl}" style="max-width: 100px; max-height: 100px; border: 1px solid #666; border-radius: 4px; background: black;">
-            </div>
-          `;
-      } else {
-          tooltipContent = `
-            <div style="text-align: left;">
-                <div style="margin-bottom: 5px; font-weight: bold;">${game.i18n.localize("YCIO.Avatar.Current")}</div>
-                <img src="${currentUrl}" style="max-width: 100px; max-height: 100px; border: 1px solid #666; border-radius: 4px; background: black;">
-            </div>
-          `;
-      }
-
-      btn.dataset.tooltip = tooltipContent;
-      btn.dataset.tooltipClass = "YCIO-avatar-tooltip";
+    btn.dataset.tooltip = tooltipContent;
+    btn.dataset.tooltipClass = "YCIO-avatar-tooltip";
   }
 
   /* ========================================================= */

@@ -7,7 +7,7 @@
  * 準備發話身份列表 (Speakers)
  * 遍歷場景與 Token，回傳符合下拉選單格式的陣列
  */
-import { MODULE_ID } from "./config.js";
+import { FLAG_SCOPE, FLAG_KEY, MODULE_ID } from "./config.js"; //某些常數，定義 Flag 作用域和 Key
 import { MessageEditor } from "./message-editor.js";
 
 export function prepareSpeakerList() {
@@ -401,5 +401,192 @@ export function triggerRenderHooks(app, message, htmlElement) {
     } else {
         // 傳統相容，傳遞 jQuery 物件，使用舊的 Hook 名稱
         Hooks.callAll("renderChatMessage", message, $(baseElement), message.system || {});
+    }
+
+
+}
+
+
+/* ========================================================= */
+/* UI 工具與格式化 (UI Utilities & Formatting)               */
+/* ========================================================= */
+
+/**
+ * 在 Textarea 游標處插入 HTML 標籤
+ */
+export function insertTextFormat(textarea, startTag, endTag) {
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+
+    const selectedText = text.substring(start, end);
+    const beforeText = text.substring(0, start);
+    const afterText = text.substring(end);
+
+    textarea.value = beforeText + startTag + selectedText + endTag + afterText;
+    textarea.focus();
+
+    if (start === end) {
+        textarea.setSelectionRange(start + startTag.length, start + startTag.length);
+    } else {
+        textarea.setSelectionRange(start + startTag.length, end + startTag.length);
+    }
+}
+
+/**
+ * 輸入框自動長高邏輯
+ */
+export function autoResizeTextarea(textarea, maxPixelHeight) {
+    if (!textarea) return;
+    
+    textarea.style.height = 'auto'; 
+    const scrollHeight = textarea.scrollHeight;
+
+    if (scrollHeight > maxPixelHeight) {
+        textarea.style.height = `${maxPixelHeight}px`;
+        textarea.style.overflowY = "auto";
+    } else {
+        textarea.style.height = `${scrollHeight}px`;
+        textarea.style.overflowY = "hidden";
+    }
+}
+
+/**
+ * 套用視窗背景樣式與使用者顏色
+ */
+export function applyWindowStyles(element, user) {
+    if (!element) return;
+    
+    const colorHex = game.settings.get(MODULE_ID, "backgroundColor");
+    const opacity = game.settings.get(MODULE_ID, "backgroundOpacity");
+    const rgba = hexToRgba(colorHex, opacity); // 呼叫同檔案內的 hexToRgba
+    // 設定 CSS 變數，即時改變外觀
+    element.style.setProperty('--YCIO-bg', rgba);
+    // 設定玩家顏色變數 (V13 使用 .css 取得色碼 string)
+    const userColor = user.color?.css ?? "#f5f5f5";
+    element.style.setProperty('--user-color', userColor);
+}
+
+/* ========================================================= */
+/* 邏輯判斷 (Logic Predicates)                               */
+/* ========================================================= */
+
+/**
+ * 判斷訊息是否應該播放通知音效，邏輯：排除自己、檢查路徑、檢查 OOC 設定
+ * @returns {boolean} 是否播放
+ */
+export function shouldPlayNotification(message) {
+    // 1. 自己的訊息不播放
+    if (message.isAuthor) return false;
+
+    // 2. 檢查是否有設定音效檔案
+    const soundPath = game.settings.get(MODULE_ID, "notificationSoundPath");
+    if (!soundPath) return false;
+
+    // 3. OOC 判斷
+    const isOOC = !message.speaker.token;
+    const playOnOOC = game.settings.get(MODULE_ID, "playOnOOC");
+
+    if (isOOC && !playOnOOC) return false;
+
+    return true;
+}
+
+/**
+ * 判斷訊息該歸類到哪個分頁 ID
+ */
+export function getMessageRouteId(message) {
+    if (!message.speaker.token) return "ooc";
+    return message.speaker.scene || "ooc";
+}
+
+/**
+ * 判斷訊息是否在指定分頁可見
+ */
+export function isMessageVisibleInTab(message, activeTabId) {
+    if (!message.visible) return false;
+
+    const msgSceneId = message.speaker.scene;
+    const msgTokenId = message.speaker.token;
+
+    if (activeTabId === "ooc") {
+        return !msgTokenId;
+    } else {
+        return msgSceneId === activeTabId && !!msgTokenId;
+    }
+}
+
+/**
+ * 生成打字狀態的 HTML 字串
+ * @returns {string|null} 回傳 HTML 字串，若無人打字則回傳 null
+ */
+export function generateTypingStatusHTML() {
+    
+    // 1. 取得正在打字的人
+    const typingUsers = game.users.filter(u => u.getFlag(FLAG_SCOPE, FLAG_KEY) === true);
+    // 2. 取得正在「請等一下」的人
+    const waitingUsers = game.users.filter(u => u.getFlag(FLAG_SCOPE, "isWaiting") === true);
+
+    const statusParts = [];
+
+    if (typingUsers.length > 0) {
+        const names = typingUsers.map(u => u.name).join(", ");
+        const typingText = game.i18n.localize("YCIO.Input.Typing");
+        statusParts.push(`${names} ${typingText}`);
+    }
+
+    if (waitingUsers.length > 0) {
+        const names = waitingUsers.map(u => u.name).join(", ");
+        const waitingText = game.i18n.localize("YCIO.Input.IsWaiting");
+        statusParts.push(`<span class="YCIO-status-waiting">${names} ${waitingText}</span>`);
+    }
+
+    if (statusParts.length > 0) {
+        return statusParts.join(" | ");
+    }
+    return null;
+}
+
+/**
+ * 解析並替換行內頭像標籤
+ * @param {string} content - 原始訊息內容
+ * @param {Document} targetDoc - Actor 或 User 文件
+ * @returns {string} 替換後的 HTML
+ */
+export function parseInlineAvatars(content, targetDoc) {
+    if (!targetDoc) return content;
+    
+    const avatarList = targetDoc.getFlag(MODULE_ID, "avatarList") || [];
+    if (avatarList.length === 0) return content;
+    //正則表達式字串替換
+    return content.replace(/\[\[(.*?)\]\]/g, (match, tagLabel) => {
+        const found = avatarList.find(a => a.label === tagLabel);
+        if (found) {
+            return `<img src="${found.src}" class="YCIO-inline-emote" alt="${tagLabel}">`;
+        }
+        return match;
+    });
+}
+
+/**
+ * 生成頭像按鈕的 Tooltip HTML
+ */
+export function generateAvatarTooltip(isUnlinked, currentUrl) {
+    if (isUnlinked) {
+        return `
+            <div style="text-align: left;">
+                <div style="margin-bottom: 5px; color: #ffcccc;">${game.i18n.localize("YCIO.Avatar.UnlinkedWarning")}</div>
+                <img src="${currentUrl}" style="max-width: 100px; max-height: 100px; border: 1px solid #666; border-radius: 4px; background: black;">
+            </div>
+        `;
+    } else {
+        return `
+            <div style="text-align: left;">
+                <div style="margin-bottom: 5px; font-weight: bold;">${game.i18n.localize("YCIO.Avatar.Current")}</div>
+                <img src="${currentUrl}" style="max-width: 100px; max-height: 100px; border: 1px solid #666; border-radius: 4px; background: black;">
+            </div>
+        `;
     }
 }
