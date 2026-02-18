@@ -23,7 +23,11 @@
       "TextColor": "文字顏色",
       "SelectColor": "選擇顏色",
       "InlineAvatar": "從頭像插入表符",
-      "ExportLog": "導出訊息紀錄"
+      "ExportLog": "導出訊息紀錄",
+      "Wait": "通知大家等你一下",
+      "WaitLabel": "請等一下",
+      "WaitLabelActive": "好，等你",
+      "IsWaiting": "表示請等一下。"
     },
     "Speaker": {
       "OOC": "場外"

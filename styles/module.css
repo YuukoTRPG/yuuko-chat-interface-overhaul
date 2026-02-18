@@ -277,9 +277,82 @@
     cursor: not-allowed;        /* 滑鼠移上去變成紅色禁止符號 */
 }
 
-.YCIO-floating-chat-window #chat-avatar-btn:hover {
+.YCIO-floating-chat-window #chat-wait-btn　{
+    width: auto;          /* 自動寬度 */
+    height: 30px;
+    padding: 0 8px;       /* 左右內距 */
+    background: #333;
+    color: #aaa;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;        /* Flex 排版 */
+    align-items: center;  /* 垂直置中 */
+    justify-content: center;
+    gap: 6px;             /* 圖示與文字的間距 */
+    font-size: 0.9em;     /* 文字大小 */
+}
+
+.YCIO-floating-chat-window #chat-avatar-btn:hover, .YCIO-floating-chat-window #chat-wait-btn:hover {
     color: #fff;
     background: #444;
+}
+
+.YCIO-floating-chat-window #chat-wait-btn.YCIO-active {
+    /* 這裡只設定基礎樣式，動態變化交給 animation */
+    background: #eee;
+    color: #000;
+    font-weight: bold;
+    border-color: #fff;
+    
+    /* 設定動畫：名稱 / 持續時間 1.5秒 / 無限循環 / 緩入緩出 */
+    animation: YCIO-wait-pulse-anim 1.5s infinite ease-in-out;
+}
+
+@keyframes YCIO-wait-pulse-anim {
+    0% {
+        background-color: #eee;
+        color: #000;
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+        transform: scale(1);
+    }
+    50% {
+        /* 變暗一點，光暈變強 */
+        background-color: #ddd; 
+        color: #222;
+        box-shadow: 0 0 15px rgba(255, 215, 0, 1);
+        border-color: #ffaa00;
+        transform: scale(1.02); /* 微微放大 */
+    }
+    100% {
+        background-color: #eee;
+        color: #000;
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+        transform: scale(1);
+    }
+}
+
+/* 「稍等一下按鈕」文字切換邏輯與動畫 */
+/* 預設狀態：顯示 idle，隱藏 active */
+.YCIO-floating-chat-window #chat-wait-btn .label-idle {
+    display: inline;
+}
+.YCIO-floating-chat-window #chat-wait-btn .label-active {
+    display: none;
+}
+
+/* 激活狀態 (.YCIO-active)：隱藏 idle，顯示 active */
+.YCIO-floating-chat-window #chat-wait-btn.YCIO-active .label-idle {
+    display: none;
+}
+.YCIO-floating-chat-window #chat-wait-btn.YCIO-active .label-active {
+    display: inline;
+}
+
+.YCIO-floating-chat-window .YCIO-status-waiting {
+    color: #ffd700;       /* 金色 */
+    font-weight: bold;    /* 粗體 */
+    text-shadow: 0 0 2px rgba(0,0,0,0.8); /* 增加一點陰影讓文字在深色背景更清楚 */
 }
 
 /* 頭像按鈕的 Tooltip，因為不依附在模組的視窗內，必須獨立指定 */

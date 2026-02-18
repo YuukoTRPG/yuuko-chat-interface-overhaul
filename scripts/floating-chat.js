@@ -88,6 +88,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       jumpToBottom: FloatingChat.onJumpToBottom,   // 跳至底部
       switchTab: FloatingChat.onSwitchTab, // 切換分頁
       toggleMinimize: FloatingChat.onToggleMinimize, // 最小化/還原
+      toggleWait: FloatingChat.onToggleWait, // 切換稍等一下
 
       // --- 文字格式工具列 Actions ---
       formatBold: FloatingChat.onFormatBold,
@@ -139,6 +140,28 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     if (log) {
         log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
     }
+  }
+
+  /**
+   * Action: 切換「稍等一下」狀態
+   */
+  static async onToggleWait(event, target) {
+      event.preventDefault();
+      // 取得目前狀態
+      const current = game.user.getFlag(FLAG_SCOPE, "isWaiting");
+      // 切換狀態 (Toggle)
+      const newState = !current;
+      
+      // 寫入 Flag (這會觸發 updateUser Hook，進而更新 UI)
+      if (newState) {
+          await game.user.setFlag(FLAG_SCOPE, "isWaiting", true);
+      } else {
+          await game.user.unsetFlag(FLAG_SCOPE, "isWaiting");
+      }
+      
+      // 按鈕的樣式更新會由 _updateWaitButtonState 處理，或者等待 Hook 回調
+      // 暫時先手動切換 class 等等可以註解掉
+      target.classList.toggle("YCIO-active", newState);
   }
 
   /* ========================================================= */
@@ -460,7 +483,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             });
         }
 
-        // 5. 更新打字狀態顯示 (因為 DOM 重建了，要重新抓元素)
+        // 5. 同步「請等一下」按鈕狀態
+        const waitBtn = this.element.querySelector("#chat-wait-btn");
+        if (waitBtn) {
+            const isWaiting = game.user.getFlag(FLAG_SCOPE, "isWaiting");
+            // 如果 flag 為 true，加上 active class
+            waitBtn.classList.toggle("YCIO-active", !!isWaiting);
+        }
+
+        // 6. 更新打字狀態顯示 (因為 DOM 重建了，要重新抓元素)
         this._updateTypingDisplay();
     }
 
@@ -546,7 +577,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 });
             }
 
-            // [原有邏輯] 計算並寫入頭像快照
+            // 計算並寫入頭像快照
             const finalAvatarUrl = resolveCurrentAvatar(messageDoc);
             if (finalAvatarUrl) {
                 messageDoc.updateSource({
@@ -1193,7 +1224,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     const speakerSelect = wrapper.querySelector("#chat-speaker-select");
     const value = speakerSelect ? speakerSelect.value : "ooc";
     
-    // [修改] 使用新版 helper
+    // 使用 helper
     const { actorDoc, user } = getSpeakerFromSelection(value);
     const targetDoc = actorDoc || user;
 
@@ -1281,26 +1312,44 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * UI 更新：讀取所有人的 Flag 並顯示在畫面上
+   * UI 更新：讀取所有人的 Flag 並顯示在畫面上，也包含處理「稍等一下」
    */
   _updateTypingDisplay() {
     const indicator = this.element.querySelector("#typing-indicator");
     if (!indicator) return;
 
-    // 找出所有 Flag 為 true 的使用者 (包含自己)
-    const typingUsers = game.users.filter(u => {
-        return u.getFlag(FLAG_SCOPE, FLAG_KEY) === true;
-    });
+    // 1. 取得正在打字的人
+    const typingUsers = game.users.filter(u => u.getFlag(FLAG_SCOPE, FLAG_KEY) === true);
+    // 2. 取得正在「請等一下」的人
+    const waitingUsers = game.users.filter(u => u.getFlag(FLAG_SCOPE, "isWaiting") === true);
 
-    const userNames = typingUsers.map(u => u.name);
+    const statusParts = [];
 
-    if (userNames.length > 0) {
-        const typingText = game.i18n.localize("YCIO.Input.Typing");
-        indicator.textContent = userNames.join(", ") + typingText;
+    // 組合打字字串
+    if (typingUsers.length > 0) {
+        const names = typingUsers.map(u => u.name).join(", ");
+        const typingText = game.i18n.localize("YCIO.Input.Typing"); // e.g. "正在輸入..."
+        statusParts.push(`${names} ${typingText}`);
+    }
+
+    // 組合等待字串
+    if (waitingUsers.length > 0) {
+        const names = waitingUsers.map(u => u.name).join(", ");
+        // 請記得在語言檔新增這個 Key，例如："表示請等一下"
+        const waitingText = game.i18n.localize("YCIO.Input.IsWaiting"); 
+        
+        // 這裡用 span 包起來，並加上 class
+        statusParts.push(`<span class="YCIO-status-waiting">${names} ${waitingText}</span>`);
+    }
+
+    // 3. 顯示結果
+    if (statusParts.length > 0) {
+        // 因為字串裡包含 HTML 標籤，必須用 innerHTML
+        indicator.innerHTML = statusParts.join(" | ");
         indicator.classList.add("active");
     } else {
         indicator.classList.remove("active");
-        // 動畫結束後清空文字
+        // 動畫結束後清空
         setTimeout(() => { 
             if(!indicator.classList.contains("active")) {
                 indicator.textContent = game.i18n.localize("YCIO.Input.TypingNone"); 

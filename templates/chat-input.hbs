@@ -16,6 +16,14 @@
             <i class="fas fa-user-circle"></i>
         </button>
 
+        {{! 請等一下按鈕 }}
+        <button id="chat-wait-btn" type="button" class="YCIO-wait-btn" data-action="toggleWait" aria-label="{{localize 'YCIO.Input.Wait'}}" data-tooltip="{{localize 'YCIO.Input.Wait'}}">
+            <i class="fas fa-hand-paper"></i>
+            <span class="label-idle">{{localize 'YCIO.Input.WaitLabel'}}</span>
+            {{! 啟用時顯示 (例如: "你正表示請等一下")，預設隱藏 }}
+            <span class="label-active">{{localize 'YCIO.Input.WaitLabelActive'}}</span>
+        </button>
+
         {{! 文字格式按鈕 }}
         <div class="chat-toolbar">
             {{#if isGM}}
