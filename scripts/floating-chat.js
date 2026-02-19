@@ -111,7 +111,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                     {
                         icon: 'fa-solid fa-triangle-exclamation',
                         //string that will be run through localization
-                        label: "選項2",
+                        label: "測試選項3",
                         action: "myAction"
                     }
                 ]
