@@ -18,6 +18,11 @@
     padding: 2px;
 }
 
+#YCIO-floating-chat-window > menu {
+    background-image: none;
+    background: rgba(0, 0, 0, 1);
+}
+
 /* =========================================================
    2. 分頁標籤 (Tabs)
    頂部的分頁切換區塊

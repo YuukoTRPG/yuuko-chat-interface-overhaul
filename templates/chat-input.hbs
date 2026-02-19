@@ -26,11 +26,6 @@
 
         {{! 文字格式按鈕 }}
         <div class="chat-toolbar">
-            {{#if isGM}}
-            <button type="button" data-action="exportLog" title="{{localize 'YCIO.Input.ExportLog'}}">
-                <i class="fas fa-file-export"></i>
-            </button>
-            {{/if}}
             
             <button type="button" data-action="formatBold" title={{localize 'YCIO.Input.Bold'}}><i class="fas fa-bold"></i></button>
             <button type="button" data-action="formatItalic" title={{localize 'YCIO.Input.Italic'}}><i class="fas fa-italic"></i></button>

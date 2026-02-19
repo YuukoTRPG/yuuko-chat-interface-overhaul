@@ -6,6 +6,10 @@
       "NoLabeledAvatars": "目前的發言身分沒有設定任何帶註解的頭像",
       "FailedMsg": "訊息發送失敗"
     },
+    "Menu": {
+      "ExportLog": "導出聊天紀錄",
+      "ClearLog": "清除聊天紀錄"
+    },
 
     "Tabs": {
       "Public": "公開訊息",
@@ -23,7 +27,6 @@
       "TextColor": "文字顏色",
       "SelectColor": "選擇顏色",
       "InlineAvatar": "從頭像插入表符",
-      "ExportLog": "導出訊息紀錄",
       "Wait": "通知大家等你一下",
       "WaitLabel": "請等一下",
       "WaitLabelActive": "好，等你",
@@ -125,6 +128,11 @@
       "InfoComplete": "導出完成！",
       "ButtonStart": "開始導出",
       "HtmlTitle": "聊天紀錄導出"
+    },
+    "Clearer": {
+      "Title": "清除聊天紀錄",
+      "Description":"<p>確定要清除所有的聊天紀錄嗎？此動作<span style=\"color:#ff0000\"><b>無法復原</b></span>。</p>",
+      "Notification": "已清除所有聊天紀錄。"
     }
   }
 }

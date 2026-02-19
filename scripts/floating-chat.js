@@ -33,6 +33,26 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     const customTitle = game.settings.get(MODULE_ID, "windowTitle");
     this.options.window.title = customTitle || game.i18n.localize("YCIO.WindowTitle");
 
+    // --- 標題列右側選單按鈕 ---
+    // 確保 controls 陣列存在 (防禦性程式碼)
+    this.options.window.controls = this.options.window.controls || [];
+    // 在右上選單放入 GM 專用按鈕，聊天紀錄導出
+    if (game.user?.isGM) {
+        this.options.window.controls.unshift(
+            {
+                icon: 'fas fa-file-export',
+                label: game.i18n.localize("YCIO.Menu.ExportLog"),
+                action: "exportLog"
+            },
+            {
+                icon: 'fas fa-trash',
+                label: game.i18n.localize("YCIO.Menu.ClearLog"),
+                action: "flushLog"
+            },
+
+        );
+    }
+
     // --- 讀取並還原視窗位置 ---
     const savedPos = game.settings.get(MODULE_ID, "floatingChatPosition");
     if (savedPos && !foundry.utils.isEmpty(savedPos)) {
@@ -85,8 +105,18 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     window: {
       title: "YCIO.WindowTitle",
       resizable: true,
-      icon: "fas fa-comments"
+      icon: "fas fa-comments",
+      //放入靜態按鈕
+      controls: [
+                    {
+                        icon: 'fa-solid fa-triangle-exclamation',
+                        //string that will be run through localization
+                        label: "選項2",
+                        action: "myAction"
+                    }
+                ]
     },
+    
     position: { width: 800, height: 600 },
     
     // 定義 HTML 中的 data-action 對應的處理函式
@@ -98,13 +128,16 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       toggleMinimize: FloatingChat.onToggleMinimize, // 最小化/還原
       toggleWait: FloatingChat.onToggleWait, // 切換稍等一下
 
-      // --- 文字格式工具列 Actions ---
+      // 文字格式工具列 Actions
       formatBold: FloatingChat.onFormatBold,
       formatItalic: FloatingChat.onFormatItalic,
       formatStrikethrough: FloatingChat.onFormatStrikethrough,
       applyTextColor: FloatingChat.onApplyTextColor,
       formatInlineAvatar: FloatingChat.onFormatInlineAvatar,
-      exportLog: FloatingChat.onExportLog
+
+      // 右上按鈕 Action
+      exportLog: FloatingChat.onExportLog,
+      flushLog: FloatingChat.onFlushLog
     }
   };
 
@@ -171,6 +204,39 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
       // 暫時先手動切換 class 等等可以註解掉
       target.classList.toggle("YCIO-active", newState);
   }
+
+    // Action: 開啟聊天紀錄導出視窗 (僅 GM)
+    static onExportLog(event, target) {
+      if (!game.user.isGM) return;
+      new ChatExportDialog().render(true);
+    }
+
+    // Action: 刪除所有訊息紀錄 (僅 GM)
+    static async onFlushLog(event, target) {
+        if (!game.user.isGM) return;
+
+        // 使用 V13 原生的 DialogV2 建立現代化確認視窗
+        const confirmed = await foundry.applications.api.DialogV2.confirm({
+            window: { title: "YCIO.Clearer.Title", icon: "fas fa-exclamation-triangle" },
+            content: game.i18n.localize("YCIO.Clearer.Description"),
+            rejectClose: false
+        });
+
+        if (confirmed) {
+            // 呼叫 FVTT 核心的刪除方法
+            await game.messages.flush();
+            ui.notifications.info(game.i18n.localize("YCIO.Clearer.Notification"));
+        }
+    }
+
+    /**
+    * 自定義最小化/還原動作，替換視窗關閉動作
+    */
+    static onToggleMinimize(event, target) {
+      event.preventDefault();
+      // 在 ApplicationV2 的 action 中，this 指向視窗實例
+      this.minimize(); 
+    }
 
   /* ========================================================= */
   /* 3. 生命週期 (Lifecycle & Rendering)                      */
@@ -659,15 +725,6 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * 自定義最小化/還原動作，替換視窗關閉動作
-   */
-  static onToggleMinimize(event, target) {
-      event.preventDefault();
-      // 在 ApplicationV2 的 action 中，this 指向視窗實例
-      this.minimize(); 
-  }
-
-  /**
    * 覆寫 setPosition 以便在移動/縮放時自動存檔
    */
   setPosition(position={}) {
@@ -1143,11 +1200,6 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     new InlineAvatarPicker(validList, onPick).render(true);
   }
 
-  // Action: 開啟聊天紀錄導出視窗
-  static onExportLog(event, target) {
-      if (!game.user.isGM) return;
-      new ChatExportDialog().render(true);
-  }
 
   /* ========================================================= */
   /* 8. 打字狀態同步 (Typing Status - Flags)                  */
