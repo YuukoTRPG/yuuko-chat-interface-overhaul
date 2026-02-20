@@ -68,6 +68,31 @@
     border-radius: 4px;
     /* 增加圓角 */
     border-right: 1px solid #555;
+    position: relative;
+    /* 為了定位裡面的小紅點 */
+}
+
+/* 讓小紅點能在分頁標籤不換行的情況下不擠壓版面 (雖然是絕對定位，但加上保險) */
+.YCIO-floating-chat-window .tabs .item .YCIO-unread-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background-color: #ff3b30;
+    /* 顯眼的紅色 */
+    border-radius: 50%;
+    position: absolute;
+    top: 2px;
+    left: 2px;
+
+    /* 預設隱藏，帶有過渡動畫 */
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+}
+
+.YCIO-floating-chat-window .tabs .item .YCIO-unread-dot.visible {
+    opacity: 1;
+    visibility: visible;
 }
 
 .YCIO-floating-chat-window .tabs .item:hover {

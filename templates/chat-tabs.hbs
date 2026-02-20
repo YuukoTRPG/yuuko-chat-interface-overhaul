@@ -1,15 +1,15 @@
 <nav class="tabs">
     {{!-- OOC 分頁：固定存在，點擊時不切換場景，但過濾無 Token 發言 --}}
     <a class="item {{#if (eq activeTab 'ooc')}}active{{/if}}" data-tab="ooc">
+        <span class="YCIO-unread-dot {{#if oocHasUnread}}visible{{/if}}"></span>
         <i class="fas fa-comment-slash"></i> {{localize 'YCIO.Tabs.OOC'}}
     </a>
 
     {{!-- 場景分頁：動態生成 --}}
     {{#each scenes}}
-        <a class="item {{#if this.active}}active{{/if}}" 
-           data-tab="{{this.id}}" 
-           title="{{this.name}}">
-           {{this.name}}
-        </a>
+    <a class="item {{#if this.active}}active{{/if}}" data-tab="{{this.id}}" title="{{this.name}}">
+        <span class="YCIO-unread-dot {{#if this.hasUnread}}visible{{/if}}"></span>
+        {{this.name}}
+    </a>
     {{/each}}
 </nav>

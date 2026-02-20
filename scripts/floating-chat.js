@@ -78,6 +78,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // 初始化 HTML 快取容器
         this._messageCache = new Map();
 
+        // --- 未讀分頁狀態追蹤 (Unread Tabs Tracking) ---
+        // 記錄當下有哪些分頁 (ooc 或 SceneID) 包含未讀訊息
+        this._unreadTabs = new Set();
+
         // --- 狀態追蹤變數 ---
         this._isLoadingOlder = false;       // 防止重複觸發載入歷史訊息
         this._programmaticScroll = false;   // 用於區分「程式捲動」與「手動捲動」
@@ -290,7 +294,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         const scenes = game.scenes.filter(s => s.visible || game.user.isGM).map(s => ({
             id: s.id,
             name: s.navName || s.name,
-            active: s.id === this.activeTab
+            active: s.id === this.activeTab,
+            hasUnread: this._unreadTabs.has(s.id) // 標記是否有未讀訊息
         }));
 
         // 2. 準備訊息列表 (根據當前 activeTab 過濾)
@@ -345,6 +350,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         return {
             scenes: scenes,
             activeTab: this.activeTab,
+            oocHasUnread: this._unreadTabs.has("ooc"), // 傳遞 OOC 分頁的未讀狀態
             speakers: speakers,
             draftContent: draftContent,
             isGM: game.user.isGM
@@ -813,6 +819,12 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     async changeTab(tabId, triggerSceneView = true) {
         if (this.activeTab === tabId) return;
 
+        // --- 清除該分頁的未讀狀態 ---
+        // 當使用者切換到該分頁時，移除未讀狀態並在後續的 render 消除紅點
+        if (this._unreadTabs.has(tabId)) {
+            this._unreadTabs.delete(tabId);
+        }
+
         this.activeTab = tabId;
 
         // 1. 連動切換 FVTT 場景 (僅當目標不是 ooc 時)
@@ -1057,7 +1069,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         }
 
         // 3. 如果訊息不屬於當前分頁 (且剛剛沒跳轉)，則忽略
-        if (!isMessageVisibleInTab(message, this.activeTab)) return;
+        if (!isMessageVisibleInTab(message, this.activeTab)) {
+            // --- 處理未讀小紅點邏輯 ---
+            // 如果這則訊息在其所屬的分頁中可見，則將該分頁標記為未讀
+            if (isMessageVisibleInTab(message, targetTab)) {
+                this._unreadTabs.add(targetTab);
+                this.render({ parts: ["tabs"] }); // 僅重繪分頁標籤列以顯示紅點
+            }
+            return;
+        }
 
         // 4. 重新抓取 Log DOM (確保是切換後的新 DOM)
         const log = this.element.querySelector("#custom-chat-log");
