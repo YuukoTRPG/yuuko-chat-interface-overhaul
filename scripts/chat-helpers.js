@@ -483,11 +483,21 @@ export function applyWindowStyles(element, user) {
     if (!element) return;
 
     const colorHex = game.settings.get(MODULE_ID, "backgroundColor");
-    const opacity = game.settings.get(MODULE_ID, "backgroundOpacity");
-    const rgba = hexToRgba(colorHex, opacity); // 呼叫同檔案內的 hexToRgba
+    const windowOpacity = game.settings.get(MODULE_ID, "backgroundOpacity");
+    const messageOpacity = game.settings.get(MODULE_ID, "messageOpacity");
 
-    // 設定 CSS 變數，即時改變外觀
+    // 設定 CSS 變數背景色 (純色，無透明度)
+    // 但因為我們將透明度拆分，將它與 rgba 結合給根背景使用，同時保留原始色碼變數以供參考
+    const rgba = hexToRgba(colorHex, windowOpacity);
+
     element.style.setProperty("--YCIO-bg", rgba);
+    // 個別元件(如輸入框、標題列)如果需要繼承視窗透明度可使用這個變數 (不過在此情境下可以直接在根節點處理背景)
+    element.style.setProperty("--YCIO-window-opacity", windowOpacity);
+    // 給訊息泡泡專用的透明度變數
+    element.style.setProperty("--YCIO-message-opacity", messageOpacity);
+
+    // 移除全局的 element.style.opacity = opacity 
+    element.style.opacity = "";
 
     // 設定玩家顏色變數 (V13 使用 .css 取得色碼 string)
     const userColor = user.color?.css ?? "#f5f5f5";

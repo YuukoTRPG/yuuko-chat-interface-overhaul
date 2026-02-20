@@ -6,6 +6,8 @@
 .YCIO-floating-chat-window {
     /* --- 定義 CSS 變數預設值 --- */
     --YCIO-bg: rgba(0, 0, 0, 0.8);
+    --YCIO-window-opacity: 0.8;
+    --YCIO-message-opacity: 1.0;
 
     display: flex;
     flex-direction: column;
@@ -15,6 +17,15 @@
     color: white;
     /* 預設文字顏色 */
     padding: 0;
+}
+
+/* 由於 CSS 限制子元素透明度無法大於父元素，故不能直接將 opacity 設在最頂層。
+   FVTT 的 ApplicationV2 渲染結構為: 視窗 > .window-content > .chat-content
+   所以我們分兩層進行「反向排除」，確保只有對話容器絕對不繼承全局透明度。 */
+.YCIO-floating-chat-window>*:not(.window-content),
+.YCIO-floating-chat-window .window-content>*:not(.chat-content),
+.YCIO-floating-chat-window .jump-to-bottom {
+    opacity: var(--YCIO-window-opacity, 1.0);
 }
 
 .YCIO-floating-chat-window .window-content {
@@ -179,6 +190,8 @@
     border: 1.5px solid #444;
     border-radius: 4px;
 
+    /* 獨立控制的訊息透明度 */
+    opacity: var(--YCIO-message-opacity, 1.0);
 }
 
 /* 訊息標頭 (發訊者、時間等) */

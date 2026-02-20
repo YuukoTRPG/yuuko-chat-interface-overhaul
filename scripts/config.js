@@ -89,7 +89,23 @@ export function registerSettings() {
         type: Number,
         default: 0.8,
         range: {            // 顯示為滑桿
-            min: 0.1,
+            min: 0.3,
+            max: 1,
+            step: 0.05
+        },
+        onChange: () => Hooks.callAll("YCIO_UpdateStyle") // 觸發自定義 Hook
+    });
+
+    // 聊天訊息獨立透明度 (Client)
+    game.settings.register(MODULE_ID, "messageOpacity", {
+        name: "YCIO.Settings.MessageOpacity.Name",
+        hint: "YCIO.Settings.MessageOpacity.Hint",
+        scope: "client",
+        config: true,
+        type: Number,
+        default: 1.0,
+        range: {            // 顯示為滑桿
+            min: 0.5,
             max: 1,
             step: 0.05
         },
