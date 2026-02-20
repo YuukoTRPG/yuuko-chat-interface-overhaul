@@ -1,11 +1,9 @@
-# 系統縮圖檔
+# 系統檔
 Thumbs.db
 Desktop.ini
+
+# AI 助手
+.agents/
+
+# 上下文地圖（僅給AI參照，不上git）
 CONTEXT_MAP.md
-
-# VS Code 設定檔 (若不想分享個人編輯器設定)
-.vscode/
-
-# 若你有使用 Node.js / npm
-node_modules/
-package-lock.json
