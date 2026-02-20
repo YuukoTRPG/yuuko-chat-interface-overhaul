@@ -9,17 +9,19 @@ import { registerSettings } from "./config.js";
 // 用於儲存視窗實例，讓下方的 Hooks 可以存取它
 let floatingChatInstance;
 
-/* -------------------------------------------- */
-/* 生命週期 Hooks (Lifecycle Hooks)            */
-/* -------------------------------------------- */
+/**
+ * --------------------------------------------
+ * 生命週期 Hooks (Lifecycle Hooks)            
+ * --------------------------------------------
+ */
 
-Hooks.once('init', () => {
+Hooks.once("init", () => {
     // 初始化 Log
     console.log("YCIO | 模組初始化中 (Init)...");
-    registerSettings(); //註冊設定
+    registerSettings(); // 註冊設定
 });
 
-Hooks.once('ready', () => {
+Hooks.once("ready", () => {
     console.log("YCIO | 模組準備就緒 (Ready)");
     // 初始化原生側邊欄顯示狀態
     updateNativeSidebarVisibility();
@@ -29,15 +31,20 @@ Hooks.once('ready', () => {
     floatingChatInstance.render(true);
 });
 
-//更新原生側邊欄的可見度，讀取設定並切換 Body Class
+/**
+ * 更新原生側邊欄的可見度，讀取設定並切換 Body Class
+ */
 function updateNativeSidebarVisibility() {
     const mode = game.settings.get("yuuko-chat-interface-overhaul", "hideNativeSidebar");
     const isGM = game.user.isGM;
-    
+
     // 判斷是否需要隱藏
     let shouldHide = false;
-    if (mode === "all") shouldHide = true;
-    else if (mode === "gm") shouldHide = !isGM; // 如果是 GM 模式，且不是 GM，就隱藏
+    if (mode === "all") {
+        shouldHide = true;
+    } else if (mode === "gm") {
+        shouldHide = !isGM; // 如果是 GM 模式，且不是 GM，就隱藏
+    }
 
     // 操作 CSS Class
     if (shouldHide) {
@@ -47,18 +54,21 @@ function updateNativeSidebarVisibility() {
     }
 }
 
-/* -------------------------------------------- */
-/* 聊天訊息同步 Hooks (Chat Message Sync)      */
-/* 負責監聽 Foundry 原生的訊息變動，並同步更新 UI */
-/* -------------------------------------------- */
+/**
+ * --------------------------------------------
+ * 聊天訊息同步 Hooks (Chat Message Sync)      
+ * 負責監聽 Foundry 原生的訊息變動，並同步更新 UI 
+ * --------------------------------------------
+ */
 
 /**
  * 監聽：新訊息建立 (Create)
  * 當有人發送訊息時，將其插入到自定義視窗中
  */
-Hooks.on('createChatMessage', (message, options, userId) => {
-    //Debug用
-    //console.log("YCIO Debug | 新訊息原始資料:", message);
+Hooks.on("createChatMessage", (message, options, userId) => {
+    // Debug用
+    // console.log("YCIO Debug | 新訊息原始資料:", message);
+
     // 檢查視窗是否已建立且已渲染 (rendered)，避免報錯
     if (floatingChatInstance?.rendered) {
         floatingChatInstance.appendMessage(message);
@@ -89,5 +99,5 @@ Hooks.on("updateChatMessage", (message, changes, options, userId) => {
     }
 });
 
-//當 GM 修改 "hideNativeSidebar" 設定時觸發，更新側邊聊天欄顯示
+// 當 GM 修改 "hideNativeSidebar" 設定時觸發，更新側邊聊天欄顯示
 Hooks.on("YCIO_UpdateSidebarVisibility", updateNativeSidebarVisibility);

@@ -8,7 +8,11 @@ import { MODULE_ID } from "./config.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-// --- 1. 導出設定視窗 (Dialog) ---
+/**
+ * ============================================
+ * 1. 導出設定視窗 (Dialog)
+ * ============================================
+ */
 export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     static DEFAULT_OPTIONS = {
         id: "YCIO-export-dialog",
@@ -32,9 +36,9 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
         ];
 
         game.scenes.forEach(s => {
-            tabs.push({ 
-                id: s.id, 
-                label: s.navName || s.name, 
+            tabs.push({
+                id: s.id,
+                label: s.navName || s.name,
                 checked: true // 預設全選
             });
         });
@@ -46,7 +50,7 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
         // 取得表單資料
         const formData = new FormData(event.target.closest("form"));
         const selectedTabs = [];
-        
+
         // 解析勾選的項目
         for (const [key, value] of formData.entries()) {
             if (value === "on") selectedTabs.push(key);
@@ -60,13 +64,17 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
         // 關閉視窗並開始執行導出
         this.close();
         ui.notifications.info(game.i18n.localize("YCIO.Exporter.InfoPreparing"));
-        
+
         const exporter = new ChatExporter();
         await exporter.generateAndDownload(selectedTabs);
     }
 }
 
-// --- 2. 導出核心邏輯 (Exporter) ---
+/**
+ * ============================================
+ * 2. 導出核心邏輯 (Exporter)
+ * ============================================
+ */
 class ChatExporter {
     constructor() {
         this.cssContent = "";
@@ -104,7 +112,7 @@ class ChatExporter {
         }
 
         // 2. 準備 HTML 結構
-        const dateStr = new Date().toISOString().split('T')[0];
+        const dateStr = new Date().toISOString().split("T")[0];
         let fullHtml = `
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -133,9 +141,9 @@ class ChatExporter {
     <div class="YCIO-floating-chat-window">
         <div class="export-nav" id="nav-container">
             ${selectedTabs.map(tabId => {
-                const label = tabId === "ooc" ? game.i18n.localize("YCIO.Exporter.OOCButton") : (game.scenes.get(tabId)?.navName || game.scenes.get(tabId)?.name || tabId);
-                return `<button onclick="switchTab('${tabId}')" data-tab="${tabId}">${label}</button>`;
-            }).join("")}
+            const label = tabId === "ooc" ? game.i18n.localize("YCIO.Exporter.OOCButton") : (game.scenes.get(tabId)?.navName || game.scenes.get(tabId)?.name || tabId);
+            return `<button onclick="switchTab('${tabId}')" data-tab="${tabId}">${label}</button>`;
+        }).join("")}
         </div>
 
         <div class="chat-content">
@@ -211,7 +219,7 @@ class ChatExporter {
         a.download = `chat-log-${dateStr}.html`;
         a.click();
         URL.revokeObjectURL(url);
-        
+
         ui.notifications.info(game.i18n.localize("YCIO.Exporter.InfoComplete"));
     }
 
@@ -281,7 +289,7 @@ class ChatExporter {
             imgElement.src = canvas.toDataURL("image/png");
             // 移除 srcset 避免瀏覽器優先使用舊連結
             imgElement.removeAttribute("srcset");
-            
+
         } catch (err) {
             console.warn(`[YCIO] 圖片轉碼失敗 (可能因跨域限制): ${src}`, err);
             // 失敗時保持原連結，不中斷流程
@@ -294,7 +302,7 @@ class ChatExporter {
     async _fetchGlobalCSS() {
         // 1. 抓取所有 <link rel="stylesheet"> 標籤
         const links = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
-        
+
         // 2. 異步並行下載所有 CSS 檔案內容
         const cssPromises = links.map(async (link) => {
             try {

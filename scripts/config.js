@@ -1,4 +1,6 @@
-// --- 常數 ---
+/**
+ * 常數設定
+ */
 export const MODULE_ID = "yuuko-chat-interface-overhaul"; // 統一名稱
 export const FLAG_SCOPE = MODULE_ID;
 export const FLAG_KEY = "isTyping";
@@ -9,12 +11,13 @@ export const FLAG_KEY = "isTyping";
 export function registerSettings() {
 
     // --- 隱藏設定 ---
+
     // 1. 主聊天視窗位置
     game.settings.register(MODULE_ID, "floatingChatPosition", {
         scope: "client",
         config: false,
         type: Object,
-        default: {} 
+        default: {}
     });
 
     // 2. 頭像選擇器位置
@@ -41,14 +44,15 @@ export function registerSettings() {
         default: {}
     });
 
-    // 5.文字顏色選擇器最後選的顏色
+    // 5. 文字顏色選擇器最後選的顏色
     game.settings.register(MODULE_ID, "lastUsedTextColor", {
         scope: "client",      // 存在玩家端
         config: false,        // 不顯示在設定選單
         type: String,
         default: "#000000"    // 預設黑色
     });
-    
+
+    // --- 可見設定 ---
 
     // 自訂視窗標題 (GM Only)
     game.settings.register(MODULE_ID, "windowTitle", {
@@ -59,8 +63,8 @@ export function registerSettings() {
         type: String,
         default: "",        // 預設為空 (代表使用預設標題)
         onChange: () => {
-             // 標題改變通常需要重繪視窗，這裡我們先發送通知提醒
-             ui.notifications.info(game.i18n.localize("YCIO.Settings.WindowTitle.Changed"));
+            // 標題改變通常需要重繪視窗，這裡我們先發送通知提醒
+            ui.notifications.info(game.i18n.localize("YCIO.Settings.WindowTitle.Changed"));
         }
     });
 
@@ -117,13 +121,13 @@ export function registerSettings() {
         type: Boolean,      // 勾選框
         default: false,     // 預設未勾選 (即預設使用 Actor 圖片)
         onChange: () => {
-             // 當設定變更時，如果頭像選擇視窗剛好是開著的，就重繪它以即時反映變更
-             // 使用 V13 標準方式尋找 AppV2 實例，遍歷所有應用程式實例，找到 ID 符合的並重繪
-             for (const app of foundry.applications.instances.values()) {
-                 if (app.id === "YCIO-avatar-selector") {
-                     app.render();
-                 }
-             }
+            // 當設定變更時，如果頭像選擇視窗剛好是開著的，就重繪它以即時反映變更
+            // 使用 V13 標準方式尋找 AppV2 實例，遍歷所有應用程式實例，找到 ID 符合的並重繪
+            for (const app of foundry.applications.instances.values()) {
+                if (app.id === "YCIO-avatar-selector") {
+                    app.render();
+                }
+            }
         }
     });
 
@@ -137,8 +141,8 @@ export function registerSettings() {
         // 補充邏輯：如果當前系統是 D&D 5e或某些其他系統，預設值就是 true，否則為 false
         default: ["dnd5e"].includes(game.system.id),
         onChange: () => {
-             // 提示重整，因為這會影響已經渲染出的聊天訊息 DOM
-             ui.notifications.info(game.i18n.localize("YCIO.Settings.CleanSender.Changed"));
+            // 提示重整，因為這會影響已經渲染出的聊天訊息 DOM
+            ui.notifications.info(game.i18n.localize("YCIO.Settings.CleanSender.Changed"));
         }
     });
 
@@ -152,7 +156,7 @@ export function registerSettings() {
         filePicker: "audio", // V13: 顯示音訊檔案選擇器
         default: `modules/${MODULE_ID}/sounds/page.mp3`, // 預設路徑
         onChange: () => {
-             // 僅提示變更
+            // 僅提示變更
         }
     });
 
@@ -168,20 +172,20 @@ export function registerSettings() {
 
     // 決定訊息物件要傳遞原生 DOM 或 jQuery 物件
     game.settings.register(MODULE_ID, "hookArgumentType", {
-    name: "YCIO.Settings.HookArgumentType.Name",
-    hint: "YCIO.Settings.HookArgumentType.Hint",
-    scope: "world",
-    config: true,
-    type: String,
-    choices: {
-        "jquery": "YCIO.Settings.HookArgumentType.Choices.jQuery",
-        "native": "YCIO.Settings.HookArgumentType.Choices.native"
-    },
-    default: "native",
-    requiresReload: true,
-    onChange: () => {
-             ui.notifications.info(game.i18n.localize("YCIO.Settings.HookArgumentType.Changed"));
-    }
+        name: "YCIO.Settings.HookArgumentType.Name",
+        hint: "YCIO.Settings.HookArgumentType.Hint",
+        scope: "world",
+        config: true,
+        type: String,
+        choices: {
+            "jquery": "YCIO.Settings.HookArgumentType.Choices.jQuery",
+            "native": "YCIO.Settings.HookArgumentType.Choices.native"
+        },
+        default: "native",
+        requiresReload: true,
+        onChange: () => {
+            ui.notifications.info(game.i18n.localize("YCIO.Settings.HookArgumentType.Changed"));
+        }
     });
 
     // 訊息渲染模式的設定，renderChatLog/renderChatMessage/停用Hook
@@ -198,16 +202,18 @@ export function registerSettings() {
             "clone": "YCIO.Settings.HookMode.Clone"        // "隔離 (SR 5e) - 使用 DOM 副本觸發 Hook"
         },
         onChange: () => {
-             ui.notifications.info(game.i18n.localize("YCIO.Settings.HookMode.Changed"));
+            ui.notifications.info(game.i18n.localize("YCIO.Settings.HookMode.Changed"));
         }
     });
-    
+
     console.log("YCIO | 設定 (Settings) 已註冊");
 }
 
-// ================
-// 設定介面排版
-// ================
+/**
+ * ============================================
+ * 設定介面排版
+ * ============================================
+ */
 Hooks.on("renderSettingsConfig", (app, html, data) => {
     // 確保取得正確的 DOM 根節點 (相容 FVTT 不同的渲染模式)
     const root = app.element ? app.element : (html instanceof HTMLElement ? html : document);
@@ -222,9 +228,9 @@ Hooks.on("renderSettingsConfig", (app, html, data) => {
         // 直接組合出 FVTT 生成的 ID
         const targetId = `settings-config-yuuko-chat-interface-overhaul.${settingKey}`;
         const inputElement = root.querySelector(`[id="${targetId}"]`);
-        
+
         if (!inputElement) {
-            //console.warn(`YCIO Debug | 找不到設定項: ${settingKey}，跳過排版。`);
+            // console.warn(`YCIO Debug | 找不到設定項: ${settingKey}，跳過排版。`);
             return;
         }
 
@@ -247,10 +253,12 @@ Hooks.on("renderSettingsConfig", (app, html, data) => {
     };
 
     // 開始執行排版，可以自由增加或修改這裡的項目
+
     // 在「自訂視窗標題」前面加上【介面與視覺設定】標題
     injectHeader("windowTitle", "介面與視覺設定", "fas fa-desktop");
+
     // 在「系統相容性」前面加上【進階與相容性設定】標題
     injectHeader("hookArgumentType", "進階與相容性設定", "fas fa-cogs");
 
-    //console.log("YCIO Debug | 設定介面排版注入完成。");
+    // console.log("YCIO Debug | 設定介面排版注入完成。");
 });

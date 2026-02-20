@@ -19,16 +19,16 @@ import {
     generateTypingStatusHTML,
     parseInlineAvatars,
     generateAvatarTooltip
-} from "./chat-helpers.js"; //某些函式
-import { FLAG_SCOPE, FLAG_KEY, MODULE_ID } from "./config.js"; //某些常數，定義 Flag 作用域和 Key (用於打字狀態同步)
-import { AvatarSelector, InlineAvatarPicker } from "./avatar-selector.js"; //頭像選擇器
-import { ChatExportDialog } from "./chat-exporter.js"; //聊天記錄匯出
+} from "./chat-helpers.js";
+
+import { FLAG_SCOPE, FLAG_KEY, MODULE_ID } from "./config.js"; // 打字狀態同步常數
+import { AvatarSelector, InlineAvatarPicker } from "./avatar-selector.js"; // 頭像選擇器
+import { ChatExportDialog } from "./chat-exporter.js"; // 聊天記錄匯出
 import { AboutDialog } from "./about-dialog.js"; // 關於本模組對話框
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
-
     constructor(options = {}) {
         super(options);
 
@@ -39,20 +39,20 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // --- 標題列右側選單按鈕 ---
         // 確保 controls 陣列存在 (防禦性程式碼)
         this.options.window.controls = this.options.window.controls || [];
+
         // 在右上選單放入 GM 專用按鈕，聊天紀錄導出
         if (game.user?.isGM) {
             this.options.window.controls.unshift(
                 {
-                    icon: 'fas fa-file-export',
+                    icon: "fas fa-file-export",
                     label: game.i18n.localize("YCIO.Menu.ExportLog"),
                     action: "exportLog"
                 },
                 {
-                    icon: 'fas fa-trash',
+                    icon: "fas fa-trash",
                     label: game.i18n.localize("YCIO.Menu.ClearLog"),
                     action: "flushLog"
-                },
-
+                }
             );
         }
 
@@ -70,12 +70,12 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // 只有當動作停止 500ms 後才會真正寫入資料庫
         this._savePositionDebounced = foundry.utils.debounce((pos) => {
             game.settings.set(MODULE_ID, "floatingChatPosition", pos);
-            // console.log("YCIO | 主視窗位置已儲存", pos);
         }, 500);
 
         // 預設分頁：ooc
         this.activeTab = "ooc";
-        //初始化 HTML 快取容器
+
+        // 初始化 HTML 快取容器
         this._messageCache = new Map();
 
         // --- 狀態追蹤變數 ---
@@ -97,9 +97,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         Hooks.on("YCIO_UpdateStyle", () => this._applyCustomStyles());
     }
 
-    /* ========================================================= */
-    /* 1. 視窗設定 (Configuration)                              */
-    /* ========================================================= */
+    /**
+     * ============================================
+     * 1. 視窗設定 (Configuration)
+     * ============================================
+     */
 
     static DEFAULT_OPTIONS = {
         id: "YCIO-floating-chat-window",
@@ -109,17 +111,17 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             title: "YCIO.WindowTitle",
             resizable: true,
             icon: "fas fa-comments",
-            //放入靜態按鈕（所有玩家可見）
+            // 放入靜態按鈕（所有玩家可見）
             controls: [
                 {
-                    icon: 'fas fa-gear',
-                    label: 'YCIO.Menu.Settings',
-                    action: 'openSettings'
+                    icon: "fas fa-gear",
+                    label: "YCIO.Menu.Settings",
+                    action: "openSettings"
                 },
                 {
-                    icon: 'fas fa-circle-info',
-                    label: 'YCIO.Menu.About',
-                    action: 'openAbout'
+                    icon: "fas fa-circle-info",
+                    label: "YCIO.Menu.About",
+                    action: "openAbout"
                 }
             ]
         },
@@ -131,9 +133,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             expandRoll: FloatingChat.onExpandRoll,       // 展開/折疊擲骰結果
             deleteMessage: FloatingChat.onDeleteMessage, // 刪除訊息
             jumpToBottom: FloatingChat.onJumpToBottom,   // 跳至底部
-            switchTab: FloatingChat.onSwitchTab, // 切換分頁
+            switchTab: FloatingChat.onSwitchTab,         // 切換分頁
             toggleMinimize: FloatingChat.onToggleMinimize, // 最小化/還原
-            toggleWait: FloatingChat.onToggleWait, // 切換稍等一下
+            toggleWait: FloatingChat.onToggleWait,       // 切換稍等一下
 
             // 文字格式工具列 Actions
             formatBold: FloatingChat.onFormatBold,
@@ -156,9 +158,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         input: { template: "modules/yuuko-chat-interface-overhaul/templates/chat-input.hbs" }
     };
 
-    /* ========================================================= */
-    /* 2. 靜態動作 (Static Actions)                             */
-    /* ========================================================= */
+    /**
+     * ============================================
+     * 2. 靜態動作 (Static Actions)
+     * ============================================
+     */
 
     /**
      * Action: 展開/折疊擲骰結果
@@ -194,6 +198,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
     /**
      * Action: 切換「稍等一下」狀態
+    /**
+     * Action: 切換「稍等一下」狀態
      */
     static async onToggleWait(event, target) {
         event.preventDefault();
@@ -214,7 +220,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         target.classList.toggle("YCIO-active", newState);
     }
 
-    // Action: 開啟聊天紀錄導出視窗 (僅 GM)
+    /**
+     * Action: 開啟聊天紀錄導出視窗 (僅 GM)
+     */
     static onExportLog(event, target) {
         if (!game.user.isGM) return;
         new ChatExportDialog().render(true);
@@ -238,7 +246,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         new AboutDialog().render(true);
     }
 
-    // Action: 刪除所有訊息紀錄 (僅 GM)
+    /**
+     * Action: 刪除所有訊息紀錄 (僅 GM)
+     */
     static async onFlushLog(event, target) {
         if (!game.user.isGM) return;
 
@@ -257,20 +267,23 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     /**
-    * 自定義最小化/還原動作，替換視窗關閉動作
-    */
+     * Action: 自定義最小化/還原動作，替換視窗關閉動作
+     */
     static onToggleMinimize(event, target) {
         event.preventDefault();
         // 在 ApplicationV2 的 action 中，this 指向視窗實例
         this.minimize();
     }
 
-    /* ========================================================= */
-    /* 3. 生命週期 (Lifecycle & Rendering)                      */
-    /* ========================================================= */
+    /**
+     * ============================================
+     * 3. 生命週期 (Lifecycle & Rendering)
+     * ============================================
+     */
 
     /**
      * 準備渲染訊息資料
+     * @returns {Object} 提供給 Handlebars 的資料
      */
     async _prepareContext(_options) {
         // 1. 準備場景列表 (給 chat-tabs.hbs 使用)
@@ -342,8 +355,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * 覆寫 render 方法
      */
     async render(options, _options) {
-        //目的：在 DOM 被銷毀重繪之前，先「快照」當前的發言身分
-        //這能確保我們捕捉到使用者「最後一眼看到」的狀態
+        // 目的：在 DOM 被銷毀重繪之前，先「快照」當前的發言身分
+        // 這能確保我們捕捉到使用者「最後一眼看到」的狀態
         // 如果視窗已經存在 DOM 中，嘗試抓取當前的選單值
         const select = this.element?.querySelector("#chat-speaker-select");
         if (select) {
@@ -366,13 +379,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             // 尋找 header 中的關閉按鈕
             const closeBtn = appWindow.querySelector('.window-header [data-action="close"]');
             if (closeBtn) {
-                //移除原本的叉叉圖示改用減號
+                // 移除原本的叉叉圖示改用減號
                 closeBtn.classList.remove("fa-xmark", "fa-times");
                 closeBtn.classList.add("fa-minus");
+
                 // 設定提示文字
                 const tooltipText = game.i18n.localize("YCIO.MinimizeIcon");
                 closeBtn.dataset.tooltip = tooltipText;
                 closeBtn.setAttribute("aria-label", tooltipText);
+
                 // 替換按鈕的動作
                 closeBtn.dataset.action = "toggleMinimize";
             }
@@ -408,12 +423,16 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                     // 取得設定：決定隔離模式與參數型別
                     const cloneMode = game.settings.get(MODULE_ID, "hookCompatibilityMode") === "clone";
                     const argType = game.settings.get(MODULE_ID, "hookArgumentType");
-                    //準備基底元素 (決定要不要 Clone)
+
+                    // 準備基底元素 (決定要不要 Clone)
                     let baseElement = cloneMode ? log.cloneNode(true) : log;
-                    //準備最終傳遞的參數型別 (決定是 jQuery 還是原生 DOM)
+
+                    // 準備最終傳遞的參數型別 (決定是 jQuery 還是原生 DOM)
                     let finalHookArgument = argType === "jquery" ? $(baseElement) : baseElement;
+
                     // 全域觸發一次 renderChatLog
                     Hooks.call("renderChatLog", this, finalHookArgument, {});
+
                     // 標記為已綁定
                     log.dataset.hooksBound = "true";
                 }
@@ -472,6 +491,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 if (this._lastSpeakerValue !== null && this._lastSpeakerValue !== currentValue) {
                     this._lastFlashTime = now; // 偵測到變動，更新閃爍時間戳
                 }
+
                 // 更新紀錄
                 this._lastSpeakerValue = currentValue;
 
@@ -502,6 +522,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                         this.changeTab("ooc", false);
                         return;
                     }
+
                     const [sceneId, tokenId] = value.split(".");
                     if (canvas.scene?.id !== sceneId) {
                         const scene = game.scenes.get(sceneId);
@@ -526,11 +547,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 avatarBtn.addEventListener("click", (ev) => {
                     // 頭像按鈕邏輯
                     if (avatarBtn.classList.contains("YCIO-disabled")) {
-                        ev.preventDefault(); ev.stopPropagation(); return;
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        return;
                     }
+
                     const speakerSelect = this.element.querySelector("#chat-speaker-select");
                     const value = speakerSelect ? speakerSelect.value : "ooc";
                     let targetDoc;
+
                     if (value === "ooc") {
                         targetDoc = game.user;
                     } else {
@@ -539,6 +564,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                         const token = scene?.tokens.get(tokenId);
                         if (token && token.actor) targetDoc = token.actor;
                     }
+
                     if (targetDoc) new AvatarSelector(targetDoc).render(true);
                 });
             }
@@ -596,7 +622,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             this._updateTypingDisplay();
         }
 
-        //啟動或重置捲動檢查計時器 (每 1000ms 檢查一次)
+        // 啟動或重置捲動檢查計時器 (每 1000ms 檢查一次)
         if (this._scrollCheckInterval) clearInterval(this._scrollCheckInterval);
         this._scrollCheckInterval = setInterval(() => this._toggleJumpToBottomButton(), 1000);
 
@@ -612,7 +638,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             });
         }
 
-        // --- Hooks 註冊 (只需註冊一次) ---
+        // --- D. Hooks 註冊 (只需註冊一次) ---
         if (!this._mainHooksRegistered) {
             this._mainHooksRegistered = true; // 鎖定，防止重複註冊
 
@@ -624,7 +650,6 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
             // 2. 打字狀態同步
             register("updateUser", (user, changes) => {
-                //console.log("YCIO Debug | 使用者狀態更新:", user.name, changes);
                 if (changes.flags?.[FLAG_SCOPE]) this._updateTypingDisplay();
             });
 
@@ -659,8 +684,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                             alias: game.user.name
                         }
                     });
-                }
-                else {
+                } else {
                     // 選單選的是 Token，且使用者沒打 /ooc -> 強制鎖定為該 Token
                     const [sceneId, tokenId] = selection.split(".");
 
@@ -707,7 +731,6 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
                 // 只有當上述任一條件成立時，才觸發重繪
                 if (ownershipChanged || visibilityChanged || nameChanged) {
-                    // console.log("YCIO | 偵測到場景關鍵變更，觸發重繪", changes); // Debug 用
                     this.render();
                 }
             });
@@ -715,14 +738,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     /**
-     * 呼叫helper讀取Config設定並套用 CSS 變數
+     * 套用 CSS 變數：呼叫 helper 取得並套用設定
      */
     _applyCustomStyles() {
         applyWindowStyles(this.element, game.user);
     }
 
     /**
-     * 視窗關閉時的清理工作
+     * 視窗關閉時的清理工作或動作攔截
+     * @param {Object} options - 關閉時的選項 
      */
     async close(options) {
         // 防呆：確保 options 是一個物件，如果它是 undefined 就設為空物件
@@ -766,17 +790,26 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
 
-    /* ========================================================= */
-    /* 4. 處理場景分頁                                           */
-    /* ========================================================= */
-    /* 靜態動作，對應 HTML 的 data-action="switchTab" */
+    /**
+     * ============================================
+     * 4. 處理場景分頁
+     * ============================================
+     */
+
+    /**
+     * Action: 靜態動作，對應 HTML 的 data-action="switchTab" 
+     */
     static onSwitchTab(event, target) {
         event.preventDefault();
         // 呼叫實例方法 changeTab
         this.changeTab(target.dataset.tab);
     }
 
-    /* --- 切換分頁邏輯 --- */
+    /**
+     * 切換目標分頁邏輯
+     * @param {string} tabId - 切換的目標分頁 ID
+     * @param {boolean} triggerSceneView - 是否連動視角切換至目標點
+     */
     async changeTab(tabId, triggerSceneView = true) {
         if (this.activeTab === tabId) return;
 
@@ -796,7 +829,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     /**
-     * 手動抽換聊天容器內的訊息，避免摧毀容器本身
+     * 手動換皮：抽換聊天容器內的訊息，避免摧毀容器本身
      */
     async _refreshChatLogDOM() {
         const log = this.element.querySelector("#custom-chat-log");
@@ -842,7 +875,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         log.scrollTop = log.scrollHeight;
     }
 
-    /* --- 判斷訊息是否屬於當前分頁 (過濾器) --- */
+    /**
+     * 判斷訊息是否屬於當前分頁 (過濾器)
+     * @param {ChatMessage} message - 指定訊息 
+     */
     _isMessageVisibleInTab(message) {
         // 首先檢查是否有權限看到這條訊息
         // 如果是 GM 隱藏的訊息，對玩家來說 message.visible 會是 false
@@ -860,9 +896,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         }
     }
 
-    /* ========================================================= */
-    /* 5. 聊天記錄管理 (Chat Log Logic)                         */
-    /* ========================================================= */
+    /**
+     * ============================================
+     * 5. 聊天記錄管理 (Chat Log Logic)
+     * ============================================
+     */
 
     /**
      * 處理捲動事件
@@ -902,21 +940,24 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             if (!jumpBtn.classList.contains("visible")) {
                 jumpBtn.classList.add("visible");
             }
-        }
-        else if (distanceToBottom < THRESHOLD_HIDE) {
+        } else if (distanceToBottom < THRESHOLD_HIDE) {
             // 在底部：隱藏按鈕，並順便移除未讀狀態
             jumpBtn.classList.remove("visible", "unread");
         }
     }
 
     /**
-     * 載入歷史訊息 (無限捲動)
+     * 往上載入歷史訊息 (無限捲動機制)
+     * @param {HTMLElement} logElement - 滾動區域元素
      */
     async _loadOlderMessages(logElement) {
         this._isLoadingOlder = true;
 
         const firstMessageEl = logElement.querySelector(".message");
-        if (!firstMessageEl) { this._isLoadingOlder = false; return; }
+        if (!firstMessageEl) {
+            this._isLoadingOlder = false;
+            return;
+        }
 
         const firstMsgId = firstMessageEl.dataset.messageId;
         const allMessages = game.messages.contents;
@@ -925,11 +966,17 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         const anchorMsg = game.messages.get(firstMsgId);
 
         // 如果該訊息剛好被刪除導致找不到，直接中止
-        if (!anchorMsg) { this._isLoadingOlder = false; return; }
+        if (!anchorMsg) {
+            this._isLoadingOlder = false;
+            return;
+        }
 
         const currentIndex = allMessages.indexOf(anchorMsg);
 
-        if (currentIndex <= 0) { this._isLoadingOlder = false; return; }
+        if (currentIndex <= 0) {
+            this._isLoadingOlder = false;
+            return;
+        }
 
         // --- 使用過濾器往前搜尋 20 筆 ---
         const BATCH_SIZE = 20;
@@ -948,26 +995,32 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // 因為是用 push 收集 (新->舊)，需要反轉回正確的時間序 (舊->新)
         olderMessages.reverse();
-        // -------------------------------------
 
-        if (olderMessages.length === 0) { this._isLoadingOlder = false; return; }
+        // --- 檢查歷史訊息有沒有內容 ---
+        if (olderMessages.length === 0) {
+            this._isLoadingOlder = false;
+            return;
+        }
 
         const previousScrollHeight = logElement.scrollHeight;
         const previousScrollTop = logElement.scrollTop;
 
+        // 將 HTML 渲染與處理放入 fragment 中再塞入 DOM
         const fragment = document.createDocumentFragment();
         for (const msg of olderMessages) {
             const rawHtml = await msg.renderHTML();
             const htmlElement = rawHtml instanceof jQuery ? rawHtml[0] : rawHtml; // 正規化提取原生 DOM
-            enrichMessageHTML(msg, htmlElement); //放入頭像
+            enrichMessageHTML(msg, htmlElement); // 放入頭像
 
             triggerRenderHooks(this, msg, htmlElement);
             this._messageCache.set(msg.id, htmlElement);
 
             fragment.appendChild(htmlElement);
         }
+
         logElement.insertBefore(fragment, logElement.firstChild);
 
+        // 校準捲軸位置
         const newScrollHeight = logElement.scrollHeight;
         logElement.scrollTop = newScrollHeight - previousScrollHeight + previousScrollTop;
 
@@ -975,7 +1028,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     /**
-     * 播放新訊息通知音效，呼叫helper
+     * 播放新訊息通知音效
+     * @param {ChatMessage} message - 觸發通知的訊息
      */
     _playNotification(message) {
         if (shouldPlayNotification(message)) {
@@ -983,8 +1037,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             AudioHelper.play({ src: soundPath, volume: game.settings.get("core", "globalInterfaceVolume"), autoplay: true, loop: false }, false);
         }
     }
+
     /**
      * 插入新訊息 (由 main.js 的 createChatMessage Hook 呼叫)
+     * @param {ChatMessage} message - 新建立的訊息
      */
     async appendMessage(message) {
         // 一旦開始有新訊息，就嘗試播放音效 (邏輯判斷都在函式內)
@@ -1043,9 +1099,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
     /**
      * 移除 DOM 中的訊息 (由 main.js 的 deleteChatMessage Hook 呼叫)
+     * @param {string} messageId - 被刪除的訊息 ID
      */
     deleteMessageFromDOM(messageId) {
-        this.invalidateCache(messageId); //清除快取
+        this.invalidateCache(messageId); // 清除快取
 
         const log = this.element.querySelector("#custom-chat-log");
         const el = log?.querySelector(`[data-message-id="${messageId}"]`);
@@ -1054,13 +1111,13 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         }
     }
 
-
     /**
      * 更新 DOM 中的訊息 (通用同步邏輯)
      * 無論是內容更新、權限變更、公開/隱藏，都統一由此方法處理
+     * @param {ChatMessage} message - 更新後的訊息
      */
     async updateMessageInDOM(message) {
-        this.invalidateCache(message.id); //訊息更新清除快取
+        this.invalidateCache(message.id); // 訊息更新清除快取
         const log = this.element.querySelector("#custom-chat-log");
         if (!log) return;
 
@@ -1108,12 +1165,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         }
     }
 
-    /* ========================================================= */
-    /* 6. 輸入框邏輯 (Input Handling)                           */
-    /* ========================================================= */
+    /**
+     * ============================================
+     * 6. 輸入框邏輯 (Input Handling)
+     * ============================================
+     */
 
     /**
      * 處理 Enter 鍵發送
+     * @param {Event} event - 鍵盤事件
      */
     async _onChatKeyDown(event) {
         // 監聽 Enter: 如果沒按 Shift 就發送
@@ -1134,6 +1194,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
     /**
      * 呼叫 FVTT 核心處理訊息 (支援 /r, /w 等指令)
+     * @param {string} content - 準備發送的內容
      */
     async _processMessage(content) {
         // 在 Class 內決定「誰」是發話者 (UI 狀態邏輯)
@@ -1141,13 +1202,13 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         const value = speakerSelect ? speakerSelect.value : "ooc";
         const { actorDoc, user } = getSpeakerFromSelection(value);
         const targetDoc = actorDoc || user;
+
         // 呼叫 Helper 進行行內頭像替換
         content = parseInlineAvatars(content, targetDoc);
 
         try {
             // 將處理過(可能包含 img 標籤)的內容送給核心
             await ui.chat.processMessage(content);
-            // console.log("YCIO | 原始發送訊息：" + content); // Debug 用
         } catch (err) {
             console.error("YCIO | 訊息處理錯誤:", err);
             ui.notifications.error(game.i18n.localize("YCIO.Warning.FailedMsg") + "（" + err + "）");
@@ -1155,7 +1216,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     /**
-     * 輸入框自動長高，呼叫Helper
+     * 輸入框自動長高
+     * @param {HTMLElement} input - 輸入框元素
      */
     _adjustInputHeight(input) {
         // 傳入最大高度 (視窗高度的一半)
@@ -1163,11 +1225,12 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         autoResizeTextarea(input, maxHeight);
     }
 
-    /* ========================================================= */
-    /* 7. 格式工具列邏輯 (Formatting Toolbar)               */
-    /* ========================================================= */
+    /**
+     * ============================================
+     * 7. 格式工具列邏輯 (Formatting Toolbar)
+     * ============================================
+     */
 
-    // --- 各個按鈕的具體實作 ---
     static onFormatBold(event, target) {
         const textarea = target.closest(".window-content")?.querySelector(".YCIO-chat-entry");
         insertTextFormat(textarea, "<b>", "</b>");
@@ -1193,7 +1256,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         }
     }
 
-    // 表符按鈕
+    /**
+     * 表符按鈕插入邏輯
+     */
     static onFormatInlineAvatar(event, target) {
         // 1. 取得 DOM 與發話身份
         const wrapper = target.closest(".YCIO-floating-chat-window");
@@ -1213,7 +1278,6 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // 3. 防呆：如果沒有可用的表情
         if (validList.length === 0) {
             ui.notifications.warn("YCIO.Warning.NoLabeledAvatars", { localize: true });
-            // 如果還沒設定語言檔，暫時用 ui.notifications.warn("沒有設定註解的頭像可供使用");
             return;
         }
 
@@ -1227,10 +1291,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         new InlineAvatarPicker(validList, onPick).render(true);
     }
 
-
-    /* ========================================================= */
-    /* 8. 打字狀態同步 (Typing Status - Flags)                  */
-    /* ========================================================= */
+    /**
+     * ============================================
+     * 8. 打字狀態同步 (Typing Status - Flags)
+     * ============================================
+     */
 
     /**
      * 監聽輸入事件：控制 Flag 的開啟與關閉
@@ -1268,13 +1333,13 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
     /**
      * 核心：寫入/刪除 User Flags
+     * @param {boolean} isTyping - 是否正在打字
      */
     async _setTypingFlag(isTyping) {
         // 避免重複寫入 (節省資料庫效能)
         const current = game.user.getFlag(FLAG_SCOPE, FLAG_KEY);
         if (current === isTyping) return;
 
-        // console.log(`[YCIO] 更新 Flag: ${isTyping}`);
         if (isTyping) {
             await game.user.setFlag(FLAG_SCOPE, FLAG_KEY, true);
         } else {
@@ -1305,12 +1370,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         }
     }
 
-    /* ========================================================= */
-    /* 9. 右鍵選單 (Context Menu)                               */
-    /* ========================================================= */
+    /**
+     * ============================================
+     * 9. 右鍵選單 (Context Menu)
+     * ============================================
+     */
 
     /**
      * 初始化右鍵選單
+     * @param {HTMLElement|jQuery} html - 包含訊息元素的父節點
      */
     _initializeContextMenu(html) {
         // 1. 確保取得原生的 HTMLElement (非 jQuery 物件)
@@ -1335,10 +1403,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         });
     }
 
-
     /**
      * 智慧插入訊息，主要是右鍵選單讓訊息可見或不可見
      * 根據時間戳記，將訊息插入到 DOM 中正確的排序位置
+     * @param {ChatMessage} message - 要插入的訊息
+     * @param {HTMLElement} log - 滾動區域元素
      */
     async _insertMessageSmartly(message, log) {
         const rawHtml = await message.renderHTML();
@@ -1379,9 +1448,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         }
     }
 
-    /* ========================================================= */
-    /* 9.更新頭像按鈕的 Tooltip (顯示當前圖片預覽) */
-    /* ========================================================= */
+    /**
+     * ============================================
+     * 10. 更新頭像按鈕的 Tooltip (顯示當前圖片預覽)
+     * ============================================
+     */
     _updateAvatarBtnTooltip() {
         const btn = this.element.querySelector("#chat-avatar-btn");
         if (!btn) return;
@@ -1410,11 +1481,13 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         btn.dataset.tooltipClass = "YCIO-avatar-tooltip";
     }
 
-    /* ========================================================= */
-    /* 10. 原生 ChatLog 相容性介面 (Native Compatibility Shim)   */
-    /* 為了讓系統透過 renderChatMessage 綁定的按鈕能正常運作，  */
-    /* 我們必須實作 ChatLog 的標準方法，因為系統會呼叫 app.method()        */
-    /* ========================================================= */
+    /**
+     * ============================================
+     * 11. 原生 ChatLog 相容性介面 (Native Compatibility Shim)
+     * ============================================
+     * 為了讓系統透過 renderChatMessage 綁定的按鈕能正常運作，
+     * 我們必須實作 ChatLog 的標準方法，因為系統會呼叫 app.method()
+     */
 
     /**
      * 許多系統的刪除按鈕會呼叫此方法
@@ -1448,5 +1521,4 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
         }
     }
-
 }

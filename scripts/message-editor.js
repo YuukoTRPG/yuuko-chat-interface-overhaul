@@ -4,6 +4,12 @@ import { MODULE_ID } from "./config.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
+/**
+ * ============================================
+ * 訊息編輯器 (Message Editor)
+ * ============================================
+ * 提供右鍵編輯對話內容的功能視窗
+ */
 export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     constructor(message) {
         super({ window: { title: game.i18n.localize("YCIO.Editor.WindowTitle") } });
@@ -23,7 +29,6 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
             game.settings.set(MODULE_ID, "messageEditorPosition", pos);
         }, 500);
     }
-    
 
     static DEFAULT_OPTIONS = {
         id: "YCIO-message-editor",
@@ -42,7 +47,7 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
             formatItalic: (e, t) => FloatingChat.onFormatItalic(e, t),
             formatStrikethrough: (e, t) => FloatingChat.onFormatStrikethrough(e, t),
             applyTextColor: (e, t) => FloatingChat.onApplyTextColor(e, t),
-            
+
             // 專屬邏輯
             formatInlineAvatar: MessageEditor.onFormatInlineAvatar,
             updateMessage: MessageEditor.onUpdateMessage,
@@ -54,7 +59,7 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         form: { template: "modules/yuuko-chat-interface-overhaul/templates/chat-editor.hbs" }
     };
 
-    setPosition(position={}) {
+    setPosition(position = {}) {
         const newPosition = super.setPosition(position);
         this._savePositionDebounced(newPosition);
         return newPosition;
@@ -86,7 +91,11 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         }
     }
 
-    // 還原邏輯：將 HTML 圖片轉回 [[標籤]]
+    /**
+     * 還原邏輯：將 HTML 圖片轉回 [[標籤]]
+     * @param {string} content - 含有 HTML 圖片的訊息內容
+     * @returns {string} 轉換成標籤的文字
+     */
     _restoreInlineAvatars(content) {
         // 尋找擁有 class="YCIO-inline-emote" 的 img 標籤，並抓取 alt 屬性中的文字
         const regex = /<img[^>]+class=["']YCIO-inline-emote["'][^>]*alt=["'](.*?)["'][^>]*>/g;
@@ -95,7 +104,11 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         });
     }
 
-    // 解析邏輯：將 [[標籤]] 轉為 HTML 圖片
+    /**
+     * 解析邏輯：將 [[標籤]] 轉為 HTML 圖片
+     * @param {string} content - 含有標籤的純文字內容
+     * @returns {string} 轉換成 HTML 圖片的內容
+     */
     _parseInlineAvatars(content) {
         // 取得這則訊息原本的發言者 (Actor/User)
         const targetDoc = this._getTargetDoc();
@@ -115,32 +128,39 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         });
     }
 
-    // 取得目標文件：判斷這則訊息是誰發的
+    /**
+     * 取得目標文件：判斷這則訊息是誰發的
+     * @returns {Actor|User} 作者的文件物件
+     */
     _getTargetDoc() {
         const message = this.message;
         let targetDoc = null;
-        
+
         // 1. 優先找訊息指定的 Actor
         if (message.speaker.actor) targetDoc = game.actors.get(message.speaker.actor);
-        
+
         // 2. 其次找訊息指定 Token 的 Actor
         if (!targetDoc && message.speaker.token) {
             const token = canvas.tokens.get(message.speaker.token);
             targetDoc = token?.actor;
         }
-        
+
         // 3. 最後找訊息的作者 (User)
         if (!targetDoc) targetDoc = message.author ?? message.user;
-        
+
         return targetDoc;
     }
 
-    // --- Actions ---
+    /**
+     * ============================================
+     * UI Actions 回應
+     * ============================================
+     */
 
     static async onUpdateMessage(event, target) {
         // 在 ApplicationV2 的 static action 中，this 指向的是應用程式實例 (app)
-        const app = this; 
-        
+        const app = this;
+
         const form = target.closest("form");
         const textarea = form.querySelector("textarea");
         const rawContent = textarea.value.trim(); // 這是包含 [[標籤]] 的原始文字
@@ -152,7 +172,7 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         if (finalContent !== app.message.content) {
             await app.message.update({ content: finalContent });
         }
-        
+
         app.close();
     }
 
@@ -160,7 +180,10 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         this.close();
     }
 
-    // 編輯器專用的表符插入邏輯 (因為沒有下拉選單，改為讀取訊息原本的 speaker)
+    /**
+     * 編輯器專用的表符插入邏輯 
+     * @description 因為沒有下拉選單，改為讀取訊息原本的 speaker
+     */
     static onFormatInlineAvatar(event, target) {
         const app = this; // ApplicationV2 實例
         const targetDoc = app._getTargetDoc(); //呼叫輔助方法
@@ -172,7 +195,7 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         const validList = rawList.filter(a => a.label && a.label.trim() !== "");
 
         if (validList.length === 0) {
-            ui.notifications.warn("YCIO.Warning.NoLabeledAvatars", {localize: true});
+            ui.notifications.warn("YCIO.Warning.NoLabeledAvatars", { localize: true });
             return;
         }
 

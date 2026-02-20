@@ -704,12 +704,12 @@
    8. 頭像選擇器 (Avatar Selector Popup)
    ========================================================= */
 
-.avatar-selector-window .window-content {
+.YCIO-avatar-selector-window .window-content {
     padding: 0;
     background: #222;
 }
 
-.avatar-selector-container {
+.YCIO-avatar-selector-window .avatar-selector-container {
     padding: 10px;
     height: 100%;
     display: flex;
@@ -717,7 +717,7 @@
     gap: 10px;
 }
 
-.avatar-selector-container .controls {
+.YCIO-avatar-selector-window .avatar-selector-container .controls {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -725,7 +725,7 @@
     border-bottom: 1px solid #444;
 }
 
-.avatar-selector-container .avatar-grid {
+.YCIO-avatar-selector-window .avatar-selector-container .avatar-grid {
     flex: 1;
     display: grid;
     /* 固定最小寬度為 90px，讓卡片不要太小 */
@@ -741,7 +741,7 @@
 }
 
 /* 單個頭像項目 卡片容器 */
-.avatar-card {
+.YCIO-avatar-selector-window .avatar-card {
     display: flex;
     flex-direction: column;
     background: #111;
@@ -755,13 +755,13 @@
 }
 
 /* 選中狀態 */
-.avatar-card.selected {
+.YCIO-avatar-selector-window .avatar-card.selected {
     border: 1px solid #ffd700;
     box-shadow: 0 0 4px #ffd700;
 }
 
 /* 圖片區域 */
-.avatar-card .image-wrapper {
+.YCIO-avatar-selector-window .avatar-card .image-wrapper {
     position: relative;
     width: 100%;
     /* 使用 padding-top 強制創造正方形 (1:1) */
@@ -771,7 +771,7 @@
     /* 確保圖片不溢出 */
 }
 
-.avatar-card img {
+.YCIO-avatar-selector-window .avatar-card img {
     position: absolute;
     /* 脫離文檔流，避免撐開父元素 */
     top: 0;
@@ -784,7 +784,7 @@
 }
 
 /* 刪除按鈕 */
-.avatar-card .delete-btn {
+.YCIO-avatar-selector-window .avatar-card .delete-btn {
     position: absolute;
     top: 2px;
     right: 2px;
@@ -803,12 +803,12 @@
     cursor: pointer;
 }
 
-.avatar-card:hover .delete-btn {
+.YCIO-avatar-selector-window .avatar-card:hover .delete-btn {
     opacity: 1;
 }
 
 /* 底部詳情區 (輸入框) */
-.avatar-card .details {
+.YCIO-avatar-selector-window .avatar-card .details {
     padding: 0px 0px;
     background: #222;
     border-top: 2px solid #333;
@@ -821,13 +821,13 @@
 }
 
 /* 預設標籤文字 */
-.avatar-card .system-label {
+.YCIO-avatar-selector-window .avatar-card .system-label {
     font-size: 10px;
     color: #888;
 }
 
 /* 註解輸入框 */
-.avatar-card input.avatar-label-input {
+.YCIO-avatar-selector-window .avatar-card input.avatar-label-input {
     width: 100%;
     background: transparent;
     border: none;
@@ -840,7 +840,7 @@
     height: 100%;
 }
 
-.avatar-card input.avatar-label-input:focus {
+.YCIO-avatar-selector-window .avatar-card input.avatar-label-input:focus {
     outline: none;
     border-bottom-color: #ffd700;
     color: white;
@@ -848,14 +848,14 @@
 
 
 /* 底部確認區域 */
-.avatar-selector-container .footer {
+.YCIO-avatar-selector-window .avatar-selector-container .footer {
     margin-top: 10px;
     padding-top: 10px;
     border-top: 1px solid #444;
 }
 
 /* 確認按鈕樣式 */
-.avatar-selector-container .confirm-btn {
+.YCIO-avatar-selector-window .avatar-selector-container .confirm-btn {
     width: 100%;
     padding: 8px;
     background: #333;
@@ -867,20 +867,20 @@
     transition: background 0.2s;
 }
 
-.avatar-selector-container .confirm-btn:hover {
+.YCIO-avatar-selector-window .avatar-selector-container .confirm-btn:hover {
     background: #444;
     color: #fff;
     border-color: #666;
 }
 
 /* 拖曳中的頭像卡片 (半透明 + 虛線框) */
-.avatar-card.dragging {
+.YCIO-avatar-selector-window .avatar-card.dragging {
     opacity: 0.4;
     border: 2px dashed #999;
 }
 
 /* 拖曳經過目標上方時的樣式 (提示放置位置) */
-.avatar-card.drag-over {
+.YCIO-avatar-selector-window .avatar-card.drag-over {
     border: 2px solid #ffd700;
     /* 金色實線框 */
     transform: scale(1.02);
@@ -892,14 +892,14 @@
 /* =========================================================
    9. Inline Avatar Picker 樣式 
    ========================================================= */
-.inline-avatar-picker-container .picker-grid {
+.YCIO-inline-picker .inline-avatar-picker-container .picker-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(50px, 1fr));
     gap: 2px;
     padding: 2px;
 }
 
-.inline-avatar-picker-container .picker-item {
+.YCIO-inline-picker .inline-avatar-picker-container .picker-item {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--color-border-light-tertiary);
     border-radius: 4px;
@@ -913,12 +913,12 @@
     /* 覆寫預設 button 高度 */
 }
 
-.inline-avatar-picker-container .picker-item:hover {
+.YCIO-inline-picker .inline-avatar-picker-container .picker-item:hover {
     background: rgba(255, 255, 255, 0.15);
     border-color: var(--color-text-hyperlink);
 }
 
-.inline-avatar-picker-container .img-wrapper {
+.YCIO-inline-picker .inline-avatar-picker-container .img-wrapper {
     width: 48px;
     height: 48px;
     display: flex;
@@ -927,13 +927,13 @@
     margin-bottom: 4px;
 }
 
-.inline-avatar-picker-container img {
+.YCIO-inline-picker .inline-avatar-picker-container img {
     max-width: 100%;
     max-height: 100%;
     border: none;
 }
 
-.inline-avatar-picker-container .label {
+.YCIO-inline-picker .inline-avatar-picker-container .label {
     font-size: 0.8em;
     color: var(--color-text-light-primary);
     white-space: nowrap;
