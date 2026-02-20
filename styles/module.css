@@ -1269,11 +1269,11 @@ body.YCIO-hide-native-ui #sidebar-tabs li:has(button[data-tab="chat"]) {
 }
 
 /* 隱藏聊天側邊欄的內容區域 */
-body.YCIO-hide-native-ui .chat-sidebar {
+body.YCIO-hide-native-ui #chat {
     display: none !important;
 }
 
-/* 隱藏右下談出的訊息與輸入區 */
+/* 隱藏右下彈出的訊息與輸入區 */
 body.YCIO-hide-native-ui #chat-notifications {
     display: none !important;
 }
