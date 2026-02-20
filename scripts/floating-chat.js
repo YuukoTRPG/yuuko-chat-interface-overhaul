@@ -93,6 +93,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         this._typingTimeout = null;         // 倒數計時器
         this._isBroadcastingTyping = false; // 避免重複寫入資料庫
 
+        // --- 馬賽克發言者 (暫態，重整即恢復) ---
+        this._isMosaicActive = false;
+
         // --- Hook 管理 ---
         this._hooks = [];               // 陣列以便管理多個 Hooks
         this._mainHooksRegistered = false; // 用來標記主要 Hooks 是否已註冊
@@ -117,6 +120,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             icon: "fas fa-comments",
             // 放入靜態按鈕（所有玩家可見）
             controls: [
+                {
+                    icon: "fas fa-eye-slash",
+                    label: "YCIO.Menu.MosaicSpeaker",
+                    action: "toggleMosaicSpeaker"
+                },
                 {
                     icon: "fas fa-gear",
                     label: "YCIO.Menu.Settings",
@@ -151,6 +159,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             // 右上按鈕 Action
             exportLog: FloatingChat.onExportLog,
             flushLog: FloatingChat.onFlushLog,
+            toggleMosaicSpeaker: FloatingChat.onToggleMosaicSpeaker,
             openSettings: FloatingChat.onOpenSettings,
             openAbout: FloatingChat.onOpenAbout
         }
@@ -248,6 +257,43 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     static onOpenAbout(event, target) {
         new AboutDialog().render(true);
+    }
+
+    /**
+     * Action: 切換馬賽克發言者（截圖用）
+     * 模糊化/還原所有訊息的 .message-sender 文字
+     */
+    static onToggleMosaicSpeaker(event, target) {
+        // 在 static action 中，this 指向 App 實例 (ApplicationV2 的設計)
+        this._isMosaicActive = !this._isMosaicActive;
+
+        // Toggle 視窗容器的 class
+        const appEl = this.element;
+        if (appEl) {
+            appEl.classList.toggle("YCIO-mosaic-speaker", this._isMosaicActive);
+        }
+
+        // 更新按鈕的選項文字與 icon
+        const btn = target.closest("button") || target;
+        const newLabel = this._isMosaicActive
+            ? game.i18n.localize("YCIO.Menu.MosaicSpeakerOff")
+            : game.i18n.localize("YCIO.Menu.MosaicSpeaker");
+
+        // 更新選項本身的文字 (.control-label)
+        const labelEl = btn.querySelector(".control-label");
+        if (labelEl) labelEl.textContent = newLabel;
+
+        // 切換圖示
+        const icon = btn.querySelector("i") || btn;
+        if (icon) {
+            if (this._isMosaicActive) {
+                icon.classList.remove("fa-eye-slash");
+                icon.classList.add("fa-eye");
+            } else {
+                icon.classList.remove("fa-eye");
+                icon.classList.add("fa-eye-slash");
+            }
+        }
     }
 
     /**

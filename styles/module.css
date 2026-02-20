@@ -1297,7 +1297,18 @@ body.YCIO-hide-native-ui #chat-popout {
 }
 
 /* =========================================================
-   11. 關於本模組對話框 (About Dialog)
+   13. 馬賽克發言者 (Mosaic Speaker)
+   截圖用途，模糊化所有訊息的發言者名稱
+   ========================================================= */
+
+.YCIO-floating-chat-window.YCIO-mosaic-speaker .message-sender {
+    color: transparent;
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.9);
+    filter: blur(2px);
+}
+
+/* =========================================================
+   14. 關於本模組對話框 (About Dialog)
    ========================================================= */
 
 .YCIO-about-dialog {

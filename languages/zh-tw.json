@@ -9,6 +9,8 @@
     "Menu": {
       "ExportLog": "導出聊天紀錄",
       "ClearLog": "清除聊天紀錄",
+      "MosaicSpeaker": "馬賽克發言者（截圖用）",
+      "MosaicSpeakerOff": "解除馬賽克",
       "Settings": "模組設定",
       "About": "關於本模組"
     },
