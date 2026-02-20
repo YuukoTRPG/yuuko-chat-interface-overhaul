@@ -1,6 +1,7 @@
 # 系統檔
 Thumbs.db
 Desktop.ini
+.vscode/
 
 # AI 助手
 .agents/
