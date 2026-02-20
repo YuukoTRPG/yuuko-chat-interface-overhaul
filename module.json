@@ -8,11 +8,15 @@
   },
   "description": "<p>悠子的測試模組，文字對話加強</p>",
   "flags": {
-    "canUpload": false
+    "canUpload": false,
+    "lastUpdate": "2026-02-20"
   },
-  "esmodules": ["scripts/main.js"],
-  "styles": ["styles/module.css"],
-
+  "esmodules": [
+    "scripts/main.js"
+  ],
+  "styles": [
+    "styles/module.css"
+  ],
   "languages": [
     {
       "lang": "en",

@@ -8,17 +8,20 @@
     --YCIO-bg: rgba(0, 0, 0, 0.8);
 
     display: flex;
-    flex-direction: column; /* 垂直排列：分頁 -> 內容 -> 輸入框 */
-    background: var(--YCIO-bg);/* 視窗背景色 (預設半透明黑) */
-    color: white; /* 預設文字顏色 */
+    flex-direction: column;
+    /* 垂直排列：分頁 -> 內容 -> 輸入框 */
+    background: var(--YCIO-bg);
+    /* 視窗背景色 (預設半透明黑) */
+    color: white;
+    /* 預設文字顏色 */
     padding: 0;
 }
 
-.YCIO-floating-chat-window .window-content{
+.YCIO-floating-chat-window .window-content {
     padding: 2px;
 }
 
-#YCIO-floating-chat-window > menu {
+#YCIO-floating-chat-window>menu {
     background-image: none;
     background: rgba(0, 0, 0, 1);
 }
@@ -32,21 +35,22 @@
     display: flex;
     border-bottom: 1px solid #555;
     padding: 0px 2px;
-    
+
     /* 支援水平捲動 */
     overflow-x: auto;
     white-space: nowrap;
     justify-content: flex-start;
     gap: 2px;
-    
+
     /* 隱藏醜醜的捲動條 (Webkit 瀏覽器) */
-    scrollbar-width: thin; 
+    scrollbar-width: thin;
     scrollbar-color: #444 transparent;
 }
 
 .YCIO-floating-chat-window .tabs::-webkit-scrollbar {
     height: 2px;
 }
+
 .YCIO-floating-chat-window .tabs::-webkit-scrollbar-thumb {
     background-color: #444;
     border-radius: 2px;
@@ -54,18 +58,21 @@
 
 .YCIO-floating-chat-window .tabs .item {
     padding: 0px 5px;
-    font-size: 1em;  /* 字體 */
+    font-size: 1em;
+    /* 字體 */
     cursor: pointer;
     color: #aaa;
     transition: color 0.2s, background 0.2s;
-    white-space: nowrap; /* 確保文字不換行 */
-    border-radius: 4px; /* 增加圓角 */
+    white-space: nowrap;
+    /* 確保文字不換行 */
+    border-radius: 4px;
+    /* 增加圓角 */
     border-right: 1px solid #555;
 }
 
 .YCIO-floating-chat-window .tabs .item:hover {
     color: #fff;
-    background: rgba(255,255,255,0.05);
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .YCIO-floating-chat-window .tabs .item.active {
@@ -82,21 +89,28 @@
    ========================================================= */
 
 .YCIO-floating-chat-window .chat-content {
-    flex: 1;            /* 佔滿中間剩餘空間 */
+    flex: 1;
+    /* 佔滿中間剩餘空間 */
     display: flex;
     flex-direction: column;
-    min-height: 0;      /* 關鍵：防止內容撐開父元素，確保 flex 正確運作 */
-    overflow: hidden;   /* 隱藏溢出，讓捲動發生在內部的 #custom-chat-log */
+    min-height: 0;
+    /* 關鍵：防止內容撐開父元素，確保 flex 正確運作 */
+    overflow: hidden;
+    /* 隱藏溢出，讓捲動發生在內部的 #custom-chat-log */
     padding: 0px;
-    position: relative; /* 讓內部的絕對定位元素 (如置底按鈕) 以此為基準 */
+    position: relative;
+    /* 讓內部的絕對定位元素 (如置底按鈕) 以此為基準 */
 }
 
 /* 訊息列表容器 (ul/ol) */
 .YCIO-floating-chat-window .chat-log {
     flex: 1;
-    overflow-y: auto;   /* 必須要有 auto，捲動條才會出現 */
-    height: 100%;       /* 確保高度被撐滿 */
-    list-style: none;   /* 移除列表的點點 */
+    overflow-y: auto;
+    /* 必須要有 auto，捲動條才會出現 */
+    height: 100%;
+    /* 確保高度被撐滿 */
+    list-style: none;
+    /* 移除列表的點點 */
     padding: 0px;
     margin: 0;
     overflow-anchor: auto;
@@ -108,7 +122,8 @@
     font-size: 10px;
     color: #888;
     padding: 4px;
-    display: none;      /* 預設隱藏，由 JS 控制顯示 */
+    display: none;
+    /* 預設隱藏，由 JS 控制顯示 */
 }
 
 /* =========================================================
@@ -118,19 +133,24 @@
 
 /* 訊息外框基礎樣式 */
 .YCIO-floating-chat-window .chat-message {
-    background: rgb(255, 255, 255); /* 預設白底 */
+    background: rgb(255, 255, 255);
+    /* 預設白底 */
     border: 1px solid #444;
     border-radius: 4px;
     /* margin-bottom 可以視需要加入，保持訊息間距 */
 
     display: flex;
-    flex-direction: row; /* 水平排列 */
-    align-items: flex-start; /* 頂部對齊 */
-    gap: 4px; /* 頭像與內容的間距 */
-    padding: 2px; /* 整體內縮一點 */
-    
+    flex-direction: row;
+    /* 水平排列 */
+    align-items: flex-start;
+    /* 頂部對齊 */
+    gap: 4px;
+    /* 頭像與內容的間距 */
+    padding: 2px;
+    /* 整體內縮一點 */
+
     /* 確保原本的背景色/邊框還是在最外層 */
-    background: rgb(255, 255, 255); 
+    background: rgb(255, 255, 255);
     border: 1.5px solid #444;
     border-radius: 4px;
 
@@ -138,13 +158,16 @@
 
 /* 訊息標頭 (發訊者、時間等) */
 .YCIO-floating-chat-window .chat-message .message-body .message-header {
-    border-bottom: 1px solid rgba(0,0,0,0.1); /* 讓分隔線淡一點 */
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    /* 讓分隔線淡一點 */
     margin-bottom: 4px;
 }
 
 .YCIO-floating-chat-window .chat-message .message-body .message-header * {
-    font-size: 0.7rem; /*字體大小*/
-    color: #000; /*內部字的顏色*/
+    font-size: 0.7rem;
+    /*字體大小*/
+    color: #000;
+    /*內部字的顏色*/
 
     /*以下是文字馬賽克樣式*/
     /*color: transparent;
@@ -174,7 +197,7 @@
 /* 限制卡牌與內容圖片的最大高度，避免洗版 */
 .YCIO-floating-chat-window .chat-message .card-draw img,
 .YCIO-floating-chat-window .chat-message .message-content img {
-    max-height: 48px; 
+    max-height: 48px;
     width: auto;
     object-fit: contain;
     border: none;
@@ -189,6 +212,7 @@
 .YCIO-floating-chat-window .chat-message .message-content .dice-roll {
     min-width: 100px;
 }
+
 .YCIO-floating-chat-window .chat-message .message-content .dice-roll .dice-formula {
     padding-left: 4px;
     padding-right: 4px;
@@ -204,7 +228,7 @@
 
 /* 私訊 (Whisper) - 淡紫色 */
 .YCIO-floating-chat-window .chat-message.whisper {
-    background: rgba(230, 220, 240); 
+    background: rgba(230, 220, 240);
     border-color: #7a5d96;
 }
 
@@ -227,31 +251,40 @@
 
 /* 2. 左側頭像區域 */
 .YCIO-floating-chat-window .message-avatar {
-    flex-shrink: 0; /* 防止頭像被壓縮 */
-    width: 40px;    /* 頭像固定寬度 */
-    height: 40px;   /* 頭像固定高度 */
-    border-radius: 4px; /* 小圓角 */
+    flex-shrink: 0;
+    /* 防止頭像被壓縮 */
+    width: 40px;
+    /* 頭像固定寬度 */
+    height: 40px;
+    /* 頭像固定高度 */
+    border-radius: 4px;
+    /* 小圓角 */
     overflow: hidden;
     background: #000;
-    margin-top: 2px; /* 微調對齊 */
+    margin-top: 2px;
+    /* 微調對齊 */
     border: 1px solid #666;
 }
 
 .YCIO-floating-chat-window .message-avatar img {
     width: 100%;
     height: 100%;
-    object-fit: cover; /* 保持比例填滿 */
+    object-fit: cover;
+    /* 保持比例填滿 */
     border: none;
     display: block;
 }
 
 /* 3. 右側內容區域 (包覆原本的 header 和 content) */
 .YCIO-floating-chat-window .message-body {
-    flex: 1; /* 佔據剩餘空間 */
-    min-width: 0; /* 關鍵：防止內容(如長網址)撐爆 Flex */
+    flex: 1;
+    /* 佔據剩餘空間 */
+    min-width: 0;
+    /* 關鍵：防止內容(如長網址)撐爆 Flex */
     display: flex;
     flex-direction: column;
-    color: #000; /* 內部字的顏色 */
+    color: #000;
+    /* 內部字的顏色 */
 }
 
 /* =========================================================
@@ -277,28 +310,38 @@
 }
 
 .YCIO-floating-chat-window #chat-avatar-btn.YCIO-disabled {
-    opacity: 0.5;               /* 變半透明 */
-    filter: grayscale(100%);    /* 變灰階 (選用) */
-    cursor: not-allowed;        /* 滑鼠移上去變成紅色禁止符號 */
+    opacity: 0.5;
+    /* 變半透明 */
+    filter: grayscale(100%);
+    /* 變灰階 (選用) */
+    cursor: not-allowed;
+    /* 滑鼠移上去變成紅色禁止符號 */
 }
 
-.YCIO-floating-chat-window #chat-wait-btn　{
-    width: auto;          /* 自動寬度 */
+.YCIO-floating-chat-window #chat-wait-btn {
+    width: auto;
+    /* 自動寬度 */
     height: 30px;
-    padding: 0 8px;       /* 左右內距 */
+    padding: 0 8px;
+    /* 左右內距 */
     background: #333;
     color: #aaa;
     border: 1px solid #555;
     border-radius: 4px;
     cursor: pointer;
-    display: flex;        /* Flex 排版 */
-    align-items: center;  /* 垂直置中 */
+    display: flex;
+    /* Flex 排版 */
+    align-items: center;
+    /* 垂直置中 */
     justify-content: center;
-    gap: 6px;             /* 圖示與文字的間距 */
-    font-size: 0.9em;     /* 文字大小 */
+    gap: 6px;
+    /* 圖示與文字的間距 */
+    font-size: 0.9em;
+    /* 文字大小 */
 }
 
-.YCIO-floating-chat-window #chat-avatar-btn:hover, .YCIO-floating-chat-window #chat-wait-btn:hover {
+.YCIO-floating-chat-window #chat-avatar-btn:hover,
+.YCIO-floating-chat-window #chat-wait-btn:hover {
     color: #fff;
     background: #444;
 }
@@ -309,7 +352,7 @@
     color: #000;
     font-weight: bold;
     border-color: #fff;
-    
+
     /* 設定動畫：名稱 / 持續時間 1.5秒 / 無限循環 / 緩入緩出 */
     animation: YCIO-wait-pulse-anim 1.5s infinite ease-in-out;
 }
@@ -321,14 +364,17 @@
         box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
         transform: scale(1);
     }
+
     50% {
         /* 變暗一點，光暈變強 */
-        background-color: #ddd; 
+        background-color: #ddd;
         color: #222;
         box-shadow: 0 0 15px rgba(255, 215, 0, 1);
         border-color: #ffaa00;
-        transform: scale(1.02); /* 微微放大 */
+        transform: scale(1.02);
+        /* 微微放大 */
     }
+
     100% {
         background-color: #eee;
         color: #000;
@@ -342,6 +388,7 @@
 .YCIO-floating-chat-window #chat-wait-btn .label-idle {
     display: inline;
 }
+
 .YCIO-floating-chat-window #chat-wait-btn .label-active {
     display: none;
 }
@@ -350,19 +397,24 @@
 .YCIO-floating-chat-window #chat-wait-btn.YCIO-active .label-idle {
     display: none;
 }
+
 .YCIO-floating-chat-window #chat-wait-btn.YCIO-active .label-active {
     display: inline;
 }
 
 .YCIO-floating-chat-window .YCIO-status-waiting {
-    color: #ffd700;       /* 金色 */
-    font-weight: bold;    /* 粗體 */
-    text-shadow: 0 0 2px rgba(0,0,0,0.8); /* 增加一點陰影讓文字在深色背景更清楚 */
+    color: #ffd700;
+    /* 金色 */
+    font-weight: bold;
+    /* 粗體 */
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+    /* 增加一點陰影讓文字在深色背景更清楚 */
 }
 
 /* 頭像按鈕的 Tooltip，因為不依附在模組的視窗內，必須獨立指定 */
 .YCIO-avatar-tooltip {
-    transition-delay: 0s !important;   /* 移除顯示延遲，雖然好像沒卵用 */
+    transition-delay: 0s !important;
+    /* 移除顯示延遲，雖然好像沒卵用 */
 }
 
 /* 文字格式按鈕 */
@@ -374,7 +426,8 @@
     gap: 5px;
     padding: 2px 5px;
     background: rgba(0, 0, 0, 0.2);
-    border-radius: 4px 4px 0 0; /* 上方圓角 */
+    border-radius: 4px 4px 0 0;
+    /* 上方圓角 */
     margin-bottom: 0;
 }
 
@@ -425,12 +478,17 @@
 .YCIO-floating-chat-window .chat-input-area {
     padding: 0px;
     padding-top: 2px;
-    flex-shrink: 0;   /* 防止被擠壓，保持高度 */
-    display: flex;       /* flex column 佈局 */
-    flex-direction: column; 
-    gap: 2px;            /* 元素間距 */
-    background: rgba(0,0,0,0.2); /* 稍微加深背景，區分輸入區 */
-    border-top: 1px solid #444;  /* 加上頂部邊框，視覺上更整齊 */
+    flex-shrink: 0;
+    /* 防止被擠壓，保持高度 */
+    display: flex;
+    /* flex column 佈局 */
+    flex-direction: column;
+    gap: 2px;
+    /* 元素間距 */
+    background: rgba(0, 0, 0, 0.2);
+    /* 稍微加深背景，區分輸入區 */
+    border-top: 1px solid #444;
+    /* 加上頂部邊框，視覺上更整齊 */
 }
 
 /* 身份選擇器樣式 */
@@ -442,7 +500,7 @@
     /* 使用變數，預設為淺灰 */
     color: var(--user-color, #f5f5f5);
     /* 增加文字陰影，試圖在背景顏色相近下盡量保持可見度 */
-    text-shadow: 1px 1px 2px rgba(0,0,0, 1), 0 0 5px rgba(0,0,0,0.8);
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 1), 0 0 5px rgba(0, 0, 0, 0.8);
 
     width: 100%;
     background: #333;
@@ -467,15 +525,18 @@
         background-color: #333;
         transform: scale(1);
     }
+
     50% {
-        border-color: #FFD700; /* 亮金色邊框 */
+        border-color: #FFD700;
+        /* 亮金色邊框 */
         /* 外部大範圍金色光暈 + 內部金色光暈 */
         box-shadow: 0 0 25px 5px rgba(255, 215, 0, 1), inset 0 0 15px rgba(255, 215, 0, 0.8);
         /* 背景變亮 */
-        background-color: #6e6218; 
+        background-color: #6e6218;
         /* 稍微放大 */
         transform: scale(1.02);
     }
+
     100% {
         border-color: #555;
         /* 回復狀態：無光暈 */
@@ -496,7 +557,8 @@
     position: relative;
     width: 100%;
     display: flex;
-    align-items: flex-end; /* 讓按鈕跟隨輸入框底部對齊 */
+    align-items: flex-end;
+    /* 讓按鈕跟隨輸入框底部對齊 */
     border-top-left-radius: 0;
     border-top-right-radius: 0;
 }
@@ -504,17 +566,23 @@
 /* 文字輸入框 (Textarea) */
 .YCIO-floating-chat-window textarea {
     width: 100%;
-    height: auto;       /* 自動高度 */
-    min-height: 32px;   /* 最小高度 */
-    background: #222;   /* 輸入框深色背景 */
+    height: auto;
+    /* 自動高度 */
+    min-height: 32px;
+    /* 最小高度 */
+    background: #222;
+    /* 輸入框深色背景 */
     color: white;
     border: 1px solid #444;
     border-radius: 4px;
-    
+
     /* 關鍵行為設定 */
-    resize: none;       /* 禁止手動拉大，由 JS 控制 */
-    overflow-y: hidden; /* 未達最大高度前隱藏捲軸 */
-    padding: 6px 35px 2px 2px; /* padding-right: 40px 是為了避開右下角的發送按鈕 */
+    resize: none;
+    /* 禁止手動拉大，由 JS 控制 */
+    overflow-y: hidden;
+    /* 未達最大高度前隱藏捲軸 */
+    padding: 6px 35px 2px 2px;
+    /* padding-right: 40px 是為了避開右下角的發送按鈕 */
     line-height: 1.4;
     box-sizing: border-box;
 }
@@ -524,7 +592,7 @@
     position: absolute;
     right: 5px;
     bottom: 5px;
-    
+
     width: auto;
     height: 30px;
     background: transparent;
@@ -539,19 +607,25 @@
 
 .YCIO-floating-chat-window #chat-send-btn:hover {
     color: #fff;
-    background: rgba(255, 255, 255, 0.1); /* 滑鼠懸停時的微亮背景 */
+    background: rgba(255, 255, 255, 0.1);
+    /* 滑鼠懸停時的微亮背景 */
     border-radius: 4px;
 }
 
 /* 誰在打字提示文字 (Typing Indicator) */
 .YCIO-floating-chat-window .typing-indicator {
     font-size: 12px;
-    color: #aaa;        /* 淺灰色字體 */
+    color: #aaa;
+    /* 淺灰色字體 */
     font-style: italic;
-    height: 12px;       /* 固定高度，避免文字出現時造成版面跳動 */
-    opacity: 0;         /* (依需求保留) 預設為 1，透過 class 切換或 JS 控制 */
-    transition: opacity 0.3s ease; /* 淡入淡出效果 */
-    pointer-events: none; /* 讓滑鼠點不到它，避免擋住下方的操作 */
+    height: 12px;
+    /* 固定高度，避免文字出現時造成版面跳動 */
+    opacity: 0;
+    /* (依需求保留) 預設為 1，透過 class 切換或 JS 控制 */
+    transition: opacity 0.3s ease;
+    /* 淡入淡出效果 */
+    pointer-events: none;
+    /* 讓滑鼠點不到它，避免擋住下方的操作 */
 }
 
 /* 雖然原本設定 opacity:1，但保留這個 class 以便未來 JS 控制顯示狀態 */
@@ -570,28 +644,32 @@
     bottom: 0;
     left: 0;
     width: 100%;
-    height: 35px; /* 橫幅高度 */
-    
-    background: rgba(40, 40, 40, 0.9); /* 深色半透明背景 */
-    color: #ffd700; /* 金黃色文字，顯眼 */
+    height: 35px;
+    /* 橫幅高度 */
+
+    background: rgba(40, 40, 40, 0.9);
+    /* 深色半透明背景 */
+    color: #ffd700;
+    /* 金黃色文字，顯眼 */
     border: none;
     border-top: 1px solid #666;
-    border-radius: 0; 
-    
+    border-radius: 0;
+
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px; 
-    
+    gap: 10px;
+
     /* 預設隱藏狀態 */
     opacity: 0;
     visibility: hidden;
     transition: all 0.3s ease;
-    z-index: 100;       /* 確保蓋在訊息列表上方 */
+    z-index: 100;
+    /* 確保蓋在訊息列表上方 */
     cursor: pointer;
     font-size: 14px;
     font-weight: bold;
-    box-shadow: 0 -2px 5px rgba(0,0,0,0.3);
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.3);
 }
 
 .YCIO-floating-chat-window .jump-to-bottom:hover {
@@ -651,13 +729,15 @@
     flex: 1;
     display: grid;
     /* 固定最小寬度為 90px，讓卡片不要太小 */
-    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); 
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
     /* 固定行高，讓所有卡片高度一致 (圖片高度 + 詳情區高度) */
-    grid-auto-rows: max-content; 
+    grid-auto-rows: max-content;
     gap: 10px;
-    overflow-y: auto; /* 確保內容過多時出現捲軸 */
+    overflow-y: auto;
+    /* 確保內容過多時出現捲軸 */
     padding: 5px;
-    align-content: start; /* 防止 grid items 被拉伸填滿高度 */
+    align-content: start;
+    /* 防止 grid items 被拉伸填滿高度 */
 }
 
 /* 單個頭像項目 卡片容器 */
@@ -685,18 +765,21 @@
     position: relative;
     width: 100%;
     /* 使用 padding-top 強制創造正方形 (1:1) */
-    padding-top: 100%; 
+    padding-top: 100%;
     background: #000;
-    overflow: hidden; /* 確保圖片不溢出 */
+    overflow: hidden;
+    /* 確保圖片不溢出 */
 }
 
 .avatar-card img {
-    position: absolute; /* 脫離文檔流，避免撐開父元素 */
+    position: absolute;
+    /* 脫離文檔流，避免撐開父元素 */
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    object-fit: cover; /* 保持比例填滿 */
+    object-fit: cover;
+    /* 保持比例填滿 */
     display: block;
 }
 
@@ -733,7 +816,7 @@
     align-items: center;
     justify-content: center;
     /* 固定高度確保整齊 */
-    height: 30px; 
+    height: 30px;
     box-sizing: border-box;
 }
 
@@ -748,9 +831,10 @@
     width: 100%;
     background: transparent;
     border: none;
-    border-bottom: 1px solid #444; 
+    border-bottom: 1px solid #444;
     color: #ccc;
-    font-size: 11px; /* 字稍微大一點點 */
+    font-size: 11px;
+    /* 字稍微大一點點 */
     text-align: center;
     padding: 2px 0;
     height: 100%;
@@ -797,8 +881,10 @@
 
 /* 拖曳經過目標上方時的樣式 (提示放置位置) */
 .avatar-card.drag-over {
-    border: 2px solid #ffd700; /* 金色實線框 */
-    transform: scale(1.02);    /* 微微放大 */
+    border: 2px solid #ffd700;
+    /* 金色實線框 */
+    transform: scale(1.02);
+    /* 微微放大 */
     z-index: 1;
 }
 
@@ -823,7 +909,8 @@
     flex-direction: column;
     align-items: center;
     transition: all 0.2s;
-    height: auto; /* 覆寫預設 button 高度 */
+    height: auto;
+    /* 覆寫預設 button 高度 */
 }
 
 .inline-avatar-picker-container .picker-item:hover {
@@ -865,10 +952,14 @@
 .YCIO-message-editor-container {
     display: flex;
     flex-direction: column;
-    height: 100%;         /* 撐滿父容器 */
-    background: rgba(0, 0, 0, 0.4); /* 深色背景 */
-    padding: 4px;         /* 整體內縮一點點 */
-    gap: 2px;             /* 設定所有元素之間的緊湊間距 */
+    height: 100%;
+    /* 撐滿父容器 */
+    background: rgba(0, 0, 0, 0.4);
+    /* 深色背景 */
+    padding: 4px;
+    /* 整體內縮一點點 */
+    gap: 2px;
+    /* 設定所有元素之間的緊湊間距 */
     box-sizing: border-box;
 }
 
@@ -876,7 +967,8 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: rgba(0, 0, 0, 0.2); /* 與原版輸入區一致的深色背景 */
+    background: rgba(0, 0, 0, 0.2);
+    /* 與原版輸入區一致的深色背景 */
     padding: 2px;
     overflow: hidden;
     gap: 0px;
@@ -886,13 +978,16 @@
 /* 2. 工具列 (Toolbar) */
 /* 強制覆寫原本 absolute 定位，改為 flex 佈局的一部份 */
 .YCIO-message-editor-container .chat-toolbar {
-    position: relative; /* 不再是 absolute */
+    position: relative;
+    /* 不再是 absolute */
     right: auto;
     bottom: auto;
     flex: 0 0 auto;
     display: flex;
-    justify-content: flex-end; /* 靠右對齊 */
-    background: transparent; /* 移除背景色，因為編輯器背景已經夠深了 */
+    justify-content: flex-end;
+    /* 靠右對齊 */
+    background: transparent;
+    /* 移除背景色，因為編輯器背景已經夠深了 */
     gap: 5px;
     padding: 2px 5px;
     margin-bottom: 0px;
@@ -934,35 +1029,43 @@
     width: 30px;
     line-height: 24px;
 }
+
 .YCIO-message-editor-container .chat-toolbar .color-control-group #chat-text-color-picker::-webkit-color-swatch-wrapper {
     padding: 0;
 }
+
 .YCIO-message-editor-container .chat-toolbar .color-control-group #chat-text-color-picker::-webkit-color-swatch {
     border: none;
 }
 
 /* 3. 輸入框區域 (Input Wrapper) */
 .YCIO-message-editor-container .input-wrapper {
-    flex: 1; /* 佔滿剩餘高度 */
+    flex: 1;
+    /* 佔滿剩餘高度 */
     display: flex;
     flex-direction: column;
     min-height: 0;
     border-radius: 4px;
-    overflow: hidden; /* 防止圓角破圖 */
+    overflow: hidden;
+    /* 防止圓角破圖 */
 }
 
 /* 文字輸入框本體 */
 .YCIO-message-editor-container textarea.YCIO-chat-entry {
-    flex: 1; /* 撐滿 input-wrapper */
+    flex: 1;
+    /* 撐滿 input-wrapper */
     width: 100%;
     height: 100%;
-    min-height: 120px; /* 給予足夠的編輯空間 */
-    resize: none; /* 禁止手動拉伸，由視窗大小控制 */
+    min-height: 120px;
+    /* 給予足夠的編輯空間 */
+    resize: none;
+    /* 禁止手動拉伸，由視窗大小控制 */
     border: none;
     background: #222;
     color: #eee;
     padding: 4px;
-    font-size: 14px; /* 字體稍微大一點，易於編輯 */
+    font-size: 14px;
+    /* 字體稍微大一點，易於編輯 */
     line-height: 1.5;
     box-sizing: border-box;
     outline: none;
@@ -979,7 +1082,8 @@
     gap: 4px;
     margin-top: 2px;
     padding-top: 2px;
-    border-top: 1px solid #444; /* 分隔線 */
+    border-top: 1px solid #444;
+    /* 分隔線 */
 }
 
 /* 通用按鈕樣式 */
@@ -1010,7 +1114,8 @@
 
 /* 更新按鈕 (右邊，強調色 - 類似原本的發送按鈕) */
 .YCIO-message-editor-container .form-footer button[data-action="updateMessage"] {
-    background: #2d4f2d; /* 深綠色底，代表確認 */
+    background: #2d4f2d;
+    /* 深綠色底，代表確認 */
     color: #dfd;
     border-color: #4a7a4a;
 }
@@ -1030,24 +1135,31 @@
 .YCIO-export-form {
     display: flex;
     flex-direction: column;
-    height: 100%;      /* 撐滿 ApplicationV2 的視窗內容區 */
-    gap: 5px;          /* 區塊間距 */
-    overflow: hidden;  /* 防止外部捲軸 */
+    height: 100%;
+    /* 撐滿 ApplicationV2 的視窗內容區 */
+    gap: 5px;
+    /* 區塊間距 */
+    overflow: hidden;
+    /* 防止外部捲軸 */
 }
 
 .YCIO-export-form .notes {
-    margin: 0 0 5px 0; 
+    margin: 0 0 5px 0;
     color: #ccc;
-    font-size: 0.9em;  
-    flex-shrink: 0;    /* 防止說明文字被擠壓 */
+    font-size: 0.9em;
+    flex-shrink: 0;
+    /* 防止說明文字被擠壓 */
 }
 
 /* 2. 分頁選單列表：Grid 佈局，自動填滿剩餘空間 */
 .YCIO-export-form .export-tab-list {
-    flex: 1;           /* 自動長高填滿剩餘空間 */
-    min-height: 0;     /* 防止 Flex 子元素溢出 */
-    overflow-y: auto;  /* 內容過多時內部捲動 */
-    
+    flex: 1;
+    /* 自動長高填滿剩餘空間 */
+    min-height: 0;
+    /* 防止 Flex 子元素溢出 */
+    overflow-y: auto;
+    /* 內容過多時內部捲動 */
+
     background: rgba(0, 0, 0, 0.2);
     padding: 4px;
     border: 1px solid #444;
@@ -1056,22 +1168,28 @@
     /* Grid 設定：自動排列，每格最小 80px，最大平分 */
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    grid-auto-rows: max-content; /* 列高自動 */
-    gap: 4px;          /* 格子間距 */
-    align-content: start; /* 內容靠上對齊 */
+    grid-auto-rows: max-content;
+    /* 列高自動 */
+    gap: 4px;
+    /* 格子間距 */
+    align-content: start;
+    /* 內容靠上對齊 */
 }
 
 /* 3. 單一選項方塊 */
 .YCIO-export-form .checkbox {
     display: flex;
     align-items: center;
-    margin: 0;         /* 移除預設邊距 */
+    margin: 0;
+    /* 移除預設邊距 */
     padding: 2px 4px;
-    background: rgba(255, 255, 255, 0.05); /* 給每個選項一點背景，看起來整齊 */
+    background: rgba(255, 255, 255, 0.05);
+    /* 給每個選項一點背景，看起來整齊 */
     border-radius: 3px;
     border: 1px solid transparent;
     cursor: pointer;
-    overflow: hidden;  /* 配合文字截斷 */
+    overflow: hidden;
+    /* 配合文字截斷 */
 }
 
 .YCIO-export-form .checkbox:hover {
@@ -1087,12 +1205,14 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    flex: 1; /* 佔滿剩餘寬度 */
+    flex: 1;
+    /* 佔滿剩餘寬度 */
 }
 
 /* 底部按鈕區 */
 .YCIO-export-form .sheet-footer {
-    flex-shrink: 0;    /* 防止按鈕區被壓縮 */
+    flex-shrink: 0;
+    /* 防止按鈕區被壓縮 */
     margin-top: 2px;
 }
 
@@ -1102,7 +1222,8 @@
     color: #fff;
     border: 1px solid #4a7a4a;
     transition: all 0.2s;
-    padding: 4px;      /* 縮小按鈕高度 */
+    padding: 4px;
+    /* 縮小按鈕高度 */
     font-size: 13px;
 }
 
@@ -1135,4 +1256,92 @@ body.YCIO-hide-native-ui #chat-notifications {
 /* 隱藏彈出式聊天視窗 (Popout) - 防止有人把原生聊天室彈出來 */
 body.YCIO-hide-native-ui #chat-popout {
     display: none !important;
+}
+
+/* =========================================================
+   11. 關於本模組對話框 (About Dialog)
+   ========================================================= */
+
+.YCIO-about-dialog {
+    display: flex;
+    flex-direction: column;
+    font-size: 1.1rem;
+    /* 增加整體文字大小 */
+}
+
+.YCIO-about-dialog .about-header {
+    text-align: center;
+    border-bottom: 1px solid var(--color-border-dark);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.YCIO-about-dialog .about-header h2 {
+    margin: 0;
+    border: none;
+    font-size: 1.8rem;
+    /* 放大標題 */
+    font-weight: bold;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+}
+
+.YCIO-about-dialog .about-table {
+    width: 100%;
+    margin-bottom: 0;
+    border-collapse: collapse;
+    font-size: 1.15rem;
+    /* 增加表格內的文字大小 */
+}
+
+.YCIO-about-dialog .about-table th {
+    text-align: left;
+    white-space: nowrap;
+    padding: 0.8rem 0.5rem;
+    /* 增加行距 */
+    width: 30%;
+    font-weight: bold;
+    color: var(--color-text-light-heading);
+}
+
+.YCIO-about-dialog .about-table td {
+    padding: 0.8rem 0.5rem;
+}
+
+.YCIO-about-dialog .about-table a {
+    color: var(--color-text-light-highlight);
+    text-decoration: none;
+    transition: text-shadow 0.2s, color 0.2s;
+}
+
+.YCIO-about-dialog .about-table a:hover {
+    color: #fff;
+    text-shadow: 0 0 8px var(--color-shadow-highlight);
+}
+
+/* 聯絡方式圖示群 */
+.YCIO-about-dialog .social-links {
+    display: flex;
+    gap: 20px;
+    /* 增加圖示間距 */
+    align-items: center;
+    font-size: 2rem;
+    /* 大幅放大社群圖示 */
+}
+
+/* 獨立出來的贊助按鈕 */
+.YCIO-about-dialog .donate-link {
+    font-size: 2.2rem;
+    /* 讓贊助圖示稍微再大一點 */
+    display: flex;
+    align-items: center;
+}
+
+/* .YCIO-about-dialog .donate-link a { */
+/* color: #f96854; */
+/* Patreon 品牌色，先註解調保留 */
+/* } */
+
+.YCIO-about-dialog .donate-link a:hover {
+    color: #ff8877;
+    text-shadow: 0 0 10px rgba(249, 104, 84, 0.8);
 }

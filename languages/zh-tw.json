@@ -8,9 +8,10 @@
     },
     "Menu": {
       "ExportLog": "導出聊天紀錄",
-      "ClearLog": "清除聊天紀錄"
+      "ClearLog": "清除聊天紀錄",
+      "Settings": "模組設定",
+      "About": "關於本模組"
     },
-
     "Tabs": {
       "Public": "公開訊息",
       "OOC": "場外"
@@ -20,7 +21,7 @@
       "Send": "發送訊息",
       "TypingNone": "沒人在打字",
       "Typing": " 正在輸入...",
-      "AvatarSetting":"選擇頭像",
+      "AvatarSetting": "選擇頭像",
       "Bold": "粗體",
       "Italic": "斜體",
       "Strikethrough": "刪除線",
@@ -35,88 +36,83 @@
     "Speaker": {
       "OOC": "場外"
     },
-
     "Settings": {
-        "WindowTitle": {
-            "Name": "自訂視窗標題",
-            "Hint": "預設的視窗標題文字 (GM 限定)。",
-            "Changed": "浮動聊天視窗標題已變更，請告知您的玩家重整網頁以套用最新設定。"
-        },
-        "BackgroundColor": {
-            "Name": "聊天視窗背景顏色",
-            "Hint": "設定浮動視窗的背景顏色。"
-        },
-        "BackgroundOpacity": {
-            "Name": "聊天視窗背景透明度",
-            "Hint": "調整視窗背景的透明度（0為完全透明）。"
-        },
-        "HideNativeSidebar": {
-            "Name": "是否隱藏FVTT內建原生聊天UI",
-            "Hint": "包含側邊欄與右下彈出式氣泡訊息。",
-            "Choices": {
-              "None": "不隱藏",
-              "All": "隱藏",
-              "GM": "僅GM不隱藏"
-            }
-        },
-        "UseTokenAvatar": {
-            "Name": "(實驗性)使用 Token 圖片作為預設頭像",
-            "Hint": "勾選：預設使用場景上的 Token 圖片。\n未勾選：預設使用角色卡面 (Actor) 圖片。"
-        },
-        "CleanSender": {
-            "Name": "精簡發言者的額外資訊",
-            "Hint": "部分系統會在發言者加入額外的資訊（如D&D 5e會額外插入頭像與副標題），這將造成本模組的訊息版面不大好看。開啟此選項後，將僅保留FVTT原生的發言者名稱。",
-            "Changed": "設定已變更，請告知您的玩家重整網頁以套用最新設定。"
-        },
-        "NotificationSound": {
-            "Name": "新訊息提醒音效路徑",
-            "Hint": "預設音效路徑為 modules/yuuko-chat-interface-overhaul/sounds/page.mp3 \n若路徑留空，則不播放音效。\n （在FVTT內建的「播放清單」分頁中的「介面」選項可調整此音量大小。）"
-        },
-        "PlayOnOOC": {
-            "Name": "「場外」對話分頁的新訊息是否播放音效",
-            "Hint": "若勾選，則場外對話分頁中的新訊息也會播放音效。"
-        },
-        "HookArgumentType": {
-            "Name": "系統相容性：訊息內的互動功能模式 (DOM / jQuery)",
-            "Hint": "決定本模組內的訊息內互動容器類型。如果您發現訊息內的互動功能（例如攻擊、擲骰、傷害、展開骰子等）無法點擊，且瀏覽器 Console(F12) 出現紅字錯誤，請嘗試切換此選項。",
-            "Choices": {
-              "jQuery": "jQuery 物件 (相容較老的系統如 CoC 7e 等)",
-              "native": "原生 DOM 元素 (D&D 5e 等架構較新的系統適用)"
-            },
-            "Changed": "設定已變更，請告知您的玩家重整網頁以套用最新設定。"
-        },
-        "HookMode": {
-            "Name": "(實驗性)進一步切換部分系統所需的相容模式",
-            "Hint": "如果上一個選項沒有作用，請嘗試切換此選項。\n在某些架構更特殊的系統中，訊息內互動可能仍然沒有作用、或是非預期的動作（如重複多次展開關閉）。此時請嘗試切換此選項。\n切換至隔離時，可能導致部份第三方模組失效及些許效能損失。",
-            "Standard": "標準（如D&D 5e，適用大部分系統）",
-            "Clone": "隔離（如SR 5e，適用少數架構與眾不同或是較古老的系統）",
-            "Changed": "設定已變更，請告知您的玩家重整網頁以套用最新設定。"
+      "WindowTitle": {
+        "Name": "自訂視窗標題",
+        "Hint": "預設的視窗標題文字 (GM 限定)。",
+        "Changed": "浮動聊天視窗標題已變更，請告知您的玩家重整網頁以套用最新設定。"
+      },
+      "BackgroundColor": {
+        "Name": "聊天視窗背景顏色",
+        "Hint": "設定浮動視窗的背景顏色。"
+      },
+      "BackgroundOpacity": {
+        "Name": "聊天視窗背景透明度",
+        "Hint": "調整視窗背景的透明度（0為完全透明）。"
+      },
+      "HideNativeSidebar": {
+        "Name": "是否隱藏FVTT內建原生聊天UI",
+        "Hint": "包含側邊欄與右下彈出式氣泡訊息。",
+        "Choices": {
+          "None": "不隱藏",
+          "All": "隱藏",
+          "GM": "僅GM不隱藏"
         }
+      },
+      "UseTokenAvatar": {
+        "Name": "(實驗性)使用 Token 圖片作為預設頭像",
+        "Hint": "勾選：預設使用場景上的 Token 圖片。\n未勾選：預設使用角色卡面 (Actor) 圖片。"
+      },
+      "CleanSender": {
+        "Name": "精簡發言者的額外資訊",
+        "Hint": "部分系統會在發言者加入額外的資訊（如D&D 5e會額外插入頭像與副標題），這將造成本模組的訊息版面不大好看。開啟此選項後，將僅保留FVTT原生的發言者名稱。",
+        "Changed": "設定已變更，請告知您的玩家重整網頁以套用最新設定。"
+      },
+      "NotificationSound": {
+        "Name": "新訊息提醒音效路徑",
+        "Hint": "預設音效路徑為 modules/yuuko-chat-interface-overhaul/sounds/page.mp3 \n若路徑留空，則不播放音效。\n （在FVTT內建的「播放清單」分頁中的「介面」選項可調整此音量大小。）"
+      },
+      "PlayOnOOC": {
+        "Name": "「場外」對話分頁的新訊息是否播放音效",
+        "Hint": "若勾選，則場外對話分頁中的新訊息也會播放音效。"
+      },
+      "HookArgumentType": {
+        "Name": "系統相容性：訊息內的互動功能模式 (DOM / jQuery)",
+        "Hint": "決定本模組內的訊息內互動容器類型。如果您發現訊息內的互動功能（例如攻擊、擲骰、傷害、展開骰子等）無法點擊，且瀏覽器 Console(F12) 出現紅字錯誤，請嘗試切換此選項。",
+        "Choices": {
+          "jQuery": "jQuery 物件 (相容較老的系統如 CoC 7e 等)",
+          "native": "原生 DOM 元素 (D&D 5e 等架構較新的系統適用)"
+        },
+        "Changed": "設定已變更，請告知您的玩家重整網頁以套用最新設定。"
+      },
+      "HookMode": {
+        "Name": "(實驗性)進一步切換部分系統所需的相容模式",
+        "Hint": "如果上一個選項沒有作用，請嘗試切換此選項。\n在某些架構更特殊的系統中，訊息內互動可能仍然沒有作用、或是非預期的動作（如重複多次展開關閉）。此時請嘗試切換此選項。\n切換至隔離時，可能導致部份第三方模組失效及些許效能損失。",
+        "Standard": "標準（如D&D 5e，適用大部分系統）",
+        "Clone": "隔離（如SR 5e，適用少數架構與眾不同或是較古老的系統）",
+        "Changed": "設定已變更，請告知您的玩家重整網頁以套用最新設定。"
+      }
     },
-
     "Avatar": {
-        "WindowTitle": "選擇發言頭像",
-        "Add": "新增頭像",
-        "Managing": "正在管理角色：",
-        "Default": "預設",
-        "NoAvatar": "不顯示(GM專用)",
-        "LabelPlaceholder": "頭像註解...",
-        "Confirm": "確認",
-        "Current": "當前頭像：",
-        "UnlinkedWarning": "所選Token未連結角色資料<br>因此固定為Token圖片："
+      "WindowTitle": "選擇發言頭像",
+      "Add": "新增頭像",
+      "Managing": "正在管理角色：",
+      "Default": "預設",
+      "NoAvatar": "不顯示(GM專用)",
+      "LabelPlaceholder": "頭像註解...",
+      "Confirm": "確認",
+      "Current": "當前頭像：",
+      "UnlinkedWarning": "所選Token未連結角色資料<br>因此固定為Token圖片："
     },
-
     "Picker": {
       "Title": "選擇插入表符",
       "NoAvatars": "無可用表符（請在頭像選擇器中為想做為表符的頭像設定註解）"
     },
-
     "Editor": {
       "WindowTitle": "編輯訊息",
       "Edit": "編輯訊息",
       "Update": "確認編輯訊息"
     },
-    
     "Exporter": {
       "Title": "導出聊天紀錄",
       "Description": "請選擇要導出的頻道分頁。導出過程會將所有圖片轉換為內嵌格式，這可能需要幾分鐘的時間。",
@@ -131,8 +127,20 @@
     },
     "Clearer": {
       "Title": "清除聊天紀錄",
-      "Description":"<p>確定要清除所有的聊天紀錄嗎？此動作<span style=\"color:#ff0000\"><b>無法復原</b></span>。</p>",
+      "Description": "<p>確定要清除所有的聊天紀錄嗎？此動作<span style=\"color:#ff0000\"><b>無法復原</b></span>。</p>",
       "Notification": "已清除所有聊天紀錄。"
+    },
+    "About": {
+      "Title": "關於本模組",
+      "ModuleName": "悠子的文字聊天大修模組",
+      "Version": "版本",
+      "LastUpdate": "最後更新日期",
+      "ProjectUrl": "專案網址",
+      "ProjectLink": "GitHub 倉庫",
+      "Author": "作者",
+      "Contact": "聯絡方式",
+      "Donate": "贊助悠子",
+      "Close": "關閉"
     }
   }
 }
