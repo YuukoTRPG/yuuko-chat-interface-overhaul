@@ -519,6 +519,12 @@ export function shouldPlayNotification(message) {
 
     if (isOOC && !playOnOOC) return false;
 
+    // 4. 場景權限檢查：若訊息來自某場景，但玩家無權看到該場景（看不到該分頁），則不播放
+    if (!isOOC && message.speaker.scene) {
+        const scene = game.scenes.get(message.speaker.scene);
+        if (scene && !scene.visible && !game.user.isGM) return false;
+    }
+
     return true;
 }
 
