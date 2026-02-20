@@ -1176,8 +1176,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * @param {Event} event - 鍵盤事件
      */
     async _onChatKeyDown(event) {
-        // 監聽 Enter: 如果沒按 Shift 就發送
-        if (event.key === "Enter" && !event.shiftKey) {
+        if (event.key !== "Enter") return;
+
+        // 讀取設定：是否交換 Enter/Shift+Enter 的行為
+        // swapped=false (預設): Enter 送出, Shift+Enter 換行
+        // swapped=true:         Shift+Enter 送出, Enter 換行
+        const swapped = game.settings.get(MODULE_ID, "swapEnterShiftEnter");
+        const shouldSend = swapped ? event.shiftKey : !event.shiftKey;
+
+        if (shouldSend) {
             event.preventDefault(); // 阻止換行
             this._stopTypingBroadcast(); // 停止打字狀態
 

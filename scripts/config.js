@@ -170,6 +170,16 @@ export function registerSettings() {
         default: true       // 預設開啟
     });
 
+    // 切換 Enter/Shift+Enter 送出行為 (Client)
+    game.settings.register(MODULE_ID, "swapEnterShiftEnter", {
+        name: "YCIO.Settings.SwapEnter.Name",
+        hint: "YCIO.Settings.SwapEnter.Hint",
+        scope: "client",    // 玩家個人設定
+        config: true,
+        type: Boolean,
+        default: false      // 預設未勾選 (Enter 送出)
+    });
+
     // 決定訊息物件要傳遞原生 DOM 或 jQuery 物件
     game.settings.register(MODULE_ID, "hookArgumentType", {
         name: "YCIO.Settings.HookArgumentType.Name",
