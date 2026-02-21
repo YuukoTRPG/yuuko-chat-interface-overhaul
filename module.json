@@ -1,12 +1,12 @@
 {
   "id": "yuuko-chat-interface-overhaul",
   "title": "Yuuko's chat interface overhaul",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "compatibility": {
     "minimum": "13",
-    "verified": "13"
+    "verified": "13.351"
   },
-  "description": "<p>悠子的測試模組，文字對話加強</p>",
+  "description": "This module is designed to replace the native sidebar chat, aiming to enhance the experience of playing TTRPGs with only text. <br>It offers features such as scene-based conversation tabs, avatar management for speakers, and a simple text formatting editor.",
   "flags": {
     "canUpload": false,
     "lastUpdate": "2026-02-20"
