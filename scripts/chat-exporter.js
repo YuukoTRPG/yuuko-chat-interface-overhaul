@@ -91,8 +91,7 @@ class ChatExporter {
             // Step A: 先抓全域所有 CSS (包含 Core, System 和其他模組)
             const globalCSS = await this._fetchGlobalCSS();
 
-            // Step B: [新增] 強制單獨再抓一次 module.css
-            // 這樣我們可以把它放在字串的最尾端，確保它的權重贏過前面抓到的任何東西
+            // Step B: 強制單獨再抓一次 module.css，確保它的權重贏過前面抓到的任何東西
             let moduleCSS = "";
             try {
                 const response = await fetch(`modules/${MODULE_ID}/styles/module.css`);
@@ -197,7 +196,7 @@ class ChatExporter {
                     // 清空 display 屬性，讓它回歸 CSS 控制 (通常就會顯示了)
                     tp.style.display = ''; 
                 } 
-                // 如果當前是顯示的 (且外層已經移除 expanded，我們手動把它藏回去)
+                // 如果當前是顯示的 (且外層已經移除 expanded，手動把它藏回去)
                 else if (!diceRoll.classList.contains('expanded')) {
                     tp.style.display = 'none';
                 }
@@ -230,8 +229,7 @@ class ChatExporter {
         // 1. 撈取訊息 (複製 floating-chat.js 的過濾邏輯，但不限制數量)
         const allMessages = game.messages.contents;
         const targetMessages = allMessages.filter(msg => {
-            // GM 導出時，通常希望能看到所有訊息，但也可以加上 msg.visible 判斷
-            // 這裡我們假設 GM 想備份所有看得到的
+            // GM 導出時，通常希望能看到所有訊息，但也可以加上 msg.visible 判斷，未來再說
             const msgSceneId = msg.speaker.scene;
             const msgTokenId = msg.speaker.token;
 
@@ -251,8 +249,7 @@ class ChatExporter {
             container.appendChild(html);
         }
 
-        // 3. 【關鍵】將容器內的所有圖片轉為 Base64
-        // 這一步最花時間，我們使用 Promise.all 並行處理
+        // 3. 將容器內的所有圖片轉為 Base64，使用 Promise.all 並行處理
         const images = Array.from(container.querySelectorAll("img"));
         await Promise.all(images.map(img => this._convertImageToBase64(img)));
 

@@ -301,7 +301,7 @@ export function enrichMessageHTML(message, htmlElement) {
     // 判斷是否為無頭像模式
     if (avatarUrl === "__NO_AVATAR__") {
         // A. 無頭像模式
-        // 為了讓 CSS 方便處理 (如果需要微調邊距)，我們可以加個 class
+        // 為了讓 CSS 方便處理 (如果需要微調邊距)，加個 class
         element.classList.add("no-avatar-mode");
 
         // 建立右側內容容器 (message-body)
@@ -493,7 +493,7 @@ export function applyWindowStyles(element, user) {
     const messageOpacity = game.settings.get(MODULE_ID, "messageOpacity");
 
     // 設定 CSS 變數背景色 (純色，無透明度)
-    // 但因為我們將透明度拆分，將它與 rgba 結合給根背景使用，同時保留原始色碼變數以供參考
+    // 但因為將透明度拆分，將它與 rgba 結合給根背景使用，同時保留原始色碼變數以供參考
     const rgba = hexToRgba(colorHex, windowOpacity);
 
     element.style.setProperty("--YCIO-bg", rgba);

@@ -421,8 +421,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * 覆寫 render 方法
      */
     async render(options, _options) {
-        // 目的：在 DOM 被銷毀重繪之前，先「快照」當前的發言身分
-        // 這能確保我們捕捉到使用者「最後一眼看到」的狀態
+        // 目的：在 DOM 被銷毀重繪之前，先快照當前的發言身分
+        // 這能確保捕捉到使用者最後一眼看到的狀態
         // 如果視窗已經存在 DOM 中，嘗試抓取當前的選單值
         const select = this.element?.querySelector("#chat-speaker-select");
         if (select) {
@@ -521,7 +521,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
                         if (messageEl) {
                             // 手動派發一個 "contextmenu" (右鍵) 事件
-                            // 這會觸發我們在 _initializeContextMenu 中設定好的選單
+                            // 這會觸發在 _initializeContextMenu 中設定好的選單
                             const contextEvent = new MouseEvent("contextmenu", {
                                 bubbles: true,
                                 cancelable: true,
@@ -985,7 +985,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             if (scene) await scene.view();
         }
 
-        // 2. 重新渲染並「等待」渲染完成 (解決 Race Condition 的關鍵)
+        // 2. 重新渲染並等待渲染完成
         await this.render({ parts: ["tabs", "input"] });
 
         // 3. 呼叫自定義的 DOM 抽換方法
@@ -1376,7 +1376,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * @param {string} content - 準備發送的內容
      */
     async _processMessage(content) {
-        // 在 Class 內決定「誰」是發話者 (UI 狀態邏輯)
+        // 在 Class 內決定誰是發話者 (UI 狀態邏輯)
         const speakerSelect = this.element.querySelector("#chat-speaker-select");
         const value = speakerSelect ? speakerSelect.value : "ooc";
         const { actorDoc, user } = getSpeakerFromSelection(value);
@@ -1569,12 +1569,12 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // 3. 傳入 element 而非 $html
         // 4. 加入 jQuery: false 設定
         contextMenu = new foundry.applications.ux.ContextMenu(element, ".message", [], {
-            jQuery: false, // 告訴 FVTT 我們使用原生 DOM
+            jQuery: false, // 告訴 FVTT 使用原生 DOM
             onOpen: (target) => {
                 // target 現在是 HTMLElement
                 const options = getChatContextOptions();
 
-                // 為了相容其他可能還在用 jQuery 的模組 Hook，我們這裡把 target 包回 jQuery 傳出去
+                // 為了相容其他可能還在用 jQuery 的模組 Hook，這裡把 target 包回 jQuery 傳出去
                 Hooks.call("getChatMessageContextOptions", $(target), options);
 
                 contextMenu.menuItems = options;
@@ -1640,7 +1640,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         const value = speakerSelect ? speakerSelect.value : "ooc";
 
         // 1. 使用 helper 取得完整資訊
-        // 我們直接解構出需要的資訊：Token 狀態、連結狀態、以及 speaker/user 物件
+        // 直接解構出需要的資訊：Token 狀態、連結狀態、以及 speaker/user 物件
         const { isToken, isLinked, speaker, user } = getSpeakerFromSelection(value);
 
         // 判斷是否為「未連結 Token」(是 Token 且 未連結)
@@ -1664,8 +1664,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * ============================================
      * 11. 原生 ChatLog 相容性介面 (Native Compatibility Shim)
      * ============================================
-     * 為了讓系統透過 renderChatMessage 綁定的按鈕能正常運作，
-     * 我們必須實作 ChatLog 的標準方法，因為系統會呼叫 app.method()
+     * 為了讓系統透過 renderChatMessage 綁定的按鈕能正常運作，必須實作 ChatLog 的標準方法，因為系統會呼叫 app.method()
      */
 
     /**
@@ -1694,7 +1693,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * 捲動到底部 (某些系統發話後會主動呼叫這個)
      */
     scrollBottom() {
-        // 呼叫我們自己的跳轉邏輯
+        // 呼叫自己的跳轉邏輯
         const log = this.element.querySelector("#custom-chat-log");
         if (log) {
             log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
