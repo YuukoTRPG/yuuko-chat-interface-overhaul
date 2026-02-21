@@ -33,7 +33,11 @@
       "Wait": "通知大家等你一下",
       "WaitLabel": "請等一下",
       "WaitLabelActive": "好，等你",
-      "IsWaiting": "表示請等一下。"
+      "IsWaiting": "表示請等一下。",
+      "QuickRoll": "快速擲骰",
+      "QuickRollBtn": "擲骰！",
+      "QuickRollCancel": "取消",
+      "QuickRollNoSelection": "請至少選擇一顆骰子"
     },
     "Speaker": {
       "OOC": "場外"

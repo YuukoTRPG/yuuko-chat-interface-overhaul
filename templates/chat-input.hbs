@@ -4,46 +4,108 @@
         <div class="speaker-select-wrapper">
             <select id="chat-speaker-select">
                 {{#each speakers}}
-                    <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>
-                        {{this.label}}
-                    </option>
+                <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>
+                    {{this.label}}
+                </option>
                 {{/each}}
             </select>
         </div>
-        
+
         {{! 頭像設定按鈕 }}
-        <button id="chat-avatar-btn" type="button" aria-label=={{localize 'YCIO.Input.AvatarSetting'}}>
+        <button id="chat-avatar-btn" type="button" aria-label=={{localize 'YCIO.Input.AvatarSetting' }}>
             <i class="fas fa-user-circle"></i>
         </button>
 
         {{! 請等一下按鈕 }}
-        <button id="chat-wait-btn" type="button" class="YCIO-wait-btn" data-action="toggleWait" aria-label="{{localize 'YCIO.Input.Wait'}}" data-tooltip="{{localize 'YCIO.Input.Wait'}}">
+        <button id="chat-wait-btn" type="button" class="YCIO-wait-btn" data-action="toggleWait"
+            aria-label="{{localize 'YCIO.Input.Wait'}}" data-tooltip="{{localize 'YCIO.Input.Wait'}}">
             <i class="fas fa-hand-paper"></i>
             <span class="label-idle">{{localize 'YCIO.Input.WaitLabel'}}</span>
             {{! 啟用時顯示 (例如: "你正表示請等一下")，預設隱藏 }}
             <span class="label-active">{{localize 'YCIO.Input.WaitLabelActive'}}</span>
         </button>
 
+        {{! 快速擲骰按鈕與面板 }}
+        <div class="YCIO-quick-roll-wrapper">
+            <button id="YCIO-quick-roll-btn" type="button" data-action="toggleQuickRoll"
+                aria-label="{{localize 'YCIO.Input.QuickRoll'}}" data-tooltip="{{localize 'YCIO.Input.QuickRoll'}}">
+                <i class="fa-solid fa-dice-d20"></i>
+            </button>
+
+            <div id="YCIO-quick-roll-panel" style="display: none;">
+                <div class="YCIO-dice-grid">
+                    <button type="button" class="YCIO-dice-btn" data-dice="2" data-tooltip="d2">
+                        <i class="fa-thin fa-coin-blank"></i>
+                        <span class="YCIO-dice-badge"></span>
+                    </button>
+                    <button type="button" class="YCIO-dice-btn" data-dice="4" data-tooltip="d4">
+                        <i class="fa-thin fa-dice-d4"></i>
+                        <span class="YCIO-dice-badge"></span>
+                    </button>
+                    <button type="button" class="YCIO-dice-btn" data-dice="6" data-tooltip="d6">
+                        <i class="fa-thin fa-dice-d6"></i>
+                        <span class="YCIO-dice-badge"></span>
+                    </button>
+                    <button type="button" class="YCIO-dice-btn" data-dice="8" data-tooltip="d8">
+                        <i class="fa-thin fa-dice-d8"></i>
+                        <span class="YCIO-dice-badge"></span>
+                    </button>
+                    <button type="button" class="YCIO-dice-btn" data-dice="10" data-tooltip="d10">
+                        <i class="fa-thin fa-dice-d10"></i>
+                        <span class="YCIO-dice-badge"></span>
+                    </button>
+                    <button type="button" class="YCIO-dice-btn" data-dice="12" data-tooltip="d12">
+                        <i class="fa-thin fa-dice-d12"></i>
+                        <span class="YCIO-dice-badge"></span>
+                    </button>
+                    <button type="button" class="YCIO-dice-btn" data-dice="20" data-tooltip="d20">
+                        <i class="fa-thin fa-dice-d20"></i>
+                        <span class="YCIO-dice-badge"></span>
+                    </button>
+                    <button type="button" class="YCIO-dice-btn" data-dice="100" data-tooltip="d100">
+                        <span class="YCIO-d100-icon">
+                            <i class="fa-thin fa-dice-d10"></i>
+                            <i class="fa-solid fa-dice-d10"></i>
+                        </span>
+                        <span class="YCIO-dice-badge"></span>
+                    </button>
+                </div>
+                <div class="YCIO-quick-roll-actions">
+                    <button type="button" class="YCIO-roll-submit"><i class="fas fa-dice"></i> {{localize
+                        'YCIO.Input.QuickRollBtn'}}</button>
+                    <button type="button" class="YCIO-roll-cancel"><i class="fas fa-times"></i> {{localize
+                        'YCIO.Input.QuickRollCancel'}}</button>
+                </div>
+            </div>
+        </div>
+
         {{! 文字格式按鈕 }}
         <div class="chat-toolbar">
-            
-            <button type="button" data-action="formatBold" title={{localize 'YCIO.Input.Bold'}}><i class="fas fa-bold"></i></button>
-            <button type="button" data-action="formatItalic" title={{localize 'YCIO.Input.Italic'}}><i class="fas fa-italic"></i></button>
-            <button type="button" data-action="formatStrikethrough" title={{localize 'YCIO.Input.Strikethrough'}}><i class="fas fa-strikethrough"></i></button>
+
+            <button type="button" data-action="formatBold" title={{localize 'YCIO.Input.Bold' }}><i
+                    class="fas fa-bold"></i></button>
+            <button type="button" data-action="formatItalic" title={{localize 'YCIO.Input.Italic' }}><i
+                    class="fas fa-italic"></i></button>
+            <button type="button" data-action="formatStrikethrough" title={{localize 'YCIO.Input.Strikethrough' }}><i
+                    class="fas fa-strikethrough"></i></button>
             <div class="color-control-group" style="display: inline-flex; align-items: center; gap: 2px;">
                 {{!-- 應用顏色按鈕 (圖示會變色) --}}
-                <button type="button" id="chat-text-color-btn" data-action="applyTextColor" title={{localize 'YCIO.Input.TextColor'}}>
+                <button type="button" id="chat-text-color-btn" data-action="applyTextColor"
+                    title={{localize 'YCIO.Input.TextColor' }}>
                     <i class="fas fa-font"></i>
                 </button>
                 {{!-- 色盤只作為選擇器 --}}
-                <input type="color" value="#444444" id="chat-text-color-picker" title={{localize 'YCIO.Input.SelectColor'}}>
+                <input type="color" value="#444444" id="chat-text-color-picker"
+                    title={{localize 'YCIO.Input.SelectColor' }}>
             </div>
-            <button type="button" data-action="formatInlineAvatar" title={{localize 'YCIO.Input.InlineAvatar'}}><i class="far fa-smile"></i></button>
+            <button type="button" data-action="formatInlineAvatar" title={{localize 'YCIO.Input.InlineAvatar' }}><i
+                    class="far fa-smile"></i></button>
         </div>
     </div>
 
     <div class="input-wrapper">
-        <textarea id="chat-message-input" class="YCIO-chat-entry" name="message" placeholder="{{localize 'YCIO.Input.Placeholder'}}">{{draftContent}}</textarea>
+        <textarea id="chat-message-input" class="YCIO-chat-entry" name="message"
+            placeholder="{{localize 'YCIO.Input.Placeholder'}}">{{draftContent}}</textarea>
         <button id="chat-send-btn" type="button" aria-label="{{localize 'YCIO.Input.Send'}}">
             <i class="fas fa-paper-plane"></i>
             <span>{{localize 'YCIO.Input.Send'}}</span>

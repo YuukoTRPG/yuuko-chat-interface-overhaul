@@ -449,6 +449,186 @@
     /* 增加一點陰影讓文字在深色背景更清楚 */
 }
 
+/* ---- 快速擲骰 (Quick Roll) ---- */
+
+/* 包覆按鈕與面板的容器，讓面板能以此為基準定位 */
+.YCIO-floating-chat-window .YCIO-quick-roll-wrapper {
+    position: relative;
+}
+
+/* 快速擲骰按鈕 - 與 #chat-wait-btn 一致 */
+.YCIO-floating-chat-window #YCIO-quick-roll-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    background: #333;
+    color: #aaa;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1em;
+}
+
+.YCIO-floating-chat-window #YCIO-quick-roll-btn:hover {
+    color: #fff;
+    background: #444;
+}
+
+/* 快速擲骰面板 - 浮在按鈕上方 */
+.YCIO-floating-chat-window #YCIO-quick-roll-panel {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #2a2a2a;
+    border: 1px solid #666;
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.5);
+    z-index: 200;
+    min-width: 220px;
+}
+
+/* 面板上方的小三角箭頭 */
+.YCIO-floating-chat-window #YCIO-quick-roll-panel::after {
+    content: "";
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid #2a2a2a;
+}
+
+/* 骰子按鈕 Grid (4x2) */
+.YCIO-floating-chat-window .YCIO-dice-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+/* 單顆骰子按鈕 */
+.YCIO-floating-chat-window .YCIO-dice-btn {
+    position: relative;
+    padding: 6px 4px;
+    background: #3a3a3a;
+    color: #ccc;
+    border: 1px solid #555;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s ease;
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+/* 骰子 FA 圖示 */
+.YCIO-floating-chat-window .YCIO-dice-btn>i {
+    font-size: 1.6em;
+    line-height: 1;
+    pointer-events: none;
+}
+
+/* d100 雙重疊圖示容器 */
+.YCIO-floating-chat-window .YCIO-d100-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    font-size: 1.6em;
+    line-height: 1;
+    pointer-events: none;
+}
+
+/* d100 第一顆 (thin, 左後方) */
+.YCIO-floating-chat-window .YCIO-d100-icon>i:first-child {
+    opacity: 0.5;
+}
+
+/* d100 第二顆 (solid, 右前方, 向左偏移重疊) */
+.YCIO-floating-chat-window .YCIO-d100-icon>i:last-child {
+    margin-left: -0.45em;
+}
+
+.YCIO-floating-chat-window .YCIO-dice-btn:hover {
+    background: #4a4a4a;
+    border-color: #888;
+}
+
+/* 計數 Badge (灰底金字) */
+.YCIO-floating-chat-window .YCIO-dice-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 20px;
+    height: 20px;
+    line-height: 20px;
+    background: #444;
+    color: #ffd700;
+    border: 1px solid #666;
+    border-radius: 50%;
+    font-size: 0.8em;
+    font-weight: bold;
+    text-align: center;
+    display: none;
+}
+
+.YCIO-floating-chat-window .YCIO-dice-badge.visible {
+    display: block;
+}
+
+/* 底部操作按鈕列 */
+.YCIO-floating-chat-window .YCIO-quick-roll-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.YCIO-floating-chat-window .YCIO-roll-submit,
+.YCIO-floating-chat-window .YCIO-roll-cancel {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid #555;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85em;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: all 0.15s ease;
+}
+
+.YCIO-floating-chat-window .YCIO-roll-submit {
+    background: #2e7d32;
+    color: #fff;
+    border-color: #4caf50;
+}
+
+.YCIO-floating-chat-window .YCIO-roll-submit:hover {
+    background: #388e3c;
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
+}
+
+.YCIO-floating-chat-window .YCIO-roll-cancel {
+    background: #424242;
+    color: #ccc;
+}
+
+.YCIO-floating-chat-window .YCIO-roll-cancel:hover {
+    background: #555;
+    color: #fff;
+}
+
 /* 頭像按鈕的 Tooltip，因為不依附在模組的視窗內，必須獨立指定 */
 .YCIO-avatar-tooltip {
     transition-delay: 0s !important;

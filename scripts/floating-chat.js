@@ -148,6 +148,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             switchTab: FloatingChat.onSwitchTab,         // 切換分頁
             toggleMinimize: FloatingChat.onToggleMinimize, // 最小化/還原
             toggleWait: FloatingChat.onToggleWait,       // 切換稍等一下
+            toggleQuickRoll: FloatingChat.onToggleQuickRoll, // 快速擲骰
 
             // 文字格式工具列 Actions
             formatBold: FloatingChat.onFormatBold,
@@ -231,6 +232,19 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // 按鈕的樣式更新會由 _updateWaitButtonState 處理，或者等待 Hook 回調
         // 暫時先手動切換 class 等等可以註解掉
         target.classList.toggle("YCIO-active", newState);
+    }
+
+    /**
+     * Action: 切換快速擲骰面板的顯示/隱藏
+     */
+    static onToggleQuickRoll(event, target) {
+        event.preventDefault();
+        const wrapper = target.closest(".YCIO-quick-roll-wrapper");
+        const panel = wrapper?.querySelector("#YCIO-quick-roll-panel");
+        if (!panel) return;
+
+        const isVisible = panel.style.display !== "none";
+        panel.style.display = isVisible ? "none" : "";
     }
 
     /**
@@ -670,7 +684,99 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 waitBtn.classList.toggle("YCIO-active", !!isWaiting);
             }
 
-            // 6. 更新打字狀態顯示 (因為 DOM 重建了，要重新抓元素)
+            // 6. 快速擲骰面板事件綁定
+            const quickRollPanel = this.element.querySelector("#YCIO-quick-roll-panel");
+            if (quickRollPanel) {
+                // 骰子計數器狀態 (暫存於面板 DOM)
+                const diceCounts = {};
+
+                // 更新骰子按鈕的 badge 顯示
+                const updateBadges = () => {
+                    quickRollPanel.querySelectorAll(".YCIO-dice-btn").forEach(btn => {
+                        const d = btn.dataset.dice;
+                        const badge = btn.querySelector(".YCIO-dice-badge");
+                        const count = diceCounts[d] || 0;
+                        badge.textContent = count > 0 ? count : "";
+                        badge.classList.toggle("visible", count > 0);
+                    });
+                };
+
+                // 重置所有骰子計數
+                const resetDice = () => {
+                    Object.keys(diceCounts).forEach(k => delete diceCounts[k]);
+                    updateBadges();
+                };
+
+                // 關閉面板
+                const closePanel = () => {
+                    quickRollPanel.style.display = "none";
+                    resetDice();
+                };
+
+                // 骰子按鈕：左鍵增加，右鍵減少
+                quickRollPanel.querySelectorAll(".YCIO-dice-btn").forEach(btn => {
+                    btn.addEventListener("click", (ev) => {
+                        ev.preventDefault();
+                        const d = btn.dataset.dice;
+                        diceCounts[d] = (diceCounts[d] || 0) + 1;
+                        updateBadges();
+                    });
+                    btn.addEventListener("contextmenu", (ev) => {
+                        ev.preventDefault();
+                        const d = btn.dataset.dice;
+                        if (diceCounts[d] && diceCounts[d] > 0) {
+                            diceCounts[d]--;
+                            if (diceCounts[d] === 0) delete diceCounts[d];
+                            updateBadges();
+                        }
+                    });
+                });
+
+                // 「擲骰！」按鈕
+                const submitBtn = quickRollPanel.querySelector(".YCIO-roll-submit");
+                if (submitBtn) {
+                    submitBtn.addEventListener("click", async () => {
+                        // 組合骰子字串
+                        const parts = [];
+                        for (const [d, count] of Object.entries(diceCounts)) {
+                            if (count > 0) parts.push(`${count}d${d}`);
+                        }
+                        if (parts.length === 0) {
+                            ui.notifications.warn(game.i18n.localize("YCIO.Input.QuickRollNoSelection"));
+                            return;
+                        }
+                        const formula = `/r ${parts.join("+")}`;
+                        try {
+                            await ui.chat.processMessage(formula);
+                        } catch (err) {
+                            console.error("YCIO | 快速擲骰錯誤:", err);
+                        }
+                        closePanel();
+                    });
+                }
+
+                // 「取消」按鈕
+                const cancelBtn = quickRollPanel.querySelector(".YCIO-roll-cancel");
+                if (cancelBtn) {
+                    cancelBtn.addEventListener("click", () => closePanel());
+                }
+
+                // 點擊面板外區域自動關閉
+                // 使用 setTimeout 確保本次點擊事件不會立即觸發關閉
+                setTimeout(() => {
+                    const onClickOutside = (ev) => {
+                        const wrapper = this.element.querySelector(".YCIO-quick-roll-wrapper");
+                        if (wrapper && !wrapper.contains(ev.target) && quickRollPanel.style.display !== "none") {
+                            closePanel();
+                        }
+                    };
+                    document.addEventListener("click", onClickOutside);
+                    // 儲存清理函式，在視窗關閉時移除
+                    this._quickRollClickOutside = onClickOutside;
+                }, 0);
+            }
+
+            // 7. 更新打字狀態顯示 (因為 DOM 重建了，要重新抓元素)
             this._updateTypingDisplay();
         }
 
