@@ -289,6 +289,12 @@ export function enrichMessageHTML(message, htmlElement) {
         }
     }
 
+    // --- 訊息背景色覆蓋：根據 GM 設定動態加入 class ---
+    const enableCustomBg = game.settings.get(MODULE_ID, "enableCustomMessageBg");
+    if (enableCustomBg) {
+        element.classList.add("YCIO-custom-bg");
+    }
+
     // 取得頭像 (注意：這裡直接呼叫同檔案的函式，不用 this)
     const avatarUrl = getAvatarUrl(message);
 
@@ -495,6 +501,20 @@ export function applyWindowStyles(element, user) {
     element.style.setProperty("--YCIO-window-opacity", windowOpacity);
     // 給訊息泡泡專用的透明度變數
     element.style.setProperty("--YCIO-message-opacity", messageOpacity);
+
+    // 訊息文字顏色覆蓋
+    const messageTextColor = game.settings.get(MODULE_ID, "messageTextColor");
+    element.style.setProperty("--YCIO-message-text-color", messageTextColor);
+
+    // 自訂訊息背景色覆蓋
+    const enableCustomBg = game.settings.get(MODULE_ID, "enableCustomMessageBg");
+    if (enableCustomBg) {
+        const customBgColor = game.settings.get(MODULE_ID, "customMessageBgColor");
+        element.style.setProperty("--YCIO-custom-message-bg", customBgColor);
+    } else {
+        // 必須移除變數，因為 CSS 變數即使設為空字串仍被視為「已設定」
+        element.style.removeProperty("--YCIO-custom-message-bg");
+    }
 
     // 移除全局的 element.style.opacity = opacity 
     element.style.opacity = "";

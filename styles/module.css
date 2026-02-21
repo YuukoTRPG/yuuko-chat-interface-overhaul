@@ -284,6 +284,25 @@
     font-style: italic;
 }
 
+/* --- 訊息文字顏色覆蓋 (由 GM 設定統一控制) --- */
+/* 排除帶有行內 color 樣式的元素，保留玩家自訂的文字顏色 */
+.YCIO-floating-chat-window .chat-message .message-content,
+.YCIO-floating-chat-window .chat-message .message-content *:not([style*="color"]) {
+    color: var(--YCIO-message-text-color, #000000) !important;
+}
+
+/* --- 訊息背景色覆蓋 (由 GM 設定統一控制，僅在啟用時生效) --- */
+.YCIO-floating-chat-window .chat-message.YCIO-custom-bg {
+    background: var(--YCIO-custom-message-bg) !important;
+    background-image: none !important;
+}
+
+/* 移除其他系統 (如 D&D 5e) 透過偽元素疊加的紋理圖片/濾鏡 */
+.YCIO-floating-chat-window .chat-message.YCIO-custom-bg::before,
+.YCIO-floating-chat-window .chat-message.YCIO-custom-bg::after {
+    display: none !important;
+}
+
 /* =========================================================
    5. 訊息頭像佈局 (Message Avatar Layout)
    左圖右文

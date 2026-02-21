@@ -181,6 +181,50 @@ export function registerSettings() {
         }
     });
 
+    // 訊息預設字體顏色 (World - GM Only)
+    game.settings.register(MODULE_ID, "messageTextColor", {
+        name: "YCIO.Settings.MessageTextColor.Name",
+        hint: "YCIO.Settings.MessageTextColor.Hint",
+        scope: "world",
+        config: true,
+        type: String,
+        default: "#000000",
+        inputType: "color",
+        onChange: () => {
+            Hooks.callAll("YCIO_UpdateStyle");
+            ui.notifications.info(game.i18n.localize("YCIO.Settings.StyleOverride.Changed"));
+        }
+    });
+
+    // 啟用自訂聊天訊息背景色 (World - GM Only)
+    game.settings.register(MODULE_ID, "enableCustomMessageBg", {
+        name: "YCIO.Settings.EnableCustomMessageBg.Name",
+        hint: "YCIO.Settings.EnableCustomMessageBg.Hint",
+        scope: "world",
+        config: true,
+        type: Boolean,
+        default: false,
+        onChange: () => {
+            Hooks.callAll("YCIO_UpdateStyle");
+            ui.notifications.info(game.i18n.localize("YCIO.Settings.StyleOverride.Changed"));
+        }
+    });
+
+    // 聊天訊息背景色 (World - GM Only)
+    game.settings.register(MODULE_ID, "customMessageBgColor", {
+        name: "YCIO.Settings.CustomMessageBgColor.Name",
+        hint: "YCIO.Settings.CustomMessageBgColor.Hint",
+        scope: "world",
+        config: true,
+        type: String,
+        default: "#e0e0e0",
+        inputType: "color",
+        onChange: () => {
+            Hooks.callAll("YCIO_UpdateStyle");
+            ui.notifications.info(game.i18n.localize("YCIO.Settings.StyleOverride.Changed"));
+        }
+    });
+
     // 預設頭像來源 (Client)
     game.settings.register(MODULE_ID, "useTokenAvatarDefault", {
         name: "YCIO.Settings.UseTokenAvatar.Name",

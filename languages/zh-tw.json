@@ -78,6 +78,21 @@
         "Hint": "部分系統會在發言者加入額外的資訊（如D&D 5e會額外插入頭像與副標題），這將造成本模組的訊息版面不大好看。開啟此選項後，將僅保留FVTT原生的發言者名稱。",
         "Changed": "設定已變更，請告知您的玩家重整網頁以套用最新設定。"
       },
+      "MessageTextColor": {
+        "Name": "訊息預設字體顏色",
+        "Hint": "覆蓋浮動聊天視窗內訊息內容的文字顏色（包含標題等樣式）。"
+      },
+      "EnableCustomMessageBg": {
+        "Name": "啟用自訂聊天訊息背景色",
+        "Hint": "勾選後，本模組的聊天訊息會取消其他系統或模組設定的背景顏色或背景圖片，並以下方顏色設定。"
+      },
+      "CustomMessageBgColor": {
+        "Name": "聊天訊息背景色",
+        "Hint": "自訂聊天訊息的背景顏色（需先勾選上方選項才會生效）。"
+      },
+      "StyleOverride": {
+        "Changed": "設定已變更，請告知您的玩家重整網頁以套用最新設定。"
+      },
       "NotificationSound": {
         "Name": "新訊息提醒音效路徑",
         "Hint": "預設音效路徑為 modules/yuuko-chat-interface-overhaul/sounds/page.mp3 \n若路徑留空，則不播放音效。\n （在FVTT內建的「播放清單」分頁中的「介面」選項可調整此音量大小。）"
