@@ -35,6 +35,7 @@
 #YCIO-floating-chat-window>menu {
     background-image: none;
     background: rgba(0, 0, 0, 1);
+    z-index: 10;
 }
 
 /* =========================================================
