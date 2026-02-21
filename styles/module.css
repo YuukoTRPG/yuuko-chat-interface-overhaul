@@ -135,6 +135,7 @@
     /* 隱藏溢出，讓捲動發生在內部的 #custom-chat-log */
     padding: 0px;
     position: relative;
+    z-index: 1;
     /* 讓內部的絕對定位元素 (如置底按鈕) 以此為基準 */
 }
 
@@ -488,7 +489,7 @@
     border-radius: 8px;
     padding: 10px;
     box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.5);
-    z-index: 200;
+    z-index: 10;
     min-width: 220px;
 }
 
@@ -707,6 +708,8 @@
     /* 稍微加深背景，區分輸入區 */
     border-top: 1px solid #444;
     /* 加上頂部邊框，視覺上更整齊 */
+    position: relative;
+    z-index: 10;
 }
 
 /* 身份選擇器樣式 */
@@ -882,7 +885,7 @@
     opacity: 0;
     visibility: hidden;
     transition: all 0.3s ease;
-    z-index: 100;
+    z-index: 2;
     /* 確保蓋在訊息列表上方 */
     cursor: pointer;
     font-size: 14px;
