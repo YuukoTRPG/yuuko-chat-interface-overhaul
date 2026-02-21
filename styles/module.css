@@ -170,12 +170,15 @@
    ========================================================= */
 
 /* 訊息外框基礎樣式 */
+/* 注意：這裡刻意不使用 CSS opacity 來控制訊息透明度，
+   因為 opacity < 1 會建立新的 Stacking Context，導致
+   子元素（如右鍵選單 #context-menu）的 z-index 被困在內部。
+   改用 rgba() 背景色搭配 --YCIO-message-opacity 變數來模擬透明效果。 */
 .YCIO-floating-chat-window .chat-message {
-    background: rgb(255, 255, 255);
-    /* 預設白底 */
-    border: 1px solid #444;
+    background: rgba(255, 255, 255, var(--YCIO-message-opacity, 1.0));
+    /* 白底 + 透明度控制 */
+    border: 1.5px solid rgba(68, 68, 68, var(--YCIO-message-opacity, 1.0));
     border-radius: 4px;
-    /* margin-bottom 可以視需要加入，保持訊息間距 */
 
     display: flex;
     flex-direction: row;
@@ -186,14 +189,6 @@
     /* 頭像與內容的間距 */
     padding: 2px;
     /* 整體內縮一點 */
-
-    /* 確保原本的背景色/邊框還是在最外層 */
-    background: rgb(255, 255, 255);
-    border: 1.5px solid #444;
-    border-radius: 4px;
-
-    /* 獨立控制的訊息透明度 */
-    opacity: var(--YCIO-message-opacity, 1.0);
 }
 
 /* 訊息標頭 (發訊者、時間等) */
@@ -208,14 +203,7 @@
     /*字體大小*/
     color: #000;
     /*內部字的顏色*/
-
-    /*以下是文字馬賽克樣式*/
-    /*color: transparent;
-    text-shadow: 0 0 10px rgba(0, 0, 0, 0.9);    
-    filter: blur(2px);*/
 }
-
-
 
 
 /* --- 圖片與卡牌處理 --- */
@@ -266,21 +254,21 @@
 
 /* --- 特殊訊息類型 (配色區) --- */
 
-/* 私訊 (Whisper) - 淡紫色 */
+/* 私訊 (Whisper) - 淡紫色 (使用 rgba 避免 stacking context) */
 .YCIO-floating-chat-window .chat-message.whisper {
-    background: rgba(230, 220, 240);
-    border-color: #7a5d96;
+    background: rgba(230, 220, 240, var(--YCIO-message-opacity, 1.0));
+    border-color: rgba(122, 93, 150, var(--YCIO-message-opacity, 1.0));
 }
 
-/* 盲骰 (Blind) - 淡紅色 */
+/* 盲骰 (Blind) - 淡紅色 (使用 rgba 避免 stacking context) */
 .YCIO-floating-chat-window .chat-message.blind {
-    background: rgba(240, 220, 220);
-    border-color: #965d5d;
+    background: rgba(240, 220, 220, var(--YCIO-message-opacity, 1.0));
+    border-color: rgba(150, 93, 93, var(--YCIO-message-opacity, 1.0));
 }
 
-/* 情感描述/扮演 (Emote / IC) - 灰色斜體 */
+/* 情感描述/扮演 (Emote / IC) - 灰色斜體 (使用 rgba 避免 stacking context) */
 .YCIO-floating-chat-window .chat-message.emote {
-    background: rgba(210, 210, 210);
+    background: rgba(210, 210, 210, var(--YCIO-message-opacity, 1.0));
     font-style: italic;
 }
 
