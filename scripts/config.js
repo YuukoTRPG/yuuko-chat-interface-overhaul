@@ -52,7 +52,45 @@ export function registerSettings() {
         default: "#000000"    // 預設黑色
     });
 
-    // --- 可見設定 ---
+    // --- 操作設定 ---
+
+    // 切換 Enter/Shift+Enter 送出行為 (Client)
+    game.settings.register(MODULE_ID, "swapEnterShiftEnter", {
+        name: "YCIO.Settings.SwapEnter.Name",
+        hint: "YCIO.Settings.SwapEnter.Hint",
+        scope: "client",    // 玩家個人設定
+        config: true,
+        type: Boolean,
+        default: false      // 預設未勾選 (Enter 送出)
+    });
+
+    // --- 音效設定 ---
+
+    // 通知音效路徑 (World - GM Only)
+    game.settings.register(MODULE_ID, "notificationSoundPath", {
+        name: "YCIO.Settings.NotificationSound.Name",
+        hint: "YCIO.Settings.NotificationSound.Hint",
+        scope: "world",     // GM 統一控制
+        config: true,
+        type: String,
+        filePicker: "audio", // V13: 顯示音訊檔案選擇器
+        default: `modules/${MODULE_ID}/sounds/page.mp3`, // 預設路徑
+        onChange: () => {
+            // 僅提示變更
+        }
+    });
+
+    // 承上一個設定，OOC 是否播放音效 (World - GM Only)
+    game.settings.register(MODULE_ID, "playOnOOC", {
+        name: "YCIO.Settings.PlayOnOOC.Name",
+        hint: "YCIO.Settings.PlayOnOOC.Hint",
+        scope: "world",     // GM 統一控制
+        config: true,
+        type: Boolean,
+        default: true       // 預設開啟
+    });
+
+    // --- 介面設定 ---
 
     // 自訂視窗標題 (GM Only)
     game.settings.register(MODULE_ID, "windowTitle", {
@@ -66,6 +104,22 @@ export function registerSettings() {
             // 標題改變通常需要重繪視窗，這裡我們先發送通知提醒
             ui.notifications.info(game.i18n.localize("YCIO.Settings.WindowTitle.Changed"));
         }
+    });
+
+    // 是否隱藏原生側邊欄 (World - GM Only)
+    game.settings.register(MODULE_ID, "hideNativeSidebar", {
+        name: "YCIO.Settings.HideNativeSidebar.Name",
+        hint: "YCIO.Settings.HideNativeSidebar.Hint",
+        scope: "world",     // GM 統一控制
+        config: true,
+        type: String,
+        choices: {
+            "none": "YCIO.Settings.HideNativeSidebar.Choices.None", // 顯示 (預設)
+            "all": "YCIO.Settings.HideNativeSidebar.Choices.All",   // 全部隱藏
+            "gm": "YCIO.Settings.HideNativeSidebar.Choices.GM"      // 僅 GM 顯示
+        },
+        default: "none",
+        onChange: () => Hooks.callAll("YCIO_UpdateSidebarVisibility") // 觸發主程式的監聽器
     });
 
     // 浮動聊天窗背景顏色 (Client)
@@ -112,20 +166,19 @@ export function registerSettings() {
         onChange: () => Hooks.callAll("YCIO_UpdateStyle") // 觸發自定義 Hook
     });
 
-    // 是否隱藏原生側邊欄 (World - GM Only)
-    game.settings.register(MODULE_ID, "hideNativeSidebar", {
-        name: "YCIO.Settings.HideNativeSidebar.Name",
-        hint: "YCIO.Settings.HideNativeSidebar.Hint",
-        scope: "world",     // GM 統一控制
+    // 淨化發言者名稱 (清理其他系統/模組塞入的頭像或徽章)
+    game.settings.register(MODULE_ID, "cleanMessageSender", {
+        name: "YCIO.Settings.CleanSender.Name",
+        hint: "YCIO.Settings.CleanSender.Hint",
+        scope: "world",
         config: true,
-        type: String,
-        choices: {
-            "none": "YCIO.Settings.HideNativeSidebar.Choices.None", // 顯示 (預設)
-            "all": "YCIO.Settings.HideNativeSidebar.Choices.All",   // 全部隱藏
-            "gm": "YCIO.Settings.HideNativeSidebar.Choices.GM"      // 僅 GM 顯示
-        },
-        default: "none",
-        onChange: () => Hooks.callAll("YCIO_UpdateSidebarVisibility") // 觸發主程式的監聽器
+        type: Boolean,
+        // 補充邏輯：如果當前系統是 D&D 5e或某些其他系統，預設值就是 true，否則為 false
+        default: ["dnd5e"].includes(game.system.id),
+        onChange: () => {
+            // 提示重整，因為這會影響已經渲染出的聊天訊息 DOM
+            ui.notifications.info(game.i18n.localize("YCIO.Settings.CleanSender.Changed"));
+        }
     });
 
     // 預設頭像來源 (Client)
@@ -147,54 +200,7 @@ export function registerSettings() {
         }
     });
 
-    // 淨化發言者名稱 (清理其他系統/模組塞入的頭像或徽章)
-    game.settings.register(MODULE_ID, "cleanMessageSender", {
-        name: "YCIO.Settings.CleanSender.Name",
-        hint: "YCIO.Settings.CleanSender.Hint",
-        scope: "world",
-        config: true,
-        type: Boolean,
-        // 補充邏輯：如果當前系統是 D&D 5e或某些其他系統，預設值就是 true，否則為 false
-        default: ["dnd5e"].includes(game.system.id),
-        onChange: () => {
-            // 提示重整，因為這會影響已經渲染出的聊天訊息 DOM
-            ui.notifications.info(game.i18n.localize("YCIO.Settings.CleanSender.Changed"));
-        }
-    });
-
-    // 通知音效路徑 (World - GM Only)
-    game.settings.register(MODULE_ID, "notificationSoundPath", {
-        name: "YCIO.Settings.NotificationSound.Name",
-        hint: "YCIO.Settings.NotificationSound.Hint",
-        scope: "world",     // GM 統一控制
-        config: true,
-        type: String,
-        filePicker: "audio", // V13: 顯示音訊檔案選擇器
-        default: `modules/${MODULE_ID}/sounds/page.mp3`, // 預設路徑
-        onChange: () => {
-            // 僅提示變更
-        }
-    });
-
-    // 承上一個設定，OOC 是否播放音效 (World - GM Only)
-    game.settings.register(MODULE_ID, "playOnOOC", {
-        name: "YCIO.Settings.PlayOnOOC.Name",
-        hint: "YCIO.Settings.PlayOnOOC.Hint",
-        scope: "world",     // GM 統一控制
-        config: true,
-        type: Boolean,
-        default: true       // 預設開啟
-    });
-
-    // 切換 Enter/Shift+Enter 送出行為 (Client)
-    game.settings.register(MODULE_ID, "swapEnterShiftEnter", {
-        name: "YCIO.Settings.SwapEnter.Name",
-        hint: "YCIO.Settings.SwapEnter.Hint",
-        scope: "client",    // 玩家個人設定
-        config: true,
-        type: Boolean,
-        default: false      // 預設未勾選 (Enter 送出)
-    });
+    // --- 相容性設定 ---
 
     // 決定訊息物件要傳遞原生 DOM 或 jQuery 物件
     game.settings.register(MODULE_ID, "hookArgumentType", {
@@ -241,8 +247,15 @@ export function registerSettings() {
  * ============================================
  */
 Hooks.on("renderSettingsConfig", (app, html, data) => {
-    // 確保取得正確的 DOM 根節點 (相容 FVTT 不同的渲染模式)
-    const root = app.element ? app.element : (html instanceof HTMLElement ? html : document);
+    // 1. 正確且兼容地取得 DOM 根節點
+    // 如果 html 有 .jquery 屬性，代表它是 jQuery 物件，我們取 html[0] (原生的 HTMLElement)
+    // 否則直接使用 app.element 或 html 本身
+    let domRoot = app.element || (html.jquery ? html[0] : html);
+
+    // 防呆：確保 domRoot 真的是一個可以執行 querySelector 的 DOM 節點
+    if (!domRoot || typeof domRoot.querySelector !== "function") {
+        domRoot = document;
+    }
 
     /**
      * 定義專門用來插入標題的輔助函數
@@ -251,26 +264,30 @@ Hooks.on("renderSettingsConfig", (app, html, data) => {
      * @param {string} icon - FontAwesome 圖示 (例如 "fas fa-plug")
      */
     const injectHeader = (settingKey, title, icon) => {
-        // 直接組合出 FVTT 生成的 ID
-        const targetId = `settings-config-yuuko-chat-interface-overhaul.${settingKey}`;
-        const inputElement = root.querySelector(`[id="${targetId}"]`);
+        // 由於 FVTT V13 和 V12 在繪製設定項目時的 ID 生成方式不同，
+        // 同時兼容 name 屬性與 ID 屬性來尋找輸入框是最安全的做法。
+        const targetName = `${MODULE_ID}.${settingKey}`;
+        const targetId = `settings-config-${MODULE_ID}.${settingKey}`;
 
+        // 2. 尋找目標元素
+        const inputElement = domRoot.querySelector(`[name="${targetName}"]`) || domRoot.querySelector(`[id="${targetId}"]`);
+
+        // 3. 嚴格確定元素存在才繼續執行
         if (!inputElement) {
-            // console.warn(`YCIO Debug | 找不到設定項: ${settingKey}，跳過排版。`);
             return;
         }
 
-        const formGroup = inputElement.closest(".form-group");
+        const formGroup = inputElement?.closest(".form-group");
         if (!formGroup) return;
 
         // 防呆：如果這個標題已經被插入過了，就不要重複插入
-        if (formGroup.previousElementSibling && formGroup.previousElementSibling.classList.contains("ycio-setting-header")) {
+        if (formGroup.previousElementSibling?.classList?.contains("YCIO-setting-header")) {
             return;
         }
 
         // 在該設定項之前插入大標題與分隔線
         formGroup.insertAdjacentHTML("beforebegin", `
-            <div class="ycio-setting-header" style="margin-top: 25px; margin-bottom: 10px; border-bottom: 2px solid var(--color-border-light);">
+            <div class="YCIO-setting-header" style="margin-top: 25px; margin-bottom: 10px; border-bottom: 2px solid var(--color-border-light);">
                 <h3 style="margin: 0; padding-bottom: 5px; color: var(--color-text-highlight); font-family: var(--font-primary); font-size: 1.25rem;">
                     <i class="${icon}"></i> ${title}
                 </h3>
@@ -278,13 +295,17 @@ Hooks.on("renderSettingsConfig", (app, html, data) => {
         `);
     };
 
-    // 開始執行排版，可以自由增加或修改這裡的項目
-
-    // 在「自訂視窗標題」前面加上【介面與視覺設定】標題
-    injectHeader("windowTitle", "介面與視覺設定", "fas fa-desktop");
-
-    // 在「系統相容性」前面加上【進階與相容性設定】標題
-    injectHeader("hookArgumentType", "進階與相容性設定", "fas fa-cogs");
+    // 開始執行排版(插入標題)，區分 GM 與玩家視角
+    if (game.user.isGM) {
+        injectHeader("swapEnterShiftEnter", "操作設定", "fas fa-keyboard");
+        injectHeader("notificationSoundPath", "音效設定", "fas fa-music");
+        injectHeader("windowTitle", "介面設定", "fas fa-desktop");
+        injectHeader("hookArgumentType", "相容性設定", "fas fa-cogs");
+    } else {
+        // 玩家視角的排版
+        injectHeader("swapEnterShiftEnter", "操作設定", "fas fa-keyboard");
+        injectHeader("backgroundColor", "介面設定", "fas fa-desktop");
+    }
 
     // console.log("YCIO Debug | 設定介面排版注入完成。");
 });
