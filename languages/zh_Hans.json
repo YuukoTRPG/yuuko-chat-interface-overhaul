@@ -1,0 +1,175 @@
+{
+    "YCIO": {
+        "WindowTitle": "悠子的文字聊天大修模组（GM可在设置更改这段标题）",
+        "MinimizeIcon": "最小化",
+        "Warning": {
+            "NoLabeledAvatars": "目前的发言身份没有设置任何带注解的头像",
+            "FailedMsg": "消息发送失败"
+        },
+        "Menu": {
+            "ExportLog": "导出聊天记录",
+            "ClearLog": "清除聊天记录",
+            "MosaicSpeaker": "马赛克发言者（截图用）",
+            "MosaicSpeakerOff": "解除马赛克",
+            "Settings": "模组设置",
+            "About": "关于本模组"
+        },
+        "Tabs": {
+            "Public": "公开消息",
+            "OOC": "场外"
+        },
+        "Input": {
+            "Placeholder": "输入消息...",
+            "Send": "发送消息",
+            "TypingNone": "没人在打字",
+            "Typing": " 正在输入...",
+            "AvatarSetting": "选择头像",
+            "Bold": "粗体",
+            "Italic": "斜体",
+            "Strikethrough": "删除线",
+            "TextColor": "文字颜色",
+            "SelectColor": "选择颜色",
+            "InlineAvatar": "从头像插入表情",
+            "Wait": "通知大家等你一下",
+            "WaitLabel": "请等一下",
+            "WaitLabelActive": "好，等你",
+            "IsWaiting": "表示请等一下。",
+            "QuickRoll": "快速掷骰",
+            "QuickRollBtn": "掷骰！",
+            "QuickRollCancel": "取消",
+            "QuickRollNoSelection": "请至少选择一颗骰子"
+        },
+        "Speaker": {
+            "OOC": "场外"
+        },
+        "Settings": {
+            "SwapEnter": {
+                "Name": "➤以Shift+Enter发送消息",
+                "Hint": "勾选后，Shift+Enter才会发送消息，Enter键为普通的换行。"
+            },
+            "NotificationSound": {
+                "Name": "➤新消息提醒音效路径",
+                "Hint": "(GM) 默认音效路径为 modules/yuuko-chat-interface-overhaul/sounds/page.mp3 \n若路径留空，则不播放音效。\n （在FVTT自带的“播放列表”分页中的“界面”选项可调整此音量大小。）"
+            },
+            "PlayOnOOC": {
+                "Name": "➤“场外”分页的新消息播放音效",
+                "Hint": "(GM) 若勾选，则场外分页中的新消息也会播放音效。"
+            },
+            "WindowTitle": {
+                "Name": "➤自定义窗口标题",
+                "Hint": "(GM) 浮动聊天窗口的标题文字。",
+                "Changed": "浮动聊天窗口标题已更改，<span style=\"color:#ff0000\"><b>请告知您的玩家刷新网页以应用最新设置。</b></span>。"
+            },
+            "HideNativeSidebar": {
+                "Name": "➤隐藏 FVTT 自带原生聊天UI",
+                "Hint": "(GM) 包含原生侧边栏聊天、右下弹出式气泡消息。",
+                "Choices": {
+                    "None": "不隐藏",
+                    "All": "隐藏",
+                    "GM": "仅GM不隐藏"
+                }
+            },
+            "BackgroundColor": {
+                "Name": "➤浮动聊天窗口背景色",
+                "Hint": "设置（你自己的）浮动聊天窗口背景颜色。"
+            },
+            "BackgroundOpacity": {
+                "Name": "➤浮动聊天窗口背景透明度",
+                "Hint": "调整（你自己的）浮动聊天窗口背景透明度（0为完全透明）。"
+            },
+            "MessageOpacity": {
+                "Name": "➤消息独立透明度",
+                "Hint": "调整消息内容的透明度，最小限制为 0.5，以确保文字阅读性。"
+            },
+            "CleanSender": {
+                "Name": "➤精简发言者信息",
+                "Hint": "(GM) 部分系统会在发言者加入额外的信息（如D&D 5e会额外插入头像与副标题），这将造成本模组的消息版面不大好看。\n开启此选项后，将仅保留FVTT原生的发言者名称。",
+                "Changed": "设置已更改，<span style=\"color:#ff0000\"><b>请告知您的玩家刷新网页以应用最新设置。</b></span>。"
+            },
+            "MessageTextColor": {
+                "Name": "➤消息默认字体颜色",
+                "Hint": "(GM) 覆盖浮动聊天窗口内消息内容的文字颜色（包含标题等样式），应对某些模组或系统会修改文字颜色。"
+            },
+            "EnableCustomMessageBg": {
+                "Name": "➤启用自定义聊天消息背景色",
+                "Hint": "(GM) 勾选后，会取消浮动聊天窗口内的消息原本的背景颜色或图片，并以下一个选项设置颜色。应对某些系统或模组会修改聊天消息的背景色或覆盖图片（如D&D 5e）。"
+            },
+            "CustomMessageBgColor": {
+                "Name": "➤聊天消息背景色",
+                "Hint": "(GM) 自定义浮动聊天窗口内消息的背景色（需勾选上一个选项才会生效）。"
+            },
+            "StyleOverride": {
+                "Changed": "字体/背景样式设置已更改，<span style=\"color:#ff0000\"><b>请告知您的玩家刷新网页以应用最新设置。</b></span>"
+            },
+            "UseTokenAvatar": {
+                "Name": "➤Token 图片作为默认头像(实验性)",
+                "Hint": "未勾选：使用角色 (Actor) 图片。\n勾选：使用场景上的 Token 图片作为默认头像，可能存在一些神秘问题。"
+            },
+            "HookArgumentType": {
+                "Name": "➤系统兼容性：消息内的互动功能模式 (DOM / jQuery)",
+                "Hint": "(GM) 决定本模组内的消息内互动容器类型。若您发现消息内的互动功能（例如攻击、掷骰、伤害、展开骰子等）无法点击，且浏览器 Console(F12) 出现红字错误，请尝试切换此选项。",
+                "Choices": {
+                    "jQuery": "jQuery 对象 (兼容较老的系统如 CoC 7e 等)",
+                    "native": "原生 DOM 元素 (D&D 5e 等架构较新的系统适用)"
+                },
+                "Changed": "设置已更改，<span style=\"color:#ff0000\"><b>请告知您的玩家刷新网页以应用最新设置。</b></span>"
+            },
+            "HookMode": {
+                "Name": "➤进一步切换部分系统所需的兼容模式(实验性)",
+                "Hint": "(GM) 若上一个选项没有作用，请尝试切换此选项。\n在某些架构更特殊的系统中，消息内互动可能仍然没有作用、或是非预期的动作（如重复多次展开关闭）。此时请尝试切换此选项。\n切换至隔离时，可能导致部份第三方模组失效及些许性能损失。",
+                "Standard": "标准（适用大部分系统）",
+                "Clone": "隔离（适用少数架构与众不同或古老的系统，如SR 5e。）",
+                "Changed": "设置已更改，<span style=\"color:#ff0000\"><b>请告知您的玩家刷新网页以应用最新设置。</b></span>"
+            }
+        },
+        "Avatar": {
+            "WindowTitle": "选择发言头像",
+            "Add": "新增头像",
+            "Managing": "正在管理角色：",
+            "Default": "默认",
+            "NoAvatar": "不显示(GM专用)",
+            "LabelPlaceholder": "头像注解...",
+            "Confirm": "确认",
+            "Current": "当前头像：",
+            "UnlinkedWarning": "所选Token未链接角色数据<br>因此固定为Token图片："
+        },
+        "Picker": {
+            "Title": "选择插入表情",
+            "NoAvatars": "无可用表情（请在头像选择器中为想做为表情的头像设置注解）"
+        },
+        "Editor": {
+            "WindowTitle": "编辑消息",
+            "Edit": "编辑消息",
+            "Update": "确认编辑消息"
+        },
+        "Exporter": {
+            "Title": "导出聊天记录",
+            "Description": "请选择要导出的频道分页。导出过程会将所有图片转换为内嵌格式，这可能需要几分钟的时间。",
+            "OOCLabel": "场外",
+            "OOCButton": "场外",
+            "WarningNoSelection": "请至少选择一个要导出的分页",
+            "InfoPreparing": "正在准备导出，包含图片转换可能需要一些时间，请稍候...",
+            "InfoDownloadingCSS": "正在下载并封装样式表...",
+            "InfoComplete": "导出完成！",
+            "ButtonStart": "开始导出",
+            "HtmlTitle": "聊天记录导出"
+        },
+        "Clearer": {
+            "Title": "清除聊天记录",
+            "Description": "<p>确定要清除所有的聊天记录吗？此动作<span style=\"color:#ff0000\"><b>无法恢复</b></span>。</p>",
+            "Notification": "已清除所有聊天记录。"
+        },
+        "About": {
+            "Title": "关于本模组",
+            "ModuleName": "悠子的文字聊天大修",
+            "Version": "版本",
+            "LastUpdate": "最后更新日期",
+            "ProjectUrl": "项目网址",
+            "ProjectLink": "GitHub 仓库",
+            "Author": "作者",
+            "Contact": "联系方式",
+            "Donate": "赞助悠子",
+            "Close": "关闭"
+        }
+    }
+}
