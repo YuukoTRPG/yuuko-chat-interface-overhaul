@@ -1,6 +1,6 @@
 {
     "YCIO": {
-        "WindowTitle": "Yuuko のチャットUI大改修モジュール（GMは設定でこれを変更できます）",
+        "WindowTitle": "悠子のチャットUI改修（GMは設定でこれを変更できます）",
         "MinimizeIcon": "最小化",
         "Warning": {
             "NoLabeledAvatars": "現在の発言キャラクターには注釈のあるアバターが設定されていません。",

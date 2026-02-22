@@ -1,6 +1,6 @@
 {
     "YCIO": {
-        "WindowTitle": "悠子的文字聊天大修模组（GM可在设置更改这段标题）",
+        "WindowTitle": "悠子的文字聊天大修（GM可在设置更改这段标题）",
         "MinimizeIcon": "最小化",
         "Warning": {
             "NoLabeledAvatars": "目前的发言身份没有设置任何带注解的头像",
@@ -9,7 +9,7 @@
         "Menu": {
             "ExportLog": "导出聊天记录",
             "ClearLog": "清除聊天记录",
-            "MosaicSpeaker": "马赛克发言者（截图用）",
+            "MosaicSpeaker": "马赛克发言者（撷图用）",
             "MosaicSpeakerOff": "解除马赛克",
             "Settings": "模组设置",
             "About": "关于本模组"
