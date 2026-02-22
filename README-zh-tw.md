@@ -8,7 +8,7 @@
 
 這是個太過思念凍豆腐（どどんとふ/DodontoF）文字對話功能的跑團玩家而寫出來的東西。
 
-<video src="https://raw.githubusercontent.com/YuukoTRPG/yuuko-chat-interface-overhaul/main/assets/YCIO-Showcase.webm" controls="false" autoplay loop muted playsinline width="100%"></video>
+https://github.com/user-attachments/assets/663b184d-619a-4c9f-a43c-83436fde18b1
 
 ## 特色
 
@@ -43,8 +43,8 @@
 
 ## 問題回報
 
-如果你在使用本模組中發現了任何問題，你可以在本倉庫發送 issue，並盡量提供以下資訊。
-1. 你的 FVTT 與模組版本。
+如果您在使用本模組中發現了任何問題，您可以在本倉庫發送 issue，並盡量提供以下資訊。
+1. 您的 FVTT 與模組版本。
 2. 問題的詳細情況，有擷圖或影片更好。
 3. 復現問題的流程。
 4. 瀏覽器開發者工具主控台(F12)的任何錯誤訊息。
@@ -79,17 +79,22 @@
 悠子的母語是繁體中文，也能夠緩慢的閱讀英文與日文，但無法閱讀其他語言。
 
 ## 贊助
-雖然並非必要，但如果你喜歡這個模組、對你的跑團體驗有幫助，你可以從以下管道贊助悠子，悠子會很感謝你。
+雖然並非必要，但如果您喜歡這個模組、對您的跑團體驗有幫助，您可以從以下管道贊助悠子，悠子會誠心感謝您。
 
-<div style="display: flex; align-items: center; gap: 8px;">
-    <a href="https://www.patreon.com/YuukoTRPG" target="_blank" rel="noopener noreferrer">
-        <img src="https://cdn.simpleicons.org/Patreon/FFFFFF" alt="Patreon" width="40" height="40" 
-            style="background-color: black; padding: 8px; border-radius: 16px;">
-    </a>
-    <a href="https://www.patreon.com/YuukoTRPG" target="_blank" rel="noopener noreferrer">
+<table>
+  <tr>
+    <td align="center" style="border: none;">
+      <a href="https://www.patreon.com/YuukoTRPG" target="_blank">
+        <img src="https://cdn.simpleicons.org/Patreon/FFFFFF" alt="Patreon" width="48" height="48">
+      </a>
+    </td>
+    <td style="border: none;">
+      <a href="https://www.patreon.com/YuukoTRPG" target="_blank" style="text-decoration: none; color: inherit;">
         <h2>Patreon</h2>
-    </a>
-</div>
+      </a>
+    </td>
+  </tr>
+</table>
 
 ## AI 使用聲明
 
