@@ -49,7 +49,10 @@ https://github.com/user-attachments/assets/663b184d-619a-4c9f-a43c-83436fde18b1
 3. 復現問題的流程。
 4. 瀏覽器開發者工具主控台(F12)的任何錯誤訊息。
 
-悠子是以業餘時間製作這個模組，所以不見得會馬上處理。若您真的很有迫切需求，可以透過以下方式或信箱(yuukotrpg@gmail.com)聯繫悠子。
+悠子是以業餘時間製作這個模組，所以不見得會馬上處理。若您真的很有迫切需求，可以透過信箱(yuukotrpg@gmail.com)或以下方式聯繫悠子。
+
+### 已知問題
+- 與`Dice So Nice`並用時，必須開啟`Dice So Nice`設定中的「立即顯示聊天訊息」，否則擲骰結果不會顯示。
 
 ## 聯繫方式
 <a href="https://www.facebook.com/YuukoTRPG" target="_blank" rel="noopener noreferrer">

@@ -51,6 +51,9 @@ If you find any issues while using this module, you can submit an issue on this 
 
 Yuuko is making this module in her spare time, so it might not be addressed immediately. If you have an urgent need, you can contact Yuuko via the following channels or email (yuukotrpg@gmail.com).
 
+### Known Issues
+- When used with `Dice So Nice`, the "Display chat message immediately" setting in `Dice So Nice` must be enabled, otherwise dice roll results will not be displayed.
+
 ## Contact
 <a href="https://www.facebook.com/YuukoTRPG" target="_blank" rel="noopener noreferrer">
     <img src="https://cdn.simpleicons.org/facebook" alt="Facebook" width="32" height="32" 
