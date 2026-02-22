@@ -33,7 +33,7 @@
       "Wait": "Tell everyone to wait a moment",
       "WaitLabel": "Please wait",
       "WaitLabelActive": "Okay, waiting",
-      "IsWaiting": " says: please wait a moment.",
+      "IsWaiting": " asked to wait a moment.",
       "QuickRoll": "Quick Roll",
       "QuickRollBtn": "Roll!",
       "QuickRollCancel": "Cancel",
