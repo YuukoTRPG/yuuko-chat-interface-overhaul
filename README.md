@@ -4,7 +4,7 @@
 
 # Yuuko's Chat Interface Overhaul
 
-A Foundry FVTT module created to enhance the text-based TTRPG playing experience. Key features include scene-based chat tabs, speaker avatar management, simple text message formatting and editing, and chat log export.
+A Foundry VTT module created to enhance the text-based TTRPG playing experience. Key features include scene-based chat tabs, speaker avatar management, simple text message formatting and editing, and chat log export.
 
 This is something written by a TTRPG player who misses the text chat functionality of DodontoF (どどんとふ) too much.
 
