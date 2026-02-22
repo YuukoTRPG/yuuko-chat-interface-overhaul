@@ -8,7 +8,7 @@ A Foundry FVTT module created to enhance the text-based TTRPG playing experience
 
 This is something written by a TTRPG player who misses the text chat functionality of DodontoF (どどんとふ) too much.
 
-<video src="https://raw.githubusercontent.com/YuukoTRPG/yuuko-chat-interface-overhaul/main/assets/YCIO-Showcase.webm" controls="false" autoplay loop muted playsinline width="100%"></video>
+https://github.com/user-attachments/assets/663b184d-619a-4c9f-a43c-83436fde18b1
 
 ## Features
 
@@ -81,15 +81,20 @@ Yuuko's native language is Traditional Chinese, and can also slowly read English
 ## Support
 Though not necessary, if you like this module and it helps your TTRPG experience, you can support Yuuko through the following channels, Yuuko would be very grateful.
 
-<div style="display: flex; align-items: center; gap: 8px;">
-    <a href="https://www.patreon.com/YuukoTRPG" target="_blank" rel="noopener noreferrer">
-        <img src="https://cdn.simpleicons.org/Patreon/FFFFFF" alt="Patreon" width="40" height="40" 
-            style="background-color: black; padding: 8px; border-radius: 16px;">
-    </a>
-    <a href="https://www.patreon.com/YuukoTRPG" target="_blank" rel="noopener noreferrer">
+<table>
+  <tr>
+    <td align="center" style="border: none;">
+      <a href="https://www.patreon.com/YuukoTRPG" target="_blank">
+        <img src="https://cdn.simpleicons.org/Patreon/FFFFFF" alt="Patreon" width="48" height="48">
+      </a>
+    </td>
+    <td style="border: none;">
+      <a href="https://www.patreon.com/YuukoTRPG" target="_blank" style="text-decoration: none; color: inherit;">
         <h2>Patreon</h2>
-    </a>
-</div>
+      </a>
+    </td>
+  </tr>
+</table>
 
 ## AI Usage Statement
 
