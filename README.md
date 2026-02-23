@@ -109,4 +109,7 @@ This module uses AI assistance in the following parts:
 
 This module is published under the [MIT License](./LICENSE).
 
+### Third-Party Assets:
+   * The default notification sound file (located at `./sounds/page.mp3)`) originates from the discontinued TRPG software DodontoF (どどんとふ). It is distributed under the Modified BSD License.
+   * Source URL: http://www.dodontof.com | [License Documentation (Archived)](http://www.dodontof.com/DodontoF/README.html#aboutLicense)
 ---
