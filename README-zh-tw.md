@@ -109,4 +109,7 @@ https://github.com/user-attachments/assets/663b184d-619a-4c9f-a43c-83436fde18b1
 
 本模組依據 [MIT License](./LICENSE) 授權條款發佈。
 
+### 第三方素材
+   * 本模組內建的提示音效檔案（位於 `./sounds/page.mp3`）源自已停止開發的日本 TRPG 跑團軟體凍豆腐（DodontoF/どどんとふ）。該素材適用其原始專案的 Modified BSD License。
+   * 來源網址：http://www.dodontof.com | [授權條款來源](http://www.dodontof.com/DodontoF/README.html#aboutLicense)
 ---
