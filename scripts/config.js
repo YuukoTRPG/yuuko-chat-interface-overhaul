@@ -101,7 +101,7 @@ export function registerSettings() {
         type: String,
         default: "",        // 預設為空 (代表使用預設標題)
         onChange: () => {
-            // 標題改變通常需要重繪視窗，這裡我們先發送通知提醒
+            // 標題改變通常需要重繪視窗，這裡先發送通知提醒
             ui.notifications.info(game.i18n.localize("YCIO.Settings.WindowTitle.Changed"));
         }
     });
@@ -114,11 +114,11 @@ export function registerSettings() {
         config: true,
         type: String,
         choices: {
-            "none": "YCIO.Settings.HideNativeSidebar.Choices.None", // 顯示 (預設)
-            "all": "YCIO.Settings.HideNativeSidebar.Choices.All",   // 全部隱藏
+            "none": "YCIO.Settings.HideNativeSidebar.Choices.None", // 顯示
+            "all": "YCIO.Settings.HideNativeSidebar.Choices.All",   // 全部隱藏 (預設)
             "gm": "YCIO.Settings.HideNativeSidebar.Choices.GM"      // 僅 GM 顯示
         },
-        default: "none",
+        default: "All",
         onChange: () => Hooks.callAll("YCIO_UpdateSidebarVisibility") // 觸發主程式的監聽器
     });
 
@@ -292,7 +292,7 @@ export function registerSettings() {
  */
 Hooks.on("renderSettingsConfig", (app, html, data) => {
     // 1. 正確且兼容地取得 DOM 根節點
-    // 如果 html 有 .jquery 屬性，代表它是 jQuery 物件，我們取 html[0] (原生的 HTMLElement)
+    // 如果 html 有 .jquery 屬性，代表它是 jQuery 物件，取 html[0] (原生的 HTMLElement)
     // 否則直接使用 app.element 或 html 本身
     let domRoot = app.element || (html.jquery ? html[0] : html);
 

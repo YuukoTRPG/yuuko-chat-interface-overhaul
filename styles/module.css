@@ -21,7 +21,7 @@
 
 /* 由於 CSS 限制子元素透明度無法大於父元素，故不能直接將 opacity 設在最頂層。
    FVTT 的 ApplicationV2 渲染結構為: 視窗 > .window-content > .chat-content
-   所以我們分兩層進行「反向排除」，確保只有對話容器絕對不繼承全局透明度。 */
+   所以分兩層進行反向排除，確保只有對話容器絕對不繼承全局透明度。 */
 .YCIO-floating-chat-window>*:not(.window-content),
 .YCIO-floating-chat-window .window-content>*:not(.chat-content),
 .YCIO-floating-chat-window .jump-to-bottom {
