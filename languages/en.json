@@ -86,6 +86,10 @@
         "Hint": "(GM) Some systems add extra information to the speaker (e.g., D&D 5e adds avatars and subtitles), which can make the layout of this module less appealing.\nEnable this to keep only the native FVTT speaker name.",
         "Changed": "Settings changed. <span style=\"color:#ff0000\"><b>Please tell your players to refresh the page to apply the latest settings.</b></span>."
       },
+      "PreserveOfficialMessageStyle": {
+        "Name": "➤ Fully Preserve Official Text Message Style",
+        "Hint": "(GM) If checked, the floating chat window will stop applying this module's message-content style overrides and keep the native FVTT/system text message style."
+      },
       "MessageTextColor": {
         "Name": "➤ Default Message Text Color",
         "Hint": "(GM) Overrides the text color inside the floating chat window (including headings), useful for dealing with modules or systems that modify text colors."

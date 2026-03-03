@@ -181,6 +181,20 @@ export function registerSettings() {
         }
     });
 
+    // 完整保留官方文字訊息樣式 (World - GM Only)
+    game.settings.register(MODULE_ID, "preserveOfficialMessageStyle", {
+        name: "YCIO.Settings.PreserveOfficialMessageStyle.Name",
+        hint: "YCIO.Settings.PreserveOfficialMessageStyle.Hint",
+        scope: "world",
+        config: true,
+        type: Boolean,
+        default: false,
+        onChange: () => {
+            Hooks.callAll("YCIO_UpdateStyle");
+            ui.notifications.info(game.i18n.localize("YCIO.Settings.StyleOverride.Changed"));
+        }
+    });
+
     // 訊息預設字體顏色 (World - GM Only)
     game.settings.register(MODULE_ID, "messageTextColor", {
         name: "YCIO.Settings.MessageTextColor.Name",

@@ -174,7 +174,7 @@
    因為 opacity < 1 會建立新的 Stacking Context，導致
    子元素（如右鍵選單 #context-menu）的 z-index 被困在內部。
    改用 rgba() 背景色搭配 --YCIO-message-opacity 變數來模擬透明效果。 */
-.YCIO-floating-chat-window .chat-message {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message {
     background: rgba(255, 255, 255, var(--YCIO-message-opacity, 1.0));
     /* 白底 + 透明度控制 */
     border: 1.5px solid rgba(68, 68, 68, var(--YCIO-message-opacity, 1.0));
@@ -192,13 +192,13 @@
 }
 
 /* 訊息標頭 (發訊者、時間等) */
-.YCIO-floating-chat-window .chat-message .message-body .message-header {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message .message-body .message-header {
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     /* 讓分隔線淡一點 */
     margin-bottom: 4px;
 }
 
-.YCIO-floating-chat-window .chat-message .message-body .message-header * {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message .message-body .message-header * {
     font-size: 0.7rem;
     /*字體大小*/
     color: #000;
@@ -209,13 +209,13 @@
 /* --- 圖片與卡牌處理 --- */
 
 /* 讓訊息內的圖片不要超出邊框 (RWD) */
-.YCIO-floating-chat-window .chat-message img {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message img {
     max-width: 100%;
     height: auto;
 }
 
 /* 卡牌與物件的佈局容器 */
-.YCIO-floating-chat-window .chat-message .card-draw {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message .card-draw {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -223,8 +223,8 @@
 }
 
 /* 限制卡牌與內容圖片的最大高度，避免洗版 */
-.YCIO-floating-chat-window .chat-message .card-draw img,
-.YCIO-floating-chat-window .chat-message .message-content img {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message .card-draw img,
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message .message-content img {
     max-height: 48px;
     width: auto;
     object-fit: contain;
@@ -232,22 +232,22 @@
 }
 
 /* 單純的擲骰圖片或表情符號垂直置中 */
-.YCIO-floating-chat-window .chat-message .message-content img {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message .message-content img {
     vertical-align: top;
 }
 
 /* 訊息內顯示的擲骰樣式 */
-.YCIO-floating-chat-window .chat-message .message-content .dice-roll {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message .message-content .dice-roll {
     min-width: 100px;
 }
 
-.YCIO-floating-chat-window .chat-message .message-content .dice-roll .dice-formula {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message .message-content .dice-roll .dice-formula {
     padding-left: 4px;
     padding-right: 4px;
 }
 
 /* 訊息內容，主要寫用來插入圖片表符等 */
-.YCIO-floating-chat-window .chat-message .message-content {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message .message-content {
     display: flex;
     align-items: baseline;
 }
@@ -255,39 +255,39 @@
 /* --- 特殊訊息類型 (配色區) --- */
 
 /* 私訊 (Whisper) - 淡紫色 (使用 rgba 避免 stacking context) */
-.YCIO-floating-chat-window .chat-message.whisper {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message.whisper {
     background: rgba(230, 220, 240, var(--YCIO-message-opacity, 1.0));
     border-color: rgba(122, 93, 150, var(--YCIO-message-opacity, 1.0));
 }
 
 /* 盲骰 (Blind) - 淡紅色 (使用 rgba 避免 stacking context) */
-.YCIO-floating-chat-window .chat-message.blind {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message.blind {
     background: rgba(240, 220, 220, var(--YCIO-message-opacity, 1.0));
     border-color: rgba(150, 93, 93, var(--YCIO-message-opacity, 1.0));
 }
 
 /* 情感描述/扮演 (Emote / IC) - 灰色斜體 (使用 rgba 避免 stacking context) */
-.YCIO-floating-chat-window .chat-message.emote {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message.emote {
     background: rgba(210, 210, 210, var(--YCIO-message-opacity, 1.0));
     font-style: italic;
 }
 
 /* --- 訊息文字顏色覆蓋 (由 GM 設定統一控制) --- */
 /* 排除帶有行內 color 樣式的元素，保留玩家自訂的文字顏色 */
-.YCIO-floating-chat-window .chat-message .message-content,
-.YCIO-floating-chat-window .chat-message .message-content *:not([style*="color"]) {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message .message-content,
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message .message-content *:not([style*="color"]) {
     color: var(--YCIO-message-text-color, #000000) !important;
 }
 
 /* --- 訊息背景色覆蓋 (由 GM 設定統一控制，僅在啟用時生效) --- */
-.YCIO-floating-chat-window .chat-message.YCIO-custom-bg {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message.YCIO-custom-bg {
     background: var(--YCIO-custom-message-bg) !important;
     background-image: none !important;
 }
 
 /* 移除其他系統 (如 D&D 5e) 透過偽元素疊加的紋理圖片/濾鏡 */
-.YCIO-floating-chat-window .chat-message.YCIO-custom-bg::before,
-.YCIO-floating-chat-window .chat-message.YCIO-custom-bg::after {
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message.YCIO-custom-bg::before,
+.YCIO-floating-chat-window:not(.YCIO-preserve-official-message-style) .chat-message.YCIO-custom-bg::after {
     display: none !important;
 }
 

@@ -290,8 +290,9 @@ export function enrichMessageHTML(message, htmlElement) {
     }
 
     // --- 訊息背景色覆蓋：根據 GM 設定動態加入 class ---
+    const preserveOfficialMessageStyle = game.settings.get(MODULE_ID, "preserveOfficialMessageStyle");
     const enableCustomBg = game.settings.get(MODULE_ID, "enableCustomMessageBg");
-    if (enableCustomBg) {
+    if (!preserveOfficialMessageStyle && enableCustomBg) {
         element.classList.add("YCIO-custom-bg");
     }
 
@@ -491,6 +492,9 @@ export function applyWindowStyles(element, user) {
     const colorHex = game.settings.get(MODULE_ID, "backgroundColor");
     const windowOpacity = game.settings.get(MODULE_ID, "backgroundOpacity");
     const messageOpacity = game.settings.get(MODULE_ID, "messageOpacity");
+    const preserveOfficialMessageStyle = game.settings.get(MODULE_ID, "preserveOfficialMessageStyle");
+
+    element.classList.toggle("YCIO-preserve-official-message-style", !!preserveOfficialMessageStyle);
 
     // 設定 CSS 變數背景色 (純色，無透明度)
     // 但因為將透明度拆分，將它與 rgba 結合給根背景使用，同時保留原始色碼變數以供參考
@@ -504,11 +508,15 @@ export function applyWindowStyles(element, user) {
 
     // 訊息文字顏色覆蓋
     const messageTextColor = game.settings.get(MODULE_ID, "messageTextColor");
-    element.style.setProperty("--YCIO-message-text-color", messageTextColor);
+    if (!preserveOfficialMessageStyle) {
+        element.style.setProperty("--YCIO-message-text-color", messageTextColor);
+    } else {
+        element.style.removeProperty("--YCIO-message-text-color");
+    }
 
     // 自訂訊息背景色覆蓋
     const enableCustomBg = game.settings.get(MODULE_ID, "enableCustomMessageBg");
-    if (enableCustomBg) {
+    if (!preserveOfficialMessageStyle && enableCustomBg) {
         const customBgColor = game.settings.get(MODULE_ID, "customMessageBgColor");
         element.style.setProperty("--YCIO-custom-message-bg", customBgColor);
     } else {
