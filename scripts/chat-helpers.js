@@ -295,6 +295,14 @@ export function enrichMessageHTML(message, htmlElement) {
         element.classList.add("YCIO-custom-bg");
     }
 
+    // --- 訊息文字顏色覆蓋：根據 GM 設定動態加入 class ---
+    // 只有當 GM 明確設定了非預設的顏色時才啟用覆蓋
+    // 預設情況下讓 FVTT 原生 CSS 的 color: var(--color-dark-1) 自然生效
+    const customTextColor = game.settings.get(MODULE_ID, "messageTextColor");
+    if (customTextColor && customTextColor !== "#000000") {
+        element.classList.add("YCIO-custom-text-color");
+    }
+
     // 取得頭像 (注意：這裡直接呼叫同檔案的函式，不用 this)
     const avatarUrl = getAvatarUrl(message);
 
