@@ -675,6 +675,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 input.addEventListener("keydown", this._onChatKeyDown.bind(this));
                 input.addEventListener("input", () => this._adjustInputHeight(input));
                 input.addEventListener("input", this._onTypingInput.bind(this));
+                input.addEventListener("dragover", this._onChatDragOver.bind(this));
+                input.addEventListener("drop", this._onChatDrop.bind(this));
 
                 // 如果有草稿內容，重新調整高度
                 if (input.value) this._adjustInputHeight(input);
@@ -1441,6 +1443,94 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // 傳入最大高度 (視窗高度的一半)
         const maxHeight = this.element.clientHeight * 0.5;
         autoResizeTextarea(input, maxHeight);
+    }
+
+    /**
+     * 允許 Foundry 文件拖放到聊天輸入框。
+     * @param {DragEvent} event - 拖曳事件
+     */
+    _onChatDragOver(event) {
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    }
+
+    /**
+     * 將拖放的 Foundry 文件轉為 @UUID 語法並插入輸入框。
+     * @param {DragEvent} event - 放置事件
+     */
+    _onChatDrop(event) {
+        const reference = this._getDroppedDocumentReference(event);
+        if (!reference?.uuid) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const input = event.currentTarget;
+        const label = String(reference.name || "").replace(/[{}]/g, "").trim();
+        const uuidText = label ? `@UUID[${reference.uuid}]{${label}}` : `@UUID[${reference.uuid}]`;
+        this._insertTextAtCursor(input, uuidText);
+    }
+
+    /**
+     * 解析 Foundry 拖曳資料，支援 V13 的 TextEditor API 與 JSON 後備。
+     * @param {DragEvent} event - 拖放事件
+     * @returns {{uuid: string, name: string}|null}
+     */
+    _getDroppedDocumentReference(event) {
+        let data = null;
+
+        try {
+            data = TextEditor.getDragEventData(event);
+        } catch (err) {
+            data = null;
+        }
+
+        if (!data) {
+            for (const type of ["application/json", "text/plain"]) {
+                const raw = event.dataTransfer?.getData(type);
+                if (!raw) continue;
+                try {
+                    data = JSON.parse(raw);
+                    break;
+                } catch (err) {
+                    // Plain text drops are left to the browser's default textarea handling.
+                }
+            }
+        }
+
+        const uuid = data?.uuid
+            || data?.documentUuid
+            || data?.documentUUID
+            || (data?.pack && data?.id ? `Compendium.${data.pack}.${data.id}` : null)
+            || (data?.type && data?.id ? `${data.type}.${data.id}` : null);
+        if (!uuid) return null;
+
+        const doc = typeof fromUuidSync === "function" ? fromUuidSync(uuid) : null;
+        return {
+            uuid,
+            name: data?.name || data?.label || doc?.name || ""
+        };
+    }
+
+    /**
+     * 在 textarea 游標或選取範圍插入文字。
+     * @param {HTMLTextAreaElement} input - 輸入框元素
+     * @param {string} text - 要插入的文字
+     */
+    _insertTextAtCursor(input, text) {
+        const start = input.selectionStart ?? input.value.length;
+        const end = input.selectionEnd ?? input.value.length;
+        const prefix = input.value.slice(0, start);
+        const suffix = input.value.slice(end);
+        const spacerBefore = prefix && !/\s$/.test(prefix) ? " " : "";
+        const spacerAfter = suffix && !/^\s/.test(suffix) ? " " : "";
+        const insertion = `${spacerBefore}${text}${spacerAfter}`;
+
+        input.value = `${prefix}${insertion}${suffix}`;
+        const cursor = start + insertion.length;
+        input.focus();
+        input.setSelectionRange(cursor, cursor);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
     }
 
     /**
