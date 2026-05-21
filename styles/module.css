@@ -133,25 +133,40 @@
     min-height: 0;
     /* 關鍵：防止內容撐開父元素，確保 flex 正確運作 */
     overflow: hidden;
-    /* 隱藏溢出，讓捲動發生在內部的 #custom-chat-log */
+    /* 隱藏溢出，讓捲動發生在鏡像包裝與內層捲動容器 */
     padding: 0px;
     position: relative;
     z-index: 1;
     /* 讓內部的絕對定位元素 (如置底按鈕) 以此為基準 */
 }
 
-/* 訊息列表容器 (ul/ol) */
-.YCIO-floating-chat-window .chat-log {
+/* CSS 鏡像包裝容器：複製原生 #chat 結構，讓系統與模組 CSS 自然匹配 */
+.YCIO-floating-chat-window .YCIO-css-mirror {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+}
+
+/* 真正的滾動容器 */
+.YCIO-floating-chat-window .chat-scroll {
     flex: 1;
     overflow-y: auto;
     /* 必須要有 auto，捲動條才會出現 */
+    overflow-x: hidden;
     height: 100%;
     /* 確保高度被撐滿 */
+    min-height: 0;
+    overflow-anchor: auto;
+}
+
+/* 訊息列表容器 (ul/ol) */
+.YCIO-floating-chat-window .chat-log {
     list-style: none;
     /* 移除列表的點點 */
     padding: 0px;
     margin: 0;
-    overflow-anchor: auto;
 }
 
 /* 載入中的讀取條 (撈取舊訊息時顯示) */
@@ -189,10 +204,11 @@
 
 /* --- 圖片與卡牌處理 --- */
 
-/* 讓訊息內的圖片不要超出邊框 (RWD) */
+/* 讓訊息內的圖片不要超出邊框 (RWD)。
+   注意：此處不宣告全域 height: auto;，因為這會粗暴地覆蓋 HTML 標籤上的呈現屬性（Presentational Hints）如 height="..."，
+   以及遊戲系統或模組精心自訂的 height 樣式限制（例如 FVTT 內建卡牌圖示的限制），進而導致圖片失去高度限制而失控放大。 */
 .YCIO-floating-chat-window .chat-message img {
     max-width: 100%;
-    height: auto;
 }
 
 /* 卡牌與物件的佈局容器 */
@@ -203,16 +219,22 @@
     margin: 5px 0;
 }
 
-/* 限制卡牌與內容圖片的最大高度，避免洗版 */
+/* 限制卡牌與內容圖片的樣式，避免被強制拉伸。
+   注意：此處故意不設定強制 width: auto，以避免覆寫 HTML img 標籤自帶的呈現提示（Presentational Hints）如 width="..."，
+   進而導致部分骰子或卡牌中的小圖片被強制拉大洗版。 */
 .YCIO-floating-chat-window .chat-message .card-draw img,
 .YCIO-floating-chat-window .chat-message .message-content img {
-    width: auto;
     object-fit: contain;
     border: none;
 }
 
-/* 行內表情符號 (YCIO 自訂功能) 的大小限制 */
+/* 行內表情符號 (YCIO 自訂功能 [[表符]]) 的樣式
+   FVTT V13 核心 CSS (@layer reset) 將所有 img 設為 display: block，
+   導致行內圖片與前後文字形成斷行。此處必須覆寫回 inline 才能正確嵌入文字流中。
+   vertical-align: bottom 使圖片底部與同行文字基線對齊，達到行內置底的視覺效果。 */
 .YCIO-floating-chat-window .chat-message .message-content img.YCIO-inline-emote {
+    display: inline;
+    vertical-align: bottom;
     max-height: 48px;
 }
 

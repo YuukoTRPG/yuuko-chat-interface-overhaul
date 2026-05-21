@@ -205,7 +205,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     static onJumpToBottom(event, target) {
         const log = document.getElementById("custom-chat-log");
-        if (log) {
+        const scrollContainer = log?.closest(".chat-scroll");
+        if (scrollContainer) {
+            scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: "smooth" });
+        } else if (log) {
             log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
         }
     }
@@ -439,6 +442,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     _onRender(context, options) {
         super._onRender(context, options);
 
+        // 鏡像原生 CSS 變數與主題
+        this._syncTheme();
+        this._bridgeCSSVariables();
+
         // --- 將右上角的「關閉(X)」按鈕偽裝成「最小化」按鈕 ---
         const appWindow = document.getElementById(this.id);
         if (appWindow) {
@@ -503,8 +510,13 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                     log.dataset.hooksBound = "true";
                 }
 
-                // Scroll 監聽
-                log.addEventListener("scroll", this._onChatScroll.bind(this));
+                // Scroll 監聽 (改為監聽真正的滾動包裝容器 .chat-scroll)
+                const scrollContainer = this.element.querySelector(".chat-scroll");
+                if (scrollContainer) {
+                    scrollContainer.addEventListener("scroll", this._onChatScroll.bind(this));
+                } else {
+                    log.addEventListener("scroll", this._onChatScroll.bind(this));
+                }
 
                 // 接管系統的選單按鈕
                 // 監聽整個 log 區域的點擊事件
@@ -536,7 +548,12 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
                 this._programmaticScroll = true;
                 setTimeout(() => {
-                    log.scrollTop = log.scrollHeight;
+                    const scrollContainer = this.element.querySelector(".chat-scroll");
+                    if (scrollContainer) {
+                        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+                    } else {
+                        log.scrollTop = log.scrollHeight;
+                    }
                     this._initializeContextMenu(log);
                     setTimeout(() => { this._programmaticScroll = false; }, 50);
                 }, 0);
@@ -998,6 +1015,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     async _refreshChatLogDOM() {
         const log = this.element.querySelector("#custom-chat-log");
         if (!log) return;
+        const scrollContainer = this.element.querySelector(".chat-scroll");
 
         // 1. 過濾出屬於新分頁的最新 50 筆訊息
         const allMessages = game.messages.contents;
@@ -1036,7 +1054,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // 4. 一次性塞入容器並置底
         log.appendChild(fragment);
-        log.scrollTop = log.scrollHeight;
+        if (scrollContainer) {
+            scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        } else {
+            log.scrollTop = log.scrollHeight;
+        }
     }
 
     /**
@@ -1089,7 +1111,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * 供 Scroll 事件與 setInterval 呼叫
      */
     _toggleJumpToBottomButton() {
-        const log = this.element?.querySelector("#custom-chat-log");
+        const log = this.element?.querySelector(".chat-scroll") || this.element?.querySelector("#custom-chat-log");
         const jumpBtn = this.element?.querySelector(".jump-to-bottom");
 
         // 防呆：如果視窗已關閉或 DOM 不存在則不執行
@@ -1117,7 +1139,13 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     async _loadOlderMessages(logElement) {
         this._isLoadingOlder = true;
 
-        const firstMessageEl = logElement.querySelector(".message");
+        const logContainer = logElement.querySelector("#custom-chat-log");
+        if (!logContainer) {
+            this._isLoadingOlder = false;
+            return;
+        }
+
+        const firstMessageEl = logContainer.querySelector(".message");
         if (!firstMessageEl) {
             this._isLoadingOlder = false;
             return;
@@ -1182,7 +1210,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             fragment.appendChild(htmlElement);
         }
 
-        logElement.insertBefore(fragment, logElement.firstChild);
+        logContainer.insertBefore(fragment, logContainer.firstChild);
 
         // 校準捲軸位置
         const newScrollHeight = logElement.scrollHeight;
@@ -1234,10 +1262,17 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // 4. 重新抓取 Log DOM (確保是切換後的新 DOM)
         const log = this.element.querySelector("#custom-chat-log");
         if (!log) return;
+        const scrollContainer = this.element.querySelector(".chat-scroll");
 
         // 判斷使用者是否正在瀏覽舊訊息 (在插入前判斷)
-        const distanceToBottom = log.scrollHeight - log.scrollTop - log.clientHeight;
-        const isAtBottom = distanceToBottom < 50;
+        let isAtBottom = true;
+        if (scrollContainer) {
+            const distanceToBottom = scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight;
+            isAtBottom = distanceToBottom < 50;
+        } else {
+            const distanceToBottom = log.scrollHeight - log.scrollTop - log.clientHeight;
+            isAtBottom = distanceToBottom < 50;
+        }
 
         const rawHtml = await message.renderHTML();
         const htmlElement = rawHtml instanceof jQuery ? rawHtml[0] : rawHtml; // 正規化提取原生 DOM
@@ -1257,7 +1292,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         if (message.isAuthor || isAtBottom) {
             // 使用 setTimeout 確保 DOM 佈局計算完成後再捲動 (雙重保險)
             setTimeout(() => {
-                log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
+                if (scrollContainer) {
+                    scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: "smooth" });
+                } else {
+                    log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
+                }
             }, 0);
             jumpBtn?.classList.remove("visible", "unread");
         } else {
@@ -1695,8 +1734,89 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     scrollBottom() {
         // 呼叫自己的跳轉邏輯
         const log = this.element.querySelector("#custom-chat-log");
-        if (log) {
+        const scrollContainer = this.element.querySelector(".chat-scroll");
+        if (scrollContainer) {
+            scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: "smooth" });
+        } else if (log) {
             log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
+        }
+    }
+
+    /**
+     * 從原生 #chat 元素複製所有相關的 CSS 變數到 YCIO 鏡像容器
+     */
+    _bridgeCSSVariables() {
+        const nativeChat = document.getElementById("chat");
+        const mirror = this.element?.querySelector("[data-ycio-css-mirror]");
+        if (!nativeChat || !mirror) return;
+
+        const nativeStyle = getComputedStyle(nativeChat);
+
+        // 1. 基底預定義變數列表 (防呆且最常見)
+        const variablesToBridge = new Set([
+            "--font-h1", "--font-h1-size",
+            "--font-h2", "--font-h2-size",
+            "--font-h3", "--font-h3-size",
+            "--font-h4", "--font-h4-size",
+            "--font-h5", "--font-h5-size",
+            "--font-h6", "--font-h6-size",
+            "--font-mono",
+            "--font-primary",
+            "--chat-message-spacing",
+            "--chat-message-background",
+            "--chat-message-border-color",
+            "--color-bg",
+            "--color-border",
+            "--color-text",
+            "--color-text-light",
+            "--color-text-dark"
+        ]);
+
+        // 2. 動態掃描樣式表，尋找針對 #chat 定義的自訂變數
+        for (const sheet of document.styleSheets) {
+            try {
+                // 排除無效或跨網域的 CSS 規則限制
+                if (!sheet.cssRules) continue;
+                for (const rule of sheet.cssRules) {
+                    if (rule.selectorText && (rule.selectorText.includes("#chat") || rule.selectorText.includes(".chat-sidebar"))) {
+                        for (const prop of rule.style) {
+                            if (prop.startsWith("--")) {
+                                variablesToBridge.add(prop);
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                // 跨網域 (CORS) 樣式表讀取限制，跳過即可
+            }
+        }
+
+        // 3. 一次性同步所有收集到的變數值
+        for (const varName of variablesToBridge) {
+            const value = nativeStyle.getPropertyValue(varName).trim();
+            if (value) {
+                mirror.style.setProperty(varName, value);
+            }
+        }
+    }
+
+    /**
+     * 同步原生主題設置與 Class 到鏡像容器
+     */
+    _syncTheme() {
+        const nativeLog = document.querySelector("#chat .chat-log");
+        const customLog = this.element?.querySelector("#custom-chat-log");
+        if (!customLog) return;
+
+        if (nativeLog) {
+            // 直接鏡像原生的 class
+            customLog.className = nativeLog.className;
+        } else {
+            // 後備方案
+            const uiConfig = game.settings.get("core", "uiConfig") || {};
+            const colorScheme = uiConfig.colorScheme || {};
+            const theme = colorScheme.interface || "light";
+            customLog.className = `chat-log plain themed theme-${theme}`;
         }
     }
 }

@@ -1,8 +1,12 @@
 <section class="chat-content">
-    {{! 顯示訊息的主要區塊 }}
-    <ol id="custom-chat-log" class="chat-log chat-sidebar">
-        {{! 留空，用 JS 的 appendChild 注入帶有事件的 DOM 元素 }}
-    </ol>
+    {{! CSS 上下文鏡像：複製原生 #chat 的結構，讓系統與模組的 CSS 自然匹配 }}
+    <div class="YCIO-css-mirror tab sidebar-tab chat-sidebar" data-ycio-css-mirror="true">
+        <div class="chat-scroll">
+            <ol id="custom-chat-log" class="chat-log">
+                {{! 留空，用 JS 的 appendChild 注入帶有事件的 DOM 元素 }}
+            </ol>
+        </div>
+    </div>
     {{! 回到底部的按鈕}}
     <button type="button" class="jump-to-bottom" data-action="jumpToBottom" aria-label="Jump to Bottom">
         <i class="fas fa-arrow-down"></i>
