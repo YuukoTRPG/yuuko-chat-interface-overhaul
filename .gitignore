@@ -8,6 +8,7 @@ Desktop.ini
 
 # AI 助手
 .agents/
+.antigravitycli/
 
 # 上下文地圖（僅給AI參照，不上git）
 CONTEXT_MAP.md
