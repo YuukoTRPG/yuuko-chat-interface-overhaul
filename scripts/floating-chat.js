@@ -15,6 +15,7 @@ import {
     applyWindowStyles,
     shouldPlayNotification,
     getMessageRouteId,
+    getAvailableSpeakerScenes,
     isMessageVisibleInTab,
     generateTypingStatusHTML,
     parseInlineAvatars,
@@ -354,7 +355,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     async _prepareContext(_options) {
         // 1. 準備場景列表 (給 chat-tabs.hbs 使用)
-        const scenes = game.scenes.filter(s => s.visible || game.user.isGM).map(s => ({
+        const scenes = getAvailableSpeakerScenes().map(s => ({
             id: s.id,
             name: s.navName || s.name,
             active: s.id === this.activeTab,
@@ -863,19 +864,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                     });
                 } else {
                     // 選單選的是 Token，且使用者沒打 /ooc -> 強制鎖定為該 Token
-                    const [sceneId, tokenId] = selection.split(".");
-
-                    const scene = game.scenes.get(sceneId);
-                    const token = scene?.tokens.get(tokenId);
-                    const actorId = token?.actor?.id || null;
+                    const { speaker } = getSpeakerFromSelection(selection);
 
                     messageDoc.updateSource({
-                        speaker: {
-                            scene: sceneId,
-                            token: tokenId,
-                            actor: actorId,
-                            alias: token?.name || messageDoc.speaker.alias
-                        }
+                        speaker
                     });
                 }
 
@@ -890,6 +882,24 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
             // 5. 場景列表更新監聽 (新增/刪除/改名，還有選擇Token時重繪)
             register("controlToken", () => this.render({ parts: ["input", "tabs"] }));
+            register("createToken", () => this.render({ parts: ["input", "tabs"] }));
+            register("deleteToken", () => this.render({ parts: ["input", "tabs"] }));
+            register("updateToken", (token, changes) => {
+                const keys = Object.keys(changes);
+                const speakerChanged = keys.some(k => k.includes("actorId") || k.includes("name") || k.includes("hidden"));
+
+                if (speakerChanged) {
+                    this.render({ parts: ["input", "tabs"] });
+                }
+            });
+            register("updateActor", (actor, changes) => {
+                const keys = Object.keys(changes);
+                const ownershipChanged = keys.some(k => k.includes("ownership"));
+
+                if (ownershipChanged) {
+                    this.render({ parts: ["input", "tabs"] });
+                }
+            });
             register("createScene", () => this.render());
             register("deleteScene", () => this.render());
             register("updateScene", (scene, changes) => {
