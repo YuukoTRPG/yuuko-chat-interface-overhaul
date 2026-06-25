@@ -7,6 +7,29 @@ import { FLAG_SCOPE, FLAG_KEY, MODULE_ID } from "./config.js";
 import { MessageEditor } from "./message-editor.js";
 
 /**
+ * 判斷場景中是否存在目前使用者可用來發言的 Token。
+ * @param {Scene} scene - 場景文件
+ * @returns {Boolean}
+ */
+export function sceneHasOwnedSpeakerToken(scene) {
+    return !!scene?.tokens?.some(t => t.actor && t.actor.isOwner);
+}
+
+/**
+ * 取得目前使用者可用於聊天的場景列表。
+ * 除了導覽列可見場景，也納入當前畫布與任何包含自有 Token 的場景。
+ * @returns {Array<Scene>}
+ */
+export function getAvailableSpeakerScenes() {
+    return game.scenes.filter(scene => {
+        return game.user.isGM
+            || scene.visible
+            || scene.id === canvas.scene?.id
+            || sceneHasOwnedSpeakerToken(scene);
+    });
+}
+
+/**
  * 準備發話身份列表 (Speakers)
  * 遍歷場景與 Token，回傳符合下拉選單格式的陣列
  * @returns {Array} 包含發言身分選項的陣列
@@ -30,8 +53,8 @@ export function prepareSpeakerList() {
         selected: currentSelectionValue === "ooc"
     });
 
-    // 3. 遍歷所有場景，找出玩家擁有的 Token
-    const validScenes = game.scenes.filter(s => s.visible || game.user.isGM);
+    // 3. 遍歷可用場景，找出玩家擁有的 Token
+    const validScenes = getAvailableSpeakerScenes();
 
     for (const scene of validScenes) {
         // 找出該場景中，玩家擁有權限的 Token (且有關聯 Actor)
@@ -391,6 +414,17 @@ export function getSpeakerFromSelection(value) {
             result.actorDoc = tokenDoc.actor;
             result.speaker.actor = tokenDoc.actor.id;
         }
+    }
+
+    if (!game.user.isGM && !result.actorDoc?.isOwner) {
+        return {
+            speaker: { scene: null, token: null, actor: null, alias: game.user.name },
+            user: game.user,
+            actorDoc: null,
+            tokenDoc: null,
+            isToken: false,
+            isLinked: false
+        };
     }
 
     return result;
