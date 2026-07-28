@@ -6,6 +6,7 @@ Desktop.ini
 # 打包檔與工具
 *.zip
 *.cmd
+tools/
 
 # AI 助手
 .agents/
