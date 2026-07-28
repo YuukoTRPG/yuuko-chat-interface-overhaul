@@ -3,8 +3,9 @@ Thumbs.db
 Desktop.ini
 .vscode/
 
-# 打包檔
+# 打包檔與工具
 *.zip
+*.cmd
 
 # AI 助手
 .agents/
