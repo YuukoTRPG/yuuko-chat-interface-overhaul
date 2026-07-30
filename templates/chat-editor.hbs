@@ -1,23 +1,23 @@
 <footer class="chat-input-area YCIO-message-editor-container">
     {{! 工具列復用，保留原本的 data-action }}
-    <div class="chat-toolbar">
-        <button type="button" data-action="formatBold" title={{localize 'YCIO.Input.Bold'}}><i class="fas fa-bold"></i></button>
-        <button type="button" data-action="formatItalic" title={{localize 'YCIO.Input.Italic'}}><i class="fas fa-italic"></i></button>
-        <button type="button" data-action="formatStrikethrough" title={{localize 'YCIO.Input.Strikethrough'}}><i class="fas fa-strikethrough"></i></button>
+    <div class="chat-toolbar" role="toolbar" aria-label="{{localize 'YCIO.Input.Formatting'}}">
+        <button type="button" data-action="formatBold" title="{{localize 'YCIO.Input.Bold'}}" aria-label="{{localize 'YCIO.Input.Bold'}}"><i class="fas fa-bold"></i></button>
+        <button type="button" data-action="formatItalic" title="{{localize 'YCIO.Input.Italic'}}" aria-label="{{localize 'YCIO.Input.Italic'}}"><i class="fas fa-italic"></i></button>
+        <button type="button" data-action="formatStrikethrough" title="{{localize 'YCIO.Input.Strikethrough'}}" aria-label="{{localize 'YCIO.Input.Strikethrough'}}"><i class="fas fa-strikethrough"></i></button>
         
-        <div class="color-control-group" style="display: inline-flex; align-items: center; gap: 2px;">
-            <button type="button" data-action="applyTextColor" title={{localize 'YCIO.Input.TextColor'}}>
+        <div class="color-control-group">
+            <button type="button" data-action="applyTextColor" title="{{localize 'YCIO.Input.TextColor'}}" aria-label="{{localize 'YCIO.Input.TextColor'}}">
                 <i class="fas fa-font"></i>
             </button>
-            <input type="color" value="#444444" id="chat-text-color-picker" title={{localize 'YCIO.Input.SelectColor'}}>
+            <input type="color" value="#444444" class="YCIO-chat-text-color-picker" title="{{localize 'YCIO.Input.SelectColor'}}" aria-label="{{localize 'YCIO.Input.SelectColor'}}">
         </div>
 
-        <button type="button" data-action="formatInlineAvatar" title={{localize 'YCIO.Input.InlineAvatar'}}><i class="far fa-smile"></i></button>
+        <button type="button" data-action="formatInlineAvatar" title="{{localize 'YCIO.Input.InlineAvatar'}}" aria-label="{{localize 'YCIO.Input.InlineAvatar'}}"><i class="far fa-smile"></i></button>
     </div>
 
     {{! 輸入框class="YCIO-chat-entry" }}
     <div class="input-wrapper">
-        <textarea class="YCIO-chat-entry" name="content">{{originalContent}}</textarea>
+        <textarea class="YCIO-chat-entry" name="content" aria-label="{{localize 'YCIO.Editor.Content'}}">{{originalContent}}</textarea>
     </div>
 
     {{! 底部按鈕區 }}

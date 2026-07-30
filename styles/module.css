@@ -7,7 +7,6 @@
     /* --- 定義 CSS 變數預設值 --- */
     --YCIO-bg: rgba(0, 0, 0, 0.8);
     --YCIO-window-opacity: 0.8;
-    --YCIO-message-opacity: 1.0;
 
     display: flex;
     flex-direction: column;
@@ -83,7 +82,14 @@
 }
 
 .YCIO-floating-chat-window .tabs .item {
+    appearance: none;
+    width: auto;
+    height: auto;
+    margin: 0;
     padding: 0px 5px;
+    background: transparent;
+    font: inherit;
+    line-height: normal;
     font-size: 1em;
     /* 字體 */
     cursor: pointer;
@@ -96,6 +102,11 @@
     border-right: 1px solid #555;
     position: relative;
     /* 為了定位裡面的小紅點 */
+}
+
+.YCIO-floating-chat-window .tabs .item:focus-visible {
+    outline: 2px solid #ffd700;
+    outline-offset: -2px;
 }
 
 /* 讓小紅點能在分頁標籤不換行的情況下不擠壓版面 (雖然是絕對定位，但加上保險) */
@@ -181,16 +192,6 @@
     /* 移除列表的點點 */
     padding: 0px;
     margin: 0;
-}
-
-/* 載入中的讀取條 (撈取舊訊息時顯示) */
-.YCIO-floating-chat-window .loading-spinner {
-    text-align: center;
-    font-size: 10px;
-    color: #888;
-    padding: 4px;
-    display: none;
-    /* 預設隱藏，由 JS 控制顯示 */
 }
 
 /* =========================================================
@@ -669,6 +670,7 @@
 .YCIO-floating-chat-window .chat-input-area .chat-toolbar .color-control-group {
     display: flex;
     align-items: center;
+    gap: 2px;
     border: 1px solid #474747;
     border-radius: 2px;
     padding-top: 1px;
@@ -906,9 +908,8 @@
     visibility: visible;
 }
 
-/* 按鈕文字：預設 */
-.YCIO-floating-chat-window .jump-to-bottom::after {
-    content: "回到底部";
+.YCIO-floating-chat-window .jump-label-unread {
+    display: none;
 }
 
 /* --- 新訊息通知狀態 (Unread) --- */
@@ -918,9 +919,12 @@
     color: #000000;
 }
 
-/* 當有新訊息時的文字 */
-.YCIO-floating-chat-window .jump-to-bottom.unread::after {
-    content: "有新訊息";
+.YCIO-floating-chat-window .jump-to-bottom.unread .jump-label-default {
+    display: none;
+}
+
+.YCIO-floating-chat-window .jump-to-bottom.unread .jump-label-unread {
+    display: inline;
 }
 
 /* =========================================================
@@ -965,9 +969,17 @@
 
 /* 單個頭像項目 卡片容器 */
 .YCIO-avatar-selector-window .avatar-card {
+    appearance: none;
     display: flex;
     flex-direction: column;
+    width: 100%;
+    height: auto;
+    margin: 0;
+    padding: 0;
     background: #111;
+    color: inherit;
+    font: inherit;
+    text-align: inherit;
     border: 1px solid #444;
     border-radius: 4px;
     overflow: hidden;
@@ -985,6 +997,7 @@
 
 /* 圖片區域 */
 .YCIO-avatar-selector-window .avatar-card .image-wrapper {
+    display: block;
     position: relative;
     width: 100%;
     /* 使用 padding-top 強制創造正方形 (1:1) */
@@ -992,6 +1005,23 @@
     background: #000;
     overflow: hidden;
     /* 確保圖片不溢出 */
+}
+
+.YCIO-avatar-selector-window .avatar-card .avatar-select-btn {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+}
+
+.YCIO-avatar-selector-window .avatar-card:focus-visible,
+.YCIO-avatar-selector-window .avatar-card .avatar-select-btn:focus-visible {
+    outline: 2px solid #ffd700;
+    outline-offset: -3px;
 }
 
 .YCIO-avatar-selector-window .avatar-card img {
@@ -1024,9 +1054,11 @@
     opacity: 0;
     transition: opacity 0.2s;
     cursor: pointer;
+    z-index: 1;
 }
 
-.YCIO-avatar-selector-window .avatar-card:hover .delete-btn {
+.YCIO-avatar-selector-window .avatar-card:hover .delete-btn,
+.YCIO-avatar-selector-window .avatar-card .delete-btn:focus-visible {
     opacity: 1;
 }
 
@@ -1232,9 +1264,10 @@
     text-shadow: 0 0 5px var(--color-shadow-primary);
 }
 
-.YCIO-message-editor-container .chat-toolbar button:hover .color-control-group {
+.YCIO-message-editor-container .chat-toolbar .color-control-group {
     display: flex;
     align-items: center;
+    gap: 2px;
     border: 1px solid #474747;
     border-radius: 2px;
     padding-top: 1px;
@@ -1243,7 +1276,7 @@
     padding-right: 2px;
 }
 
-.YCIO-message-editor-container .chat-toolbar .color-control-group #chat-text-color-picker {
+.YCIO-message-editor-container .chat-toolbar .color-control-group .YCIO-chat-text-color-picker {
     background: none;
     color: var(--color-text-light-highlight);
     cursor: pointer;
@@ -1253,11 +1286,11 @@
     line-height: 24px;
 }
 
-.YCIO-message-editor-container .chat-toolbar .color-control-group #chat-text-color-picker::-webkit-color-swatch-wrapper {
+.YCIO-message-editor-container .chat-toolbar .color-control-group .YCIO-chat-text-color-picker::-webkit-color-swatch-wrapper {
     padding: 0;
 }
 
-.YCIO-message-editor-container .chat-toolbar .color-control-group #chat-text-color-picker::-webkit-color-swatch {
+.YCIO-message-editor-container .chat-toolbar .color-control-group .YCIO-chat-text-color-picker::-webkit-color-swatch {
     border: none;
 }
 
@@ -1578,4 +1611,11 @@ body.YCIO-hide-native-ui #chat-popout {
 .YCIO-about-dialog .donate-link a:hover {
     color: #ff8877;
     text-shadow: 0 0 10px rgba(249, 104, 84, 0.8);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .YCIO-floating-chat-window #chat-wait-btn.YCIO-active,
+    .YCIO-pulse-animation {
+        animation: none;
+    }
 }

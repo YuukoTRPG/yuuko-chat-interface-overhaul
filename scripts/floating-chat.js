@@ -70,7 +70,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // --- 防抖動的視窗座標與大小存檔函式 (延遲 500ms) ---
         // 只有當動作停止 500ms 後才會真正寫入資料庫
         this._savePositionDebounced = foundry.utils.debounce((pos) => {
-            game.settings.set(MODULE_ID, "floatingChatPosition", pos);
+            void game.settings.set(MODULE_ID, "floatingChatPosition", pos)
+                .catch(error => console.error("YCIO | 儲存視窗位置失敗:", error));
         }, 500);
 
         // 預設分頁：ooc
@@ -78,6 +79,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // 初始化 HTML 快取容器
         this._messageCache = new Map();
+        this._contentGeneration = 0;
+        this._historyExhausted = new Set();
+        this._contentMutationQueue = Promise.resolve();
 
         // --- 未讀分頁狀態追蹤 (Unread Tabs Tracking) ---
         // 記錄當下有哪些分頁 (ooc 或 SceneID) 包含未讀訊息
@@ -93,6 +97,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // --- 打字狀態變數 ---
         this._typingTimeout = null;         // 倒數計時器
         this._isBroadcastingTyping = false; // 避免重複寫入資料庫
+        this._typingDesired = false;
+        this._typingWrite = Promise.resolve();
+        this._isSending = false;
+        this._isProcessingYCIOMessage = false;
 
         // --- 馬賽克發言者 (暫態，重整即恢復) ---
         this._isMosaicActive = false;
@@ -101,8 +109,6 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         this._hooks = [];               // 陣列以便管理多個 Hooks
         this._mainHooksRegistered = false; // 用來標記主要 Hooks 是否已註冊
 
-        // --- 監聽設定變更，即時更新視窗樣式 ---
-        Hooks.on("YCIO_UpdateStyle", () => this._applyCustomStyles());
     }
 
     /**
@@ -198,7 +204,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         const messageId = messageElement?.dataset.messageId;
         const message = game.messages.get(messageId);
 
-        if (message) await message.delete();
+        if (message?.canUserModify(game.user, "delete")) await message.delete();
     }
 
     /**
@@ -214,8 +220,6 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         }
     }
 
-    /**
-     * Action: 切換「稍等一下」狀態
     /**
      * Action: 切換「稍等一下」狀態
      */
@@ -236,6 +240,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // 按鈕的樣式更新會由 _updateWaitButtonState 處理，或者等待 Hook 回調
         // 暫時先手動切換 class 等等可以註解掉
         target.classList.toggle("YCIO-active", newState);
+        target.setAttribute("aria-pressed", String(newState));
     }
 
     /**
@@ -249,6 +254,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
         const isVisible = panel.style.display !== "none";
         panel.style.display = isVisible ? "none" : "";
+        target.setAttribute("aria-expanded", String(!isVisible));
     }
 
     /**
@@ -339,8 +345,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     static onToggleMinimize(event, target) {
         event.preventDefault();
-        // 在 ApplicationV2 的 action 中，this 指向視窗實例
-        this.minimize();
+        return this.minimized ? this.maximize() : this.minimize();
     }
 
     /**
@@ -353,53 +358,29 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * 準備渲染訊息資料
      * @returns {Object} 提供給 Handlebars 的資料
      */
-    async _prepareContext(_options) {
+    async _prepareContext(_options = {}) {
         // 1. 準備場景列表 (給 chat-tabs.hbs 使用)
-        const scenes = getAvailableSpeakerScenes().map(s => ({
+        const availableScenes = getAvailableSpeakerScenes();
+        const scenes = availableScenes.map(s => ({
             id: s.id,
             name: s.navName || s.name,
             active: s.id === this.activeTab,
             hasUnread: this._unreadTabs.has(s.id) // 標記是否有未讀訊息
         }));
 
-        // 2. 準備訊息列表 (根據當前 activeTab 過濾)
-        const allMessages = game.messages.contents;
-        const filteredMessages = [];
+        // tabs/input 的局部 render 不需要重新渲染 50 則訊息。
+        const requestedParts = _options.parts || Object.keys(FloatingChat.PARTS);
+        const messageElements = [];
+        if (requestedParts.includes("content")) {
+            const generation = this._contentGeneration;
+            const tabId = this.activeTab;
+            const filteredMessages = this._latestMessagesForTab(tabId);
 
-        // 從最新訊息開始往回找，直到湊滿 50 筆符合當前分頁的訊息
-        for (let i = allMessages.length - 1; i >= 0; i--) {
-            const msg = allMessages[i];
-            if (isMessageVisibleInTab(msg, this.activeTab)) {
-                filteredMessages.unshift(msg);
-                if (filteredMessages.length >= 50) break;
+            for (const message of filteredMessages) {
+                const messageElement = await this._getMessageElement(message);
+                if (generation !== this._contentGeneration || tabId !== this.activeTab) break;
+                messageElements.push(messageElement);
             }
-        }
-
-        // 不回傳 renderedMessages 字串陣列給 Handlebars，而是把 DOM 元素準備好，存在 this._contextMessageElements 供 _onRender 使用
-        this._contextMessageElements = [];
-
-        for (const m of filteredMessages) {
-            let messageElement;
-
-            // 快取檢查 (現在 Map 裡存的是 HTMLElement)
-            if (this._messageCache.has(m.id)) {
-                messageElement = this._messageCache.get(m.id);
-            } else {
-                // 1. 渲染與 DOM 處理
-                const html = await m.renderHTML();
-                messageElement = html instanceof jQuery ? html[0] : html;
-
-                enrichMessageHTML(m, messageElement); // 注入頭像
-
-                // 2. 觸發函式，根據Config決定是 renderChatLog 或 renderChatMessage 綁定事件監聽
-                // 只在元素產生時做一次，以後切換分頁都不再做
-                triggerRenderHooks(this, m, messageElement);
-
-                // 3. 寫入快取 (存 DOM 物件)
-                this._messageCache.set(m.id, messageElement);
-            }
-
-            this._contextMessageElements.push(messageElement);
         }
 
         // 準備發話身份列表 (Speakers)，呼叫chat-helpers.js的函式
@@ -417,7 +398,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             oocHasUnread: this._unreadTabs.has("ooc"), // 傳遞 OOC 分頁的未讀狀態
             speakers: speakers,
             draftContent: draftContent,
-            isGM: game.user.isGM
+            isGM: game.user.isGM,
+            messageElements
         };
     }
 
@@ -478,20 +460,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             const log = this.element.querySelector("#custom-chat-log");
             if (log) {
                 if (!log.dataset.hooksBound) {
-                    // 將準備好的 DOM 元素注入容器
-                    // 因為 this._contextMessageElements 裡的是「活的」DOM 物件
-                    // 瀏覽器會保留上面的事件監聽器 (Event Listeners)
-                    if (this._contextMessageElements && this._contextMessageElements.length > 0) {
+                    // 將本次 render context 準備好的 DOM 元素注入容器。
+                    if (context.messageElements?.length > 0) {
                         const fragment = document.createDocumentFragment();
-                        this._contextMessageElements.forEach(el => fragment.appendChild(el));
+                        context.messageElements.forEach(el => fragment.appendChild(el));
                         log.appendChild(fragment);
-                    }
-
-                    // 準備傳給 Hook 的 jQuery 物件，如果是隔離模式 (Clone)，複製假容器給它綁定
-                    let $hookLog = $(log);
-                    const mode = game.settings.get(MODULE_ID, "hookCompatibilityMode");
-                    if (mode === "clone") {
-                        $hookLog = $hookLog.clone();
                     }
 
                     // 取得設定：決定隔離模式與參數型別
@@ -505,7 +478,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                     let finalHookArgument = argType === "jquery" ? $(baseElement) : baseElement;
 
                     // 全域觸發一次 renderChatLog
-                    Hooks.call("renderChatLog", this, finalHookArgument, {});
+                    Hooks.callAll("renderChatLog", this, finalHookArgument, {});
 
                     // 標記為已綁定
                     log.dataset.hooksBound = "true";
@@ -549,7 +522,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
                 this._programmaticScroll = true;
                 setTimeout(() => {
-                    const scrollContainer = this.element.querySelector(".chat-scroll");
+                    if (!this.rendered || !log.isConnected) {
+                        this._programmaticScroll = false;
+                        return;
+                    }
+                    const scrollContainer = this.element?.querySelector(".chat-scroll");
                     if (scrollContainer) {
                         scrollContainer.scrollTop = scrollContainer.scrollHeight;
                     } else {
@@ -564,6 +541,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // --- B. 輸入區 (Input) 事件綁定 ---
         // 包含：發話身分選單、頭像按鈕、顏色選擇器、輸入框、發送按鈕
         if (parts.includes("input")) {
+            if (this._quickRollClickOutsideTimeout) {
+                clearTimeout(this._quickRollClickOutsideTimeout);
+                this._quickRollClickOutsideTimeout = null;
+            }
+            if (this._quickRollClickOutside) {
+                document.removeEventListener("click", this._quickRollClickOutside);
+                this._quickRollClickOutside = null;
+            }
+
             // 1. 發話身分選單
             const speakerSelect = this.element.querySelector("#chat-speaker-select");
             if (speakerSelect) {
@@ -685,13 +671,14 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
             if (sendBtn && input) {
                 sendBtn.addEventListener("click", async () => {
-                    const content = input.value.trim();
-                    if (content) {
+                    const content = input.value;
+                    if (content.trim()) {
                         this._stopTypingBroadcast();
-                        await this._processMessage(content);
-                        input.value = "";
-                        input.focus();
-                        this._adjustInputHeight(input);
+                        if (await this._processMessage(content)) {
+                            input.value = "";
+                            input.focus();
+                            this._adjustInputHeight(input);
+                        }
                     }
                 });
             }
@@ -702,6 +689,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 const isWaiting = game.user.getFlag(FLAG_SCOPE, "isWaiting");
                 // 如果 flag 為 true，加上 active class
                 waitBtn.classList.toggle("YCIO-active", !!isWaiting);
+                waitBtn.setAttribute("aria-pressed", String(!!isWaiting));
             }
 
             // 6. 快速擲骰面板事件綁定
@@ -718,6 +706,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                         const count = diceCounts[d] || 0;
                         badge.textContent = count > 0 ? count : "";
                         badge.classList.toggle("visible", count > 0);
+                        btn.setAttribute("aria-label", count > 0 ? "d" + d + " × " + count : "d" + d);
                     });
                 };
 
@@ -730,6 +719,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 // 關閉面板
                 const closePanel = () => {
                     quickRollPanel.style.display = "none";
+                    this.element.querySelector("#YCIO-quick-roll-btn")
+                        ?.setAttribute("aria-expanded", "false");
                     resetDice();
                 };
 
@@ -766,12 +757,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                             return;
                         }
                         const formula = `/r ${parts.join("+")}`;
-                        try {
-                            await ui.chat.processMessage(formula);
-                        } catch (err) {
-                            console.error("YCIO | 快速擲骰錯誤:", err);
-                        }
-                        closePanel();
+                        if (await this._processMessage(formula)) closePanel();
                     });
                 }
 
@@ -783,7 +769,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
                 // 點擊面板外區域自動關閉
                 // 使用 setTimeout 確保本次點擊事件不會立即觸發關閉
-                setTimeout(() => {
+                this._quickRollClickOutsideTimeout = setTimeout(() => {
                     const onClickOutside = (ev) => {
                         const wrapper = this.element.querySelector(".YCIO-quick-roll-wrapper");
                         if (wrapper && !wrapper.contains(ev.target) && quickRollPanel.style.display !== "none") {
@@ -791,8 +777,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                         }
                     };
                     document.addEventListener("click", onClickOutside);
-                    // 儲存清理函式，在視窗關閉時移除
                     this._quickRollClickOutside = onClickOutside;
+                    this._quickRollClickOutsideTimeout = null;
                 }, 0);
             }
 
@@ -804,19 +790,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         if (this._scrollCheckInterval) clearInterval(this._scrollCheckInterval);
         this._scrollCheckInterval = setInterval(() => this._toggleJumpToBottomButton(), 1000);
 
-        // --- C. 分頁列 (Tabs) 事件綁定 ---
-        if (parts.includes("tabs")) {
-            const tabs = this.element.querySelectorAll(".tabs .item");
-            tabs.forEach(tab => {
-                tab.addEventListener("click", (ev) => {
-                    ev.preventDefault();
-                    const tabId = ev.currentTarget.dataset.tab;
-                    this.changeTab(tabId);
-                });
-            });
-        }
-
-        // --- D. Hooks 註冊 (只需註冊一次) ---
+        // --- C. Hooks 註冊 (只需註冊一次) ---
         if (!this._mainHooksRegistered) {
             this._mainHooksRegistered = true; // 鎖定，防止重複註冊
 
@@ -825,11 +799,13 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 const id = Hooks.on(hook, fn);
                 this._hooks.push({ hook, id });
             };
+            register("YCIO_UpdateStyle", () => this._applyCustomStyles());
 
             // 2. 打字狀態同步
             register("updateUser", (user, changes) => {
                 if (changes.flags?.[FLAG_SCOPE]) this._updateTypingDisplay();
             });
+            register("YCIO_AvatarChanged", () => this._updateAvatarBtnTooltip());
 
             // 3. 場景切換監聽 (自動切換分頁)
             register("canvasDraw", (canvas) => {
@@ -837,19 +813,20 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 // 如果新場景存在，且當前分頁不是該場景 -> 切換
                 // 這會讓分頁始終跟隨 GM 或玩家切換的場景
                 if (newSceneId && this.activeTab !== newSceneId) {
-                    this.changeTab(newSceneId, false);
+                    void this.changeTab(newSceneId, false);
                 }
             });
 
             // 4. 訊息建立前攔截監聽 (Snapshot Avatar & Force Speaker Identity)
             register("preCreateChatMessage", (messageDoc, initialData, context, userId) => {
+                if (!this._isProcessingYCIOMessage || userId !== game.user.id) return;
+                this._isProcessingYCIOMessage = false;
 
                 const speakerSelect = this.element.querySelector("#chat-speaker-select");
                 const selection = speakerSelect ? speakerSelect.value : "ooc";
 
                 // 判斷使用者是否使用了 /ooc 指令
-                // CONST.CHAT_MESSAGE_STYLES.OOC 的值為 1
-                const isOOCCommand = messageDoc.style === 1;
+                const isOOCCommand = messageDoc.style === CONST.CHAT_MESSAGE_STYLES.OOC;
 
                 // 如果選單選的是 OOC，或者使用者手動打了 /ooc 指令
                 if (selection === "ooc" || isOOCCommand) {
@@ -882,14 +859,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
             // 5. 場景列表更新監聽 (新增/刪除/改名，還有選擇Token時重繪)
             register("controlToken", () => this.render({ parts: ["input", "tabs"] }));
-            register("createToken", () => this.render({ parts: ["input", "tabs"] }));
-            register("deleteToken", () => this.render({ parts: ["input", "tabs"] }));
+            const queueSceneRefresh = () => this.queueContentMutation(() => this._refreshSceneUI());
+            register("createToken", queueSceneRefresh);
+            register("deleteToken", queueSceneRefresh);
             register("updateToken", (token, changes) => {
                 const keys = Object.keys(changes);
                 const speakerChanged = keys.some(k => k.includes("actorId") || k.includes("name") || k.includes("hidden"));
 
                 if (speakerChanged) {
-                    this.render({ parts: ["input", "tabs"] });
+                    queueSceneRefresh();
                 }
             });
             register("updateActor", (actor, changes) => {
@@ -897,11 +875,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 const ownershipChanged = keys.some(k => k.includes("ownership"));
 
                 if (ownershipChanged) {
-                    this.render({ parts: ["input", "tabs"] });
+                    queueSceneRefresh();
                 }
             });
-            register("createScene", () => this.render());
-            register("deleteScene", () => this.render());
+            register("createScene", queueSceneRefresh);
+            register("deleteScene", queueSceneRefresh);
             register("updateScene", (scene, changes) => {
                 // 取得所有變更的屬性名稱 (Keys)
                 const keys = Object.keys(changes);
@@ -910,15 +888,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 // 使用 includes 可以同時捕捉 "ownership" 和 "ownership.xxxx"
                 const ownershipChanged = keys.some(k => k.includes("ownership"));
 
-                // 2. 檢查是否涉及導覽列顯示 (navigation) 或 可見度 (visible)
-                const visibilityChanged = keys.includes("navigation") || keys.includes("visible");
+                // Scene update diff 使用 source 欄位；visible 是衍生 getter，不會出現在 changes。
+                const visibilityChanged = keys.includes("navigation") || keys.includes("active");
 
                 // 3. 檢查名稱變更
                 const nameChanged = keys.includes("name") || keys.includes("navName");
 
                 // 只有當上述任一條件成立時，才觸發重繪
                 if (ownershipChanged || visibilityChanged || nameChanged) {
-                    this.render();
+                    queueSceneRefresh();
                 }
             });
         }
@@ -931,49 +909,122 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         applyWindowStyles(this.element, game.user);
     }
 
-    /**
-     * 視窗關閉時的清理工作或動作攔截
-     * @param {Object} options - 關閉時的選項 
-     */
-    async close(options) {
-        // 防呆：確保 options 是一個物件，如果它是 undefined 就設為空物件
-        options = options || {};
+    async _refreshSceneUI() {
+        const activeSceneIsAvailable = this.activeTab === "ooc"
+            || getAvailableSpeakerScenes().some(scene => scene.id === this.activeTab);
+        if (!activeSceneIsAvailable) return this._changeTab("ooc", false);
 
-        // 無論是強制關閉還是最小化，都清除計時器
-        // (如果是最小化，使用者看不到視窗，也不需要檢查捲動，節省效能)
-        if (this._scrollCheckInterval) {
-            clearInterval(this._scrollCheckInterval);
-            this._scrollCheckInterval = null;
+        const generation = ++this._contentGeneration;
+        const tabId = this.activeTab;
+        this._historyExhausted.clear();
+        await this.render({ parts: ["tabs", "input"] });
+        if (generation !== this._contentGeneration || tabId !== this.activeTab) return;
+        await this._refreshChatLogDOM(generation, tabId);
+    }
+
+    _onClose(options) {
+        if (this._scrollCheckInterval) clearInterval(this._scrollCheckInterval);
+        this._scrollCheckInterval = null;
+        if (this._typingTimeout) clearTimeout(this._typingTimeout);
+        this._typingTimeout = null;
+        if (this._quickRollClickOutsideTimeout) clearTimeout(this._quickRollClickOutsideTimeout);
+        this._quickRollClickOutsideTimeout = null;
+        if (this._quickRollClickOutside) {
+            document.removeEventListener("click", this._quickRollClickOutside);
         }
+        this._quickRollClickOutside = null;
+        this._programmaticScroll = false;
+        this._isLoadingOlder = false;
+        this._isBroadcastingTyping = false;
+        this._typingDesired = false;
 
-        // 如果傳入 force: true (例如模組卸載、或是程式碼強制關閉時)，才真正執行關閉
-        if (options.force) {
-            // --- 執行原本的 Hooks 清理工作 ---
-            this._hooks.forEach(h => Hooks.off(h.hook, h.id));
-            this._hooks = [];
-            this._mainHooksRegistered = false;
+        this._savePositionDebounced?.cancel?.();
+        this._contextMenu?.close?.({ animate: false });
+        this._contextMenu = null;
+        this._hooks.forEach(({ hook, id }) => Hooks.off(hook, id));
+        this._hooks = [];
+        this._mainHooksRegistered = false;
+        this._messageCache.clear();
+        this._historyExhausted.clear();
+        this._contentGeneration++;
+        void this._setTypingFlag(false);
 
-            // 呼叫父層真正的關閉邏輯
-            return super.close(options);
-        }
-
-        // --- 否則：只執行最小化 ---
-        // 這是 ApplicationV2 內建的方法，會將視窗收折到剩標題列
-        return this.minimize();
+        return super._onClose(options);
     }
 
     /**
      * 覆寫 setPosition 以便在移動/縮放時自動存檔
      */
     setPosition(position = {}) {
-        // 1. 執行原本的定位邏輯
-        const newPosition = super.setPosition(position);
+        const result = super.setPosition(position);
+        this._savePositionDebounced?.({
+            left: this.position.left,
+            top: this.position.top,
+            width: this.position.width,
+            height: this.position.height
+        });
+        return result;
+    }
 
-        // 2. 觸發存檔 (使用防抖動函式)
-        // 注意：newPosition 包含了 {left, top, width, height}
-        this._savePositionDebounced(newPosition);
+    /**
+     * 序列化所有會替換或增刪聊天內容 DOM 的工作。
+     * ponytail: a single queue is sufficient for normal chat volume.
+     */
+    queueContentMutation(task) {
+        const operation = this._contentMutationQueue.then(() => {
+            if (!this.rendered) return;
+            return task();
+        });
+        this._contentMutationQueue = operation.catch(error => {
+            console.error("YCIO | 聊天內容更新失敗:", error);
+        });
+        return this._contentMutationQueue;
+    }
 
-        return newPosition;
+    reconcileMessages() {
+        return this.queueContentMutation(async () => {
+            const generation = ++this._contentGeneration;
+            const tabId = this.activeTab;
+            this._historyExhausted.clear();
+            await this._refreshChatLogDOM(generation, tabId);
+        });
+    }
+
+    _latestMessagesForTab(tabId, limit = 50) {
+        const messages = [];
+        const allMessages = game.messages.contents;
+        for (let index = allMessages.length - 1; index >= 0; index--) {
+            const message = allMessages[index];
+            if (!isMessageVisibleInTab(message, tabId)) continue;
+            messages.unshift(message);
+            if (messages.length >= limit) break;
+        }
+        return messages;
+    }
+
+    _cacheMessage(messageId, element) {
+        this._messageCache.delete(messageId);
+        this._messageCache.set(messageId, element);
+
+        // ponytail: FIFO 200 is sufficient for the visible window plus history;
+        // replace with measured LRU behavior only if real sessions need it.
+        while (this._messageCache.size > 200) {
+            this._messageCache.delete(this._messageCache.keys().next().value);
+        }
+    }
+
+    async _getMessageElement(message, { fresh = false } = {}) {
+        if (!fresh) {
+            const cached = this._messageCache.get(message.id);
+            if (cached) return cached;
+        }
+
+        const rendered = await message.renderHTML();
+        const element = rendered instanceof jQuery ? rendered[0] : rendered;
+        enrichMessageHTML(message, element);
+        triggerRenderHooks(this, message, element);
+        this._cacheMessage(message.id, element);
+        return element;
     }
 
 
@@ -998,7 +1049,18 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * @param {boolean} triggerSceneView - 是否連動視角切換至目標點
      */
     async changeTab(tabId, triggerSceneView = true) {
+        return this.queueContentMutation(() => this._changeTab(tabId, triggerSceneView));
+    }
+
+    async _changeTab(tabId, triggerSceneView = true) {
         if (this.activeTab === tabId) return;
+
+        const scene = tabId === "ooc" ? null : game.scenes.get(tabId);
+        if (tabId !== "ooc" && !scene) tabId = "ooc";
+        if (this.activeTab === tabId) return;
+
+        // 場景檢視失敗時不要提前提交分頁狀態，避免畫布、狀態與舊 DOM 分離。
+        if (triggerSceneView && scene) await scene.view();
 
         // --- 清除該分頁的未讀狀態 ---
         // 當使用者切換到該分頁時，移除未讀狀態並在後續的 render 消除紅點
@@ -1007,90 +1069,37 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         }
 
         this.activeTab = tabId;
+        const generation = ++this._contentGeneration;
 
-        // 1. 連動切換 FVTT 場景 (僅當目標不是 ooc 時)
-        if (triggerSceneView && tabId !== "ooc") {
-            const scene = game.scenes.get(tabId);
-            if (scene) await scene.view();
-        }
-
-        // 2. 重新渲染並等待渲染完成
+        // 1. 重新渲染並等待渲染完成
         await this.render({ parts: ["tabs", "input"] });
+        if (generation !== this._contentGeneration || tabId !== this.activeTab) return;
 
-        // 3. 呼叫自定義的 DOM 抽換方法
-        await this._refreshChatLogDOM();
+        // 2. 呼叫自定義的 DOM 抽換方法
+        await this._refreshChatLogDOM(generation, tabId);
     }
 
     /**
      * 手動換皮：抽換聊天容器內的訊息，避免摧毀容器本身
      */
-    async _refreshChatLogDOM() {
+    async _refreshChatLogDOM(generation = this._contentGeneration, tabId = this.activeTab) {
         const log = this.element.querySelector("#custom-chat-log");
         if (!log) return;
         const scrollContainer = this.element.querySelector(".chat-scroll");
-
-        // 1. 過濾出屬於新分頁的最新 50 筆訊息
-        const allMessages = game.messages.contents;
-        const filteredMessages = [];
-        for (let i = allMessages.length - 1; i >= 0; i--) {
-            const msg = allMessages[i];
-            if (isMessageVisibleInTab(msg, this.activeTab)) {
-                filteredMessages.unshift(msg);
-                if (filteredMessages.length >= 50) break;
-            }
+        const elements = [];
+        for (const message of this._latestMessagesForTab(tabId)) {
+            elements.push(await this._getMessageElement(message));
+            if (generation !== this._contentGeneration || tabId !== this.activeTab) return;
         }
 
-        // 2. 清空當前容器內的 DOM 節點 (不摧毀容器本身)
-        // 使用 replaceChildren 效能極佳，且不會破壞原本被移出畫面的節點
-        log.replaceChildren();
-
-        // 3. 組裝新分頁的 DOM
+        if (log !== this.element.querySelector("#custom-chat-log")) return;
         const fragment = document.createDocumentFragment();
-        for (const m of filteredMessages) {
-            let messageElement;
-
-            if (this._messageCache.has(m.id)) {
-                messageElement = this._messageCache.get(m.id);
-            } else {
-                const html = await m.renderHTML();
-                messageElement = html instanceof jQuery ? html[0] : html;
-                enrichMessageHTML(m, messageElement);
-
-                // 觸發單筆訊息的 Hook
-                triggerRenderHooks(this, m, messageElement);
-
-                this._messageCache.set(m.id, messageElement);
-            }
-            fragment.appendChild(messageElement);
-        }
-
-        // 4. 一次性塞入容器並置底
-        log.appendChild(fragment);
+        elements.forEach(element => fragment.appendChild(element));
+        log.replaceChildren(fragment);
         if (scrollContainer) {
             scrollContainer.scrollTop = scrollContainer.scrollHeight;
         } else {
             log.scrollTop = log.scrollHeight;
-        }
-    }
-
-    /**
-     * 判斷訊息是否屬於當前分頁 (過濾器)
-     * @param {ChatMessage} message - 指定訊息 
-     */
-    _isMessageVisibleInTab(message) {
-        // 首先檢查是否有權限看到這條訊息
-        // 如果是 GM 隱藏的訊息，對玩家來說 message.visible 會是 false
-        if (!message.visible) return false;
-
-        const msgSceneId = message.speaker.scene;
-        const msgTokenId = message.speaker.token;
-
-        if (this.activeTab === "ooc") {
-            // OOC 分頁：沒有 Token 的訊息才顯示
-            return !msgTokenId;
-        } else {
-            // 場景分頁：必須屬於該場景，且必須有 Token
-            return msgSceneId === this.activeTab && !!msgTokenId;
         }
     }
 
@@ -1113,8 +1122,13 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         this._toggleJumpToBottomButton();
 
         // 載入舊訊息的邏輯
-        if (log.scrollTop < 50 && !this._isLoadingOlder) {
-            await this._loadOlderMessages(log);
+        if (log.scrollTop < 50 && !this._isLoadingOlder && !this._historyExhausted.has(this.activeTab)) {
+            this._isLoadingOlder = true;
+            try {
+                await this.queueContentMutation(() => this._loadOlderMessages(log));
+            } finally {
+                this._isLoadingOlder = false;
+            }
         }
     }
 
@@ -1149,86 +1163,56 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * @param {HTMLElement} logElement - 滾動區域元素
      */
     async _loadOlderMessages(logElement) {
-        this._isLoadingOlder = true;
+        const generation = this._contentGeneration;
+        const tabId = this.activeTab;
 
-        const logContainer = logElement.querySelector("#custom-chat-log");
-        if (!logContainer) {
-            this._isLoadingOlder = false;
-            return;
-        }
+        try {
+            const logContainer = logElement.matches?.("#custom-chat-log")
+                ? logElement
+                : logElement.querySelector("#custom-chat-log");
+            const firstMessageEl = logContainer?.querySelector(".message");
+            if (!logContainer || !firstMessageEl) return;
 
-        const firstMessageEl = logContainer.querySelector(".message");
-        if (!firstMessageEl) {
-            this._isLoadingOlder = false;
-            return;
-        }
+            const allMessages = game.messages.contents;
+            const anchorMsg = game.messages.get(firstMessageEl.dataset.messageId);
+            if (!anchorMsg) return;
 
-        const firstMsgId = firstMessageEl.dataset.messageId;
-        const allMessages = game.messages.contents;
-
-        // 用 Map 查找物件 + indexOf，比 findIndex 遍歷更快
-        const anchorMsg = game.messages.get(firstMsgId);
-
-        // 如果該訊息剛好被刪除導致找不到，直接中止
-        if (!anchorMsg) {
-            this._isLoadingOlder = false;
-            return;
-        }
-
-        const currentIndex = allMessages.indexOf(anchorMsg);
-
-        if (currentIndex <= 0) {
-            this._isLoadingOlder = false;
-            return;
-        }
-
-        // --- 使用過濾器往前搜尋 20 筆 ---
-        const BATCH_SIZE = 20;
-        const olderMessages = [];
-        let searchIndex = currentIndex - 1;
-
-        while (olderMessages.length < BATCH_SIZE && searchIndex >= 0) {
-            const msg = allMessages[searchIndex];
-            // 只有符合當前分頁的才加入
-            if (isMessageVisibleInTab(msg, this.activeTab)) {
-                // 用 push (O(1)) 取代 unshift (O(N))
-                olderMessages.push(msg);
+            const currentIndex = allMessages.indexOf(anchorMsg);
+            if (currentIndex <= 0) {
+                this._historyExhausted.add(tabId);
+                return;
             }
-            searchIndex--;
+
+            const olderMessages = [];
+            let searchIndex = currentIndex - 1;
+            while (olderMessages.length < 20 && searchIndex >= 0) {
+                const message = allMessages[searchIndex--];
+                if (isMessageVisibleInTab(message, tabId)) olderMessages.push(message);
+            }
+            olderMessages.reverse();
+
+            if (olderMessages.length === 0) {
+                this._historyExhausted.add(tabId);
+                return;
+            }
+
+            const previousScrollHeight = logElement.scrollHeight;
+            const previousScrollTop = logElement.scrollTop;
+            const elements = [];
+            for (const message of olderMessages) {
+                elements.push(await this._getMessageElement(message));
+                if (generation !== this._contentGeneration || tabId !== this.activeTab) return;
+            }
+
+            if (logContainer !== this.element.querySelector("#custom-chat-log")) return;
+            const fragment = document.createDocumentFragment();
+            elements.forEach(element => fragment.appendChild(element));
+            logContainer.insertBefore(fragment, logContainer.firstChild);
+            logElement.scrollTop = logElement.scrollHeight - previousScrollHeight + previousScrollTop;
+            if (searchIndex < 0) this._historyExhausted.add(tabId);
+        } catch (error) {
+            console.error("YCIO | 載入歷史訊息失敗:", error);
         }
-
-        // 因為是用 push 收集 (新->舊)，需要反轉回正確的時間序 (舊->新)
-        olderMessages.reverse();
-
-        // --- 檢查歷史訊息有沒有內容 ---
-        if (olderMessages.length === 0) {
-            this._isLoadingOlder = false;
-            return;
-        }
-
-        const previousScrollHeight = logElement.scrollHeight;
-        const previousScrollTop = logElement.scrollTop;
-
-        // 將 HTML 渲染與處理放入 fragment 中再塞入 DOM
-        const fragment = document.createDocumentFragment();
-        for (const msg of olderMessages) {
-            const rawHtml = await msg.renderHTML();
-            const htmlElement = rawHtml instanceof jQuery ? rawHtml[0] : rawHtml; // 正規化提取原生 DOM
-            enrichMessageHTML(msg, htmlElement); // 放入頭像
-
-            triggerRenderHooks(this, msg, htmlElement);
-            this._messageCache.set(msg.id, htmlElement);
-
-            fragment.appendChild(htmlElement);
-        }
-
-        logContainer.insertBefore(fragment, logContainer.firstChild);
-
-        // 校準捲軸位置
-        const newScrollHeight = logElement.scrollHeight;
-        logElement.scrollTop = newScrollHeight - previousScrollHeight + previousScrollTop;
-
-        this._isLoadingOlder = false;
     }
 
     /**
@@ -1238,7 +1222,16 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     _playNotification(message) {
         if (shouldPlayNotification(message)) {
             const soundPath = game.settings.get(MODULE_ID, "notificationSoundPath");
-            AudioHelper.play({ src: soundPath, volume: game.settings.get("core", "globalInterfaceVolume"), autoplay: true, loop: false }, false);
+            try {
+                foundry.audio.AudioHelper.play({
+                    src: soundPath,
+                    volume: game.settings.get("core", "globalInterfaceVolume"),
+                    autoplay: true,
+                    loop: false
+                }, false);
+            } catch (error) {
+                console.warn("YCIO | 播放通知音效失敗:", error);
+            }
         }
     }
 
@@ -1247,68 +1240,45 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * @param {ChatMessage} message - 新建立的訊息
      */
     async appendMessage(message) {
-        // 一旦開始有新訊息，就嘗試播放音效 (邏輯判斷都在函式內)
+        const targetTab = getMessageRouteId(message);
+        if (!isMessageVisibleInTab(message, targetTab)) return;
         this._playNotification(message);
 
-        // 1. 取得這則訊息該去哪 (使用核心路由)
-        const targetTab = getMessageRouteId(message);
-
-        // 2. 判定是否需要自動跳轉
-        // 條件：是我發的 (isAuthor) 且 當前不在目標分頁
         if (message.isAuthor && this.activeTab !== targetTab) {
-            // 等待切換完成 (包含 Render)
-            await this.changeTab(targetTab, false);
+            await this._changeTab(targetTab, false);
         }
 
-        // 3. 如果訊息不屬於當前分頁 (且剛剛沒跳轉)，則忽略
         if (!isMessageVisibleInTab(message, this.activeTab)) {
-            // --- 處理未讀小紅點邏輯 ---
-            // 如果這則訊息在其所屬的分頁中可見，則將該分頁標記為未讀
-            if (isMessageVisibleInTab(message, targetTab)) {
-                this._unreadTabs.add(targetTab);
-                this.render({ parts: ["tabs"] }); // 僅重繪分頁標籤列以顯示紅點
-            }
+            this._unreadTabs.add(targetTab);
+            void this.render({ parts: ["tabs"] });
             return;
         }
 
-        // 4. 重新抓取 Log DOM (確保是切換後的新 DOM)
+        const generation = this._contentGeneration;
+        const tabId = this.activeTab;
         const log = this.element.querySelector("#custom-chat-log");
         if (!log) return;
         const scrollContainer = this.element.querySelector(".chat-scroll");
 
-        // 判斷使用者是否正在瀏覽舊訊息 (在插入前判斷)
-        let isAtBottom = true;
-        if (scrollContainer) {
-            const distanceToBottom = scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight;
-            isAtBottom = distanceToBottom < 50;
-        } else {
-            const distanceToBottom = log.scrollHeight - log.scrollTop - log.clientHeight;
-            isAtBottom = distanceToBottom < 50;
-        }
+        const scrollElement = scrollContainer || log;
+        const distanceToBottom = scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight;
+        const isAtBottom = distanceToBottom < 50;
 
-        const rawHtml = await message.renderHTML();
-        const htmlElement = rawHtml instanceof jQuery ? rawHtml[0] : rawHtml; // 正規化提取原生 DOM
-        enrichMessageHTML(message, htmlElement); // 放入頭像
-        log.appendChild(htmlElement);
+        const htmlElement = await this._getMessageElement(message, { fresh: true });
+        if (generation !== this._contentGeneration || tabId !== this.activeTab) return;
+        if (log !== this.element.querySelector("#custom-chat-log")) return;
+        if (game.messages.get(message.id) !== message || !isMessageVisibleInTab(message, tabId)) return;
 
-        // 針對這一條新訊息觸發函式
-        triggerRenderHooks(this, message, htmlElement);
-        // 並同步寫入快取 (這很重要，如此下次切換分頁時，這條帶有事件的 DOM 才會被保留)
-        this._messageCache.set(message.id, htmlElement);
+        const existing = log.querySelector(`[data-message-id="${message.id}"]`);
+        if (existing) existing.replaceWith(htmlElement);
+        else log.appendChild(htmlElement);
 
         const jumpBtn = this.element.querySelector(".jump-to-bottom");
 
-        // 5. 自動捲動邏輯
-        // 如果是我發的 -> 強制置底 (User Experience 核心)
-        // 或者原本就在底部 -> 保持置底
         if (message.isAuthor || isAtBottom) {
-            // 使用 setTimeout 確保 DOM 佈局計算完成後再捲動 (雙重保險)
             setTimeout(() => {
-                if (scrollContainer) {
-                    scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: "smooth" });
-                } else {
-                    log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
-                }
+                if (generation !== this._contentGeneration || !scrollElement.isConnected) return;
+                scrollElement.scrollTo({ top: scrollElement.scrollHeight, behavior: "smooth" });
             }, 0);
             jumpBtn?.classList.remove("visible", "unread");
         } else {
@@ -1329,9 +1299,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
         const log = this.element.querySelector("#custom-chat-log");
         const el = log?.querySelector(`[data-message-id="${messageId}"]`);
-        if (el) {
-            $(el).slideUp(200, () => el.remove()); // jQuery 動畫效果
-        }
+        el?.remove();
     }
 
     /**
@@ -1341,14 +1309,14 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     async updateMessageInDOM(message) {
         this.invalidateCache(message.id); // 訊息更新清除快取
+        this._historyExhausted.delete(getMessageRouteId(message));
         const log = this.element.querySelector("#custom-chat-log");
         if (!log) return;
 
         // 取得目前 DOM 裡的元素
         const el = log.querySelector(`[data-message-id="${message.id}"]`);
 
-        // 核心判斷：我有權限看這則訊息嗎？(Foundry 原生屬性)
-        const isVisible = message.visible;
+        const isVisible = isMessageVisibleInTab(message, this.activeTab);
 
         // 狀況 A: 我沒權限看 (例如被改為私訊)，但它卻在畫面上 -> 移除
         if (!isVisible) {
@@ -1358,16 +1326,13 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // 狀況 B: 我有權限看，且它已經在畫面上 -> 更新內容
         if (el) {
-            const rawHtml = await message.renderHTML();
-            const htmlElement = rawHtml instanceof jQuery ? rawHtml[0] : rawHtml; // 正規化提取原生 DOM
-            enrichMessageHTML(message, htmlElement); // 放入頭像
-
-            // 綁定事件
-            triggerRenderHooks(this, message, htmlElement);
-            // 更新快取
-            this._messageCache.set(message.id, htmlElement);
-
-            el.replaceWith(htmlElement);
+            const generation = this._contentGeneration;
+            const tabId = this.activeTab;
+            const htmlElement = await this._getMessageElement(message, { fresh: true });
+            if (generation !== this._contentGeneration || tabId !== this.activeTab) return;
+            if (game.messages.get(message.id) !== message || !isMessageVisibleInTab(message, tabId)) return;
+            const current = this.element.querySelector(`#custom-chat-log [data-message-id="${message.id}"]`);
+            current?.replaceWith(htmlElement);
             return;
         }
 
@@ -1399,7 +1364,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * @param {Event} event - 鍵盤事件
      */
     async _onChatKeyDown(event) {
-        if (event.key !== "Enter") return;
+        if (event.key !== "Enter" || event.isComposing) return;
 
         // 讀取設定：是否交換 Enter/Shift+Enter 的行為
         // swapped=false (預設): Enter 送出, Shift+Enter 換行
@@ -1412,10 +1377,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             this._stopTypingBroadcast(); // 停止打字狀態
 
             const input = event.target;
-            const content = input.value.trim();
+            const content = input.value;
 
-            if (content) {
-                await this._processMessage(content);
+            if (content.trim() && await this._processMessage(content)) {
                 input.value = "";
                 this._adjustInputHeight(input); // 重置高度
             }
@@ -1427,6 +1391,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * @param {string} content - 準備發送的內容
      */
     async _processMessage(content) {
+        if (this._isSending) return false;
+
         // 在 Class 內決定誰是發話者 (UI 狀態邏輯)
         const speakerSelect = this.element.querySelector("#chat-speaker-select");
         const value = speakerSelect ? speakerSelect.value : "ooc";
@@ -1435,13 +1401,22 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // 呼叫 Helper 進行行內頭像替換
         content = parseInlineAvatars(content, targetDoc);
+        const sendButton = this.element.querySelector("#chat-send-btn");
 
         try {
-            // 將處理過(可能包含 img 標籤)的內容送給核心
+            this._isSending = true;
+            this._isProcessingYCIOMessage = true;
+            if (sendButton) sendButton.disabled = true;
             await ui.chat.processMessage(content);
+            return true;
         } catch (err) {
             console.error("YCIO | 訊息處理錯誤:", err);
             ui.notifications.error(game.i18n.localize("YCIO.Warning.FailedMsg") + "（" + err + "）");
+            return false;
+        } finally {
+            this._isProcessingYCIOMessage = false;
+            this._isSending = false;
+            if (sendButton) sendButton.disabled = false;
         }
     }
 
@@ -1490,7 +1465,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         let data = null;
 
         try {
-            data = TextEditor.getDragEventData(event);
+            data = foundry.applications.ux.TextEditor.getDragEventData(event);
         } catch (err) {
             data = null;
         }
@@ -1515,7 +1490,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             || (data?.type && data?.id ? `${data.type}.${data.id}` : null);
         if (!uuid) return null;
 
-        const doc = typeof fromUuidSync === "function" ? fromUuidSync(uuid) : null;
+        const doc = foundry.utils.fromUuidSync(uuid);
         return {
             uuid,
             name: data?.name || data?.label || doc?.name || ""
@@ -1654,15 +1629,17 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * @param {boolean} isTyping - 是否正在打字
      */
     async _setTypingFlag(isTyping) {
-        // 避免重複寫入 (節省資料庫效能)
-        const current = game.user.getFlag(FLAG_SCOPE, FLAG_KEY);
-        if (current === isTyping) return;
-
-        if (isTyping) {
-            await game.user.setFlag(FLAG_SCOPE, FLAG_KEY, true);
-        } else {
-            await game.user.unsetFlag(FLAG_SCOPE, FLAG_KEY);
-        }
+        this._typingDesired = isTyping;
+        this._typingWrite = this._typingWrite
+            .then(async () => {
+                const desired = this._typingDesired;
+                const current = game.user.getFlag(FLAG_SCOPE, FLAG_KEY) === true;
+                if (current === desired) return;
+                if (desired) await game.user.setFlag(FLAG_SCOPE, FLAG_KEY, true);
+                else await game.user.unsetFlag(FLAG_SCOPE, FLAG_KEY);
+            })
+            .catch(error => console.error("YCIO | 更新輸入狀態失敗:", error));
+        return this._typingWrite;
     }
 
     /**
@@ -1699,26 +1676,16 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * @param {HTMLElement|jQuery} html - 包含訊息元素的父節點
      */
     _initializeContextMenu(html) {
-        // 1. 確保取得原生的 HTMLElement (非 jQuery 物件)
         const element = html instanceof jQuery ? html[0] : html;
-
-        let contextMenu;
-
-        // 2. 使用新版路徑 foundry.applications.ux.ContextMenu
-        // 3. 傳入 element 而非 $html
-        // 4. 加入 jQuery: false 設定
-        contextMenu = new foundry.applications.ux.ContextMenu(element, ".message", [], {
-            jQuery: false, // 告訴 FVTT 使用原生 DOM
-            onOpen: (target) => {
-                // target 現在是 HTMLElement
-                const options = getChatContextOptions();
-
-                // 為了相容其他可能還在用 jQuery 的模組 Hook，這裡把 target 包回 jQuery 傳出去
-                Hooks.call("getChatMessageContextOptions", $(target), options);
-
-                contextMenu.menuItems = options;
+        this._contextMenu?.close?.({ animate: false });
+        this._contextMenu = this._createContextMenu(
+            () => getChatContextOptions(),
+            ".message",
+            {
+                container: element,
+                hookName: "getChatMessageContextOptions"
             }
-        });
+        );
     }
 
     /**
@@ -1728,20 +1695,32 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * @param {HTMLElement} log - 滾動區域元素
      */
     async _insertMessageSmartly(message, log) {
-        const rawHtml = await message.renderHTML();
-        const htmlElement = rawHtml instanceof jQuery ? rawHtml[0] : rawHtml; // 正規化提取原生 DOM
-        enrichMessageHTML(message, htmlElement); // 放入頭像
+        const generation = this._contentGeneration;
+        const tabId = this.activeTab;
+        if (!isMessageVisibleInTab(message, tabId)) return false;
 
-        // --- 綁定事件與快取 ---
-        triggerRenderHooks(this, message, htmlElement);
+        let existingElements = Array.from(log.querySelectorAll(".message"));
+        const firstMessage = game.messages.get(existingElements[0]?.dataset.messageId);
+        if (firstMessage && message.timestamp < firstMessage.timestamp) {
+            // Keep the currently loaded history window contiguous. The message
+            // will appear naturally if the user scrolls far enough upward.
+            this._historyExhausted.delete(tabId);
+            return false;
+        }
 
-        // 2. 寫入快取 (確保之後切換分頁時，這個帶有事件的 DOM 能被重複使用)
-        this._messageCache.set(message.id, htmlElement); // 統一存原生 DOM
+        const htmlElement = await this._getMessageElement(message, { fresh: true });
+        if (generation !== this._contentGeneration || tabId !== this.activeTab) return false;
+        if (log !== this.element.querySelector("#custom-chat-log")) return false;
+        if (game.messages.get(message.id) !== message || !isMessageVisibleInTab(message, tabId)) return false;
+
+        const duplicate = log.querySelector(`[data-message-id="${message.id}"]`);
+        if (duplicate) {
+            duplicate.replaceWith(htmlElement);
+            return true;
+        }
 
         const targetTime = message.timestamp;
-
-        // 1. 找出所有現存的訊息 DOM
-        const existingElements = Array.from(log.querySelectorAll(".message"));
+        existingElements = Array.from(log.querySelectorAll(".message"));
 
         // 2. 找到第一條「時間比我晚」的訊息 (代表我應該排在它前面)
         const nextElement = existingElements.find(el => {
@@ -1759,11 +1738,13 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             log.appendChild(htmlElement)
 
             // 如果原本就在底部，順便捲動一下
-            const distanceToBottom = log.scrollHeight - log.scrollTop - log.clientHeight;
+            const scrollElement = this.element.querySelector(".chat-scroll") || log;
+            const distanceToBottom = scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight;
             if (distanceToBottom < 50) {
-                log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
+                scrollElement.scrollTo({ top: scrollElement.scrollHeight, behavior: "smooth" });
             }
         }
+        return true;
     }
 
     /**
@@ -1787,6 +1768,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // 2. 切換 CSS Class (控制按鈕變灰)
         btn.classList.toggle("YCIO-disabled", isUnlinked);
+        btn.setAttribute("aria-disabled", String(isUnlinked));
 
         // 3. 計算當前頭像 URL
         // resolveCurrentAvatar 需要 {speaker, user} 結構，helper 回傳的物件剛好包含這些
@@ -1813,10 +1795,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     async deleteMessage(messageId, { deleteAll = false } = {}) {
         if (deleteAll) {
-            return game.messages.flush();
+            if (game.user.isGM) return game.messages.flush();
+            return;
         }
         const message = game.messages.get(messageId);
-        if (message) return message.delete();
+        if (message?.canUserModify(game.user, "delete")) return message.delete();
     }
 
     /**
@@ -1825,7 +1808,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * @param {Object} updateData 
      */
     async updateMessage(message, updateData) {
-        return message.update(updateData);
+        if (message?.canUserModify(game.user, "update")) return message.update(updateData);
     }
 
     /**

@@ -7,6 +7,7 @@ Desktop.ini
 *.zip
 *.cmd
 tools/
+tests/
 
 # AI 助手
 .agents/

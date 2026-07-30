@@ -6,11 +6,21 @@
     <div class="form-group-stacked export-tab-list">
         {{#each tabs}}
         <label class="checkbox">
-            <input type="checkbox" name="{{this.id}}" {{#if this.checked}}checked{{/if}}>
+            <input type="checkbox" name="tabs" value="{{this.id}}" {{#if this.checked}}checked{{/if}}>
             <span>{{this.label}}</span>
         </label>
         {{/each}}
     </div>
+
+    <div class="form-group-stacked">
+        <label class="checkbox">
+            <input type="checkbox" name="includePrivate">
+            <span>{{localize "YCIO.Exporter.IncludePrivate"}}</span>
+        </label>
+        <p class="hint">{{localize "YCIO.Exporter.IncludePrivateHint"}}</p>
+    </div>
+
+    <p class="notification warning">{{localize "YCIO.Exporter.PrivateWarning"}}</p>
 
     <footer class="sheet-footer flexrow">
         <button type="submit" data-action="doExport">

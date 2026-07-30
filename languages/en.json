@@ -4,7 +4,8 @@
     "MinimizeIcon": "Minimize",
     "Warning": {
       "NoLabeledAvatars": "The current speaker has no avatars with labels.",
-      "FailedMsg": "Message failed to send."
+      "FailedMsg": "Message failed to send.",
+      "InitialRenderFailed": "The YCIO chat window could not be opened. Check the console for details."
     },
     "Menu": {
       "ExportLog": "Export Chat Log",
@@ -15,7 +16,7 @@
       "About": "About Module"
     },
     "Tabs": {
-      "Public": "Public",
+      "Label": "Chat tabs",
       "OOC": "OOC"
     },
     "Input": {
@@ -24,6 +25,10 @@
       "TypingNone": "No one is typing",
       "Typing": " is typing...",
       "AvatarSetting": "Select Avatar",
+      "Speaker": "Speaking as",
+      "Formatting": "Text formatting",
+      "JumpToBottom": "Jump to bottom",
+      "NewMessages": "New messages",
       "Bold": "Bold",
       "Italic": "Italic",
       "Strikethrough": "Strikethrough",
@@ -43,6 +48,12 @@
       "OOC": "OOC"
     },
     "Settings": {
+      "Sections": {
+        "Controls": "Controls",
+        "Audio": "Sound",
+        "Interface": "Interface",
+        "Compatibility": "Compatibility"
+      },
       "SwapEnter": {
         "Name": "➤ Send with Shift+Enter",
         "Hint": "If checked, messages will only be sent with Shift+Enter. Pressing Enter alone will just add a new line."
@@ -75,11 +86,7 @@
       },
       "BackgroundOpacity": {
         "Name": "➤ Floating Chat Window Background Opacity",
-        "Hint": "Adjust the background opacity of (your own) floating chat window (0 is completely transparent)."
-      },
-      "MessageOpacity": {
-        "Name": "➤ Message Box Opacity",
-        "Hint": "Adjust the opacity of the message boxes. Minimum limit is 0.5 to ensure readability."
+        "Hint": "Adjust the background opacity of your floating chat window (minimum 30%)."
       },
       "CleanSender": {
         "Name": "➤ Clean Speaker Info",
@@ -125,6 +132,10 @@
     "Avatar": {
       "WindowTitle": "Select Speaking Avatar",
       "Add": "Add Avatar",
+      "Select": "Select avatar",
+      "Delete": "Delete avatar",
+      "Label": "Avatar label",
+      "ErrorUpdateList": "Failed to update the avatar list. Please try again.",
       "Managing": "Managing Actor:",
       "Default": "Default",
       "NoAvatar": "Hidden (GM Only)",
@@ -140,17 +151,25 @@
     "Editor": {
       "WindowTitle": "Edit Message",
       "Edit": "Edit Message",
+      "Content": "Message content",
+      "Conflict": "The message was updated by another operation. Saving was cancelled to avoid overwriting it.",
+      "ErrorUpdate": "Failed to update the message. Please try again.",
       "Update": "Confirm Edit"
     },
     "Exporter": {
       "Title": "Export Chat Log",
       "Description": "Please select the channel tabs to export. The export process will convert all images into an embedded format, which might take a few minutes.",
+      "IncludePrivate": "Include private messages",
+      "IncludePrivateHint": "Includes whispers, blind rolls, and other private messages visible to you.",
+      "PrivateWarning": "Exported private messages may contain sensitive information. Share the file carefully.",
       "OOCLabel": "OOC",
       "OOCButton": "OOC",
       "WarningNoSelection": "Please select at least one tab to export.",
       "InfoPreparing": "Preparing export; image conversion may take some time. Please wait...",
       "InfoDownloadingCSS": "Downloading and packaging stylesheets...",
       "InfoComplete": "Export complete!",
+      "WarningResourceFailures": "{count} external resources were omitted; the exported file may display incomplete content.",
+      "ErrorFailed": "Chat log export failed: {error}",
       "ButtonStart": "Start Export",
       "HtmlTitle": "Chat Log Export"
     },
@@ -168,8 +187,7 @@
       "ProjectLink": "GitHub Repo",
       "Author": "Author",
       "Contact": "Contact",
-      "Donate": "Support Yuuko",
-      "Close": "Close"
+      "Donate": "Support Yuuko"
     }
   }
 }

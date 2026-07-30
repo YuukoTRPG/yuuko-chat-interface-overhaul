@@ -3,7 +3,7 @@
  * 負責處理聊天紀錄的導出、圖片 Base64 轉換與 HTML 檔案生成
  */
 
-import { enrichMessageHTML } from "./chat-helpers.js";
+import { enrichMessageHTML, getMessageRouteId } from "./chat-helpers.js";
 import { MODULE_ID } from "./config.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -47,14 +47,16 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
     }
 
     static async onDoExport(event, target) {
-        // 取得表單資料
-        const formData = new FormData(event.target.closest("form"));
-        const selectedTabs = [];
-
-        // 解析勾選的項目
-        for (const [key, value] of formData.entries()) {
-            if (value === "on") selectedTabs.push(key);
-        }
+        event.preventDefault();
+        if (!game.user?.isGM) return;
+        const form = target.closest("form");
+        if (!form) return;
+        const formData = new FormData(form);
+        const validTabs = new Set(["ooc", ...game.scenes.map(scene => scene.id)]);
+        const selectedTabs = [...new Set(
+            formData.getAll("tabs").filter(tabId => validTabs.has(tabId))
+        )];
+        const includePrivate = formData.get("includePrivate") === "on";
 
         if (selectedTabs.length === 0) {
             ui.notifications.warn(game.i18n.localize("YCIO.Exporter.WarningNoSelection"));
@@ -62,11 +64,18 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
         }
 
         // 關閉視窗並開始執行導出
-        this.close();
+        await this.close();
         ui.notifications.info(game.i18n.localize("YCIO.Exporter.InfoPreparing"));
 
-        const exporter = new ChatExporter();
-        await exporter.generateAndDownload(selectedTabs);
+        try {
+            const exporter = new ChatExporter();
+            await exporter.generateAndDownload(selectedTabs, { includePrivate });
+        } catch (error) {
+            console.error("[YCIO] 聊天紀錄導出失敗", error);
+            ui.notifications.error(game.i18n.format("YCIO.Exporter.ErrorFailed", {
+                error: error?.message || String(error)
+            }));
+        }
     }
 }
 
@@ -78,16 +87,19 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
 
 /** 圖片並行轉碼的批次上限 */
 const IMAGE_BATCH_SIZE = 10;
+/** 網路資源下載逾時（毫秒） */
+const RESOURCE_TIMEOUT_MS = 15000;
 
 class ChatExporter {
     constructor() {
         this.cssContent = "";
+        this.resourceFailures = [];
     }
 
     /**
      * 主流程：生成並下載
      */
-    async generateAndDownload(selectedTabs) {
+    async generateAndDownload(selectedTabs, { includePrivate = false } = {}) {
         // 1. 讀取 CSS 內容
         try {
             ui.notifications.info(game.i18n.localize("YCIO.Exporter.InfoDownloadingCSS"));
@@ -98,13 +110,15 @@ class ChatExporter {
             // Step B: 強制單獨再抓一次 module.css，確保它的權重贏過前面抓到的任何東西
             let moduleCSS = "";
             try {
-                const moduleCSSUrl = new URL(`modules/${MODULE_ID}/styles/module.css`, window.location.origin).href;
-                const response = await fetch(moduleCSSUrl);
-                if (response.ok) {
-                    moduleCSS = this._resolveRelativeUrls(await response.text(), moduleCSSUrl);
-                }
+                const moduleCSSUrl = new URL(
+                    foundry.utils.getRoute(`modules/${MODULE_ID}/styles/module.css`),
+                    window.location.origin
+                ).href;
+                const response = await this._fetchWithTimeout(moduleCSSUrl);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                moduleCSS = this._resolveRelativeUrls(await response.text(), moduleCSSUrl);
             } catch (err) {
-                console.warn("[YCIO] 無法單獨讀取 module.css", err);
+                this._recordResourceFailure("CSS", `modules/${MODULE_ID}/styles/module.css`, err);
             }
 
             // Step C: 組合 (將 module.css 放在最後面)
@@ -117,29 +131,45 @@ class ChatExporter {
 
         // 2. 捕獲主題狀態與 CSS 變數快照
         const themeState = this._captureThemeState();
-        const rootVarsCSS = this._captureRootCSSVariables();
-        const chatVarsInline = this._captureChatCSSVariables();
+        let rootVarsCSS = this._captureRootCSSVariables();
+        let chatVarsInline = this._captureChatCSSVariables();
 
         // 3. 離線化 CSS 中的外部資源 (字型、背景圖等)
         ui.notifications.info(game.i18n.localize("YCIO.Exporter.InfoPreparing"));
-        this.cssContent = await this._inlineCSSResources(this.cssContent);
+        [this.cssContent, rootVarsCSS, chatVarsInline] = await Promise.all([
+            this._inlineCSSResources(this.cssContent),
+            this._inlineCSSResources(rootVarsCSS),
+            this._inlineCSSResources(chatVarsInline)
+        ]);
 
         // 4. 準備 HTML 結構
         const dateStr = new Date().toISOString().split("T")[0];
+        const exportTabs = selectedTabs.map((sourceId, index) => ({
+            sourceId,
+            navId: "export-tab-button-" + index,
+            domId: `export-tab-${index}`,
+            label: sourceId === "ooc"
+                ? game.i18n.localize("YCIO.Exporter.OOCButton")
+                : (game.scenes.get(sourceId)?.navName || game.scenes.get(sourceId)?.name || sourceId)
+        }));
+        const htmlTitle = foundry.utils.escapeHTML(game.i18n.localize("YCIO.Exporter.HtmlTitle"));
+        const htmlLang = foundry.utils.escapeHTML(game.i18n.lang || "en");
+        const safeChatVars = foundry.utils.escapeHTML(chatVarsInline);
+        const safeChatLogClasses = foundry.utils.escapeHTML(themeState.chatLogClasses);
+        const scriptNonce = foundry.utils.randomID(32);
         let fullHtml = `
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="${htmlLang}">
 <head>
     <meta charset="UTF-8">
-    <title>${game.i18n.localize("YCIO.Exporter.HtmlTitle")} - ${dateStr}</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Signika:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; img-src data:; media-src data:; font-src data:; style-src 'unsafe-inline' data:; script-src 'nonce-${scriptNonce}'">
+    <title>${htmlTitle} - ${dateStr}</title>
     <style>
         /* :root CSS 變數快照 (從 FVTT 運行時環境捕獲) */
         ${rootVarsCSS}
 
         /* 重置基礎樣式，模擬 FVTT 環境 */
-        body { margin: 0; padding: 0; font-family: "Signika", sans-serif; height: 100vh; overflow: hidden; }
+        body { margin: 0; padding: 0; font-family: system-ui, sans-serif; height: 100vh; overflow: hidden; }
 
         /* 嵌入抓取到的所有 CSS */
         ${this.cssContent}
@@ -158,25 +188,22 @@ class ChatExporter {
 </head>
 <body>
     <div class="YCIO-floating-chat-window">
-        <div class="export-nav" id="nav-container">
-            ${selectedTabs.map(tabId => {
-            const label = tabId === "ooc" ? game.i18n.localize("YCIO.Exporter.OOCButton") : (game.scenes.get(tabId)?.navName || game.scenes.get(tabId)?.name || tabId);
-            return `<button onclick="switchTab('${tabId}')" data-tab="${tabId}">${label}</button>`;
-        }).join("")}
+        <div class="export-nav" id="nav-container" role="tablist" aria-label="${htmlTitle}">
+            ${exportTabs.map(tab => `<button id="${tab.navId}" type="button" role="tab" aria-selected="false" aria-controls="${tab.domId}" data-target="${tab.domId}">${foundry.utils.escapeHTML(tab.label)}</button>`).join("")}
         </div>
 
         <div class="chat-content">
 `;
 
         // 5. 遍歷分頁，生成訊息內容
-        for (const tabId of selectedTabs) {
-            const messagesHtml = await this._processMessagesForTab(tabId);
+        for (const tab of exportTabs) {
+            const messagesHtml = await this._processMessagesForTab(tab.sourceId, includePrivate);
             // 每個分頁都包含完整的 CSS 鏡像結構，確保系統 CSS 選擇器能正確命中
             fullHtml += `
-            <div id="tab-${tabId}" class="tab-content">
-                <div class="YCIO-css-mirror tab sidebar-tab chat-sidebar" style="${chatVarsInline}">
+            <div id="${tab.domId}" class="tab-content" role="tabpanel" aria-labelledby="${tab.navId}">
+                <div class="YCIO-css-mirror tab sidebar-tab chat-sidebar" style="${safeChatVars}">
                     <div class="chat-scroll">
-                        <ol class="chat-log ${themeState.chatLogClasses}">
+                        <ol class="chat-log ${safeChatLogClasses}">
                             ${messagesHtml}
                         </ol>
                     </div>
@@ -188,18 +215,26 @@ class ChatExporter {
         fullHtml += `
         </div>
     </div>
-    <script>
+    <script nonce="${scriptNonce}">
         // A. 簡單的分頁切換邏輯
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.export-nav button').forEach(el => el.classList.remove('active'));
-            
-            const target = document.getElementById('tab-' + tabId);
-            if (target) target.classList.add('active');
-            
-            const btn = document.querySelector('.export-nav button[data-tab="' + tabId + '"]');
-            if (btn) btn.classList.add('active');
+        function switchTab(targetId) {
+            document.querySelectorAll(".tab-content").forEach(element => {
+                const active = element.id === targetId;
+                element.classList.toggle("active", active);
+                element.hidden = !active;
+            });
+
+            document.querySelectorAll(".export-nav button").forEach(button => {
+                const active = button.dataset.target === targetId;
+                button.classList.toggle("active", active);
+                button.setAttribute("aria-selected", String(active));
+            });
         }
+
+        document.querySelector('.export-nav').addEventListener('click', function(e) {
+            const button = e.target.closest('button[data-target]');
+            if (button) switchTab(button.dataset.target);
+        });
 
         // B. 通用擲骰展開互動 (Event Delegation)
         // 監聽整個頁面的點擊事件，不用對每個骰子綁定
@@ -229,37 +264,39 @@ class ChatExporter {
         });
         
         // 預設開啟第一個分頁
-        const firstTab = "${selectedTabs[0]}";
-        if (firstTab) switchTab(firstTab);
+        document.querySelector('.export-nav button[data-target]')?.click();
     </script>
 </body>
 </html>`;
 
         // 7. 觸發下載
-        const blob = new Blob([fullHtml], { type: "text/html" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `chat-log-${dateStr}.html`;
-        a.click();
-        URL.revokeObjectURL(url);
+        foundry.utils.saveDataToFile(
+            fullHtml,
+            "text/html;charset=utf-8",
+            `chat-log-${dateStr}.html`
+        );
 
         ui.notifications.info(game.i18n.localize("YCIO.Exporter.InfoComplete"));
+        if (this.resourceFailures.length > 0) {
+            ui.notifications.warn(game.i18n.format("YCIO.Exporter.WarningResourceFailures", {
+                count: this.resourceFailures.length
+            }));
+        }
     }
 
     /**
      * 處理單一分頁的訊息：撈取 -> 渲染 -> 圖片轉碼
      */
-    async _processMessagesForTab(tabId) {
+    async _processMessagesForTab(tabId, includePrivate = false) {
         // 1. 撈取訊息 (複製 floating-chat.js 的過濾邏輯，但不限制數量)
         const allMessages = game.messages.contents;
         const targetMessages = allMessages.filter(msg => {
-            // GM 導出時，通常希望能看到所有訊息，但也可以加上 msg.visible 判斷，未來再說
-            const msgSceneId = msg.speaker.scene;
-            const msgTokenId = msg.speaker.token;
+            if (!msg.visible) return false;
 
-            if (tabId === "ooc") return !msgTokenId;
-            return msgSceneId === tabId && !!msgTokenId;
+            const isPrivate = msg.blind || msg.whisper?.length > 0 || !msg.isContentVisible;
+            if (!includePrivate && isPrivate) return false;
+
+            return getMessageRouteId(msg) === tabId;
         });
 
         // 2. 建立一個暫存的容器來處理 DOM
@@ -296,36 +333,26 @@ class ChatExporter {
      * 將 img 標籤的 src 替換為 Base64
      */
     async _convertImageToBase64(imgElement) {
-        const src = imgElement.src;
-        // 略過已經是 base64 的圖片
-        if (src.startsWith("data:")) return;
+        const src = imgElement.currentSrc || imgElement.src;
+        // srcset 可能讓瀏覽器略過已內嵌的 src。
+        imgElement.removeAttribute("srcset");
+        if (!src || src.startsWith("data:")) return;
 
         try {
-            // 建立一個 Image 物件來載入圖片
-            const image = new Image();
-            image.crossOrigin = "Anonymous"; // 嘗試處理跨域問題
-            image.src = src;
+            const response = await this._fetchWithTimeout(src);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-            await new Promise((resolve, reject) => {
-                image.onload = resolve;
-                image.onerror = reject;
-            });
+            const blob = await response.blob();
+            if (blob.type && !blob.type.startsWith("image/")) {
+                throw new Error(`Unexpected MIME type: ${blob.type}`);
+            }
 
-            // 使用 Canvas 繪製並轉碼
-            const canvas = document.createElement("canvas");
-            canvas.width = image.naturalWidth;
-            canvas.height = image.naturalHeight;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(image, 0, 0);
-
-            // 替換原本 DOM 的 src
-            imgElement.src = canvas.toDataURL("image/png");
-            // 移除 srcset 避免瀏覽器優先使用舊連結
-            imgElement.removeAttribute("srcset");
-
+            // 直接內嵌原始 Blob，保留 JPEG/WebP/GIF 等原格式與動畫。
+            imgElement.src = await this._blobToDataUri(blob);
         } catch (err) {
-            console.warn(`[YCIO] 圖片轉碼失敗 (可能因跨域限制): ${src}`, err);
-            // 失敗時保持原連結，不中斷流程
+            this._recordResourceFailure("image", src, err);
+            // 不留下會在離線檔案開啟時自動連線的遠端 URL。
+            imgElement.removeAttribute("src");
         }
     }
 
@@ -340,16 +367,14 @@ class ChatExporter {
         // 2. 異步並行下載所有 CSS 檔案內容
         const cssPromises = links.map(async (link) => {
             try {
-                // 忽略非同源 (CORS) 的外部樣式，避免報錯 (通常 Google Fonts 等會擋)
-                // 但 FVTT 本地的樣式 (系統、核心、模組) 都能抓到
-                const response = await fetch(link.href);
-                if (response.ok) {
-                    const cssText = await response.text();
-                    // 將 CSS 中的 url() 相對路徑轉為絕對路徑
-                    return this._resolveRelativeUrls(cssText, link.href);
-                }
+                const response = await this._fetchWithTimeout(link.href);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const cssText = await response.text();
+                // 將 CSS 中的 url() 相對路徑轉為絕對路徑
+                return this._resolveRelativeUrls(cssText, link.href);
             } catch (e) {
-                console.warn(`[YCIO] 導出略過無法讀取的 CSS: ${link.href}`);
+                this._recordResourceFailure("CSS", link.href, e);
             }
             return "";
         });
@@ -366,11 +391,13 @@ class ChatExporter {
      * @returns {string} 路徑已被替換為絕對路徑的 CSS 文字
      */
     _resolveRelativeUrls(cssText, baseUrl) {
-        // 匹配 url(...) 中的路徑，排除 data: URI 和已是絕對路徑的情況
         // 支援 url("path"), url('path'), url(path) 三種寫法
-        return cssText.replace(/url\(\s*(["']?)(?!data:|https?:|\/\/)(.*?)\1\s*\)/gi, (match, quote, rawPath) => {
+        return cssText.replace(/url\(\s*(["']?)(.*?)\1\s*\)/gi, (match, quote, rawPath) => {
+            const resourcePath = rawPath.trim();
+            if (!resourcePath || /^(?:data:|#|var\()/i.test(resourcePath)) return match;
+
             try {
-                const absoluteUrl = new URL(rawPath, baseUrl).href;
+                const absoluteUrl = this._resolveResourceUrl(resourcePath, baseUrl);
                 return `url(${quote}${absoluteUrl}${quote})`;
             } catch {
                 // 路徑解析失敗，保持原樣
@@ -507,47 +534,91 @@ class ChatExporter {
      * @returns {Promise<string>} 資源已內嵌的 CSS 文字
      */
     async _inlineCSSResources(cssText) {
-        // 匹配所有 url() 中的絕對路徑 (排除已經是 data: URI 的)
-        const urlRegex = /url\(\s*(["']?)(?!data:)(https?:\/\/[^\s"')]+|\/[^\s"')]+)\1\s*\)/gi;
+        const urlRegex = /url\(\s*(["']?)(.*?)\1\s*\)/gi;
         const matches = [...cssText.matchAll(urlRegex)];
 
         if (matches.length === 0) return cssText;
 
         // 收集所有需要轉碼的 URL (去重)
         const urlMap = new Map(); // url -> base64 data URI
-        const uniqueUrls = [...new Set(matches.map(m => m[2]))];
+        const uniqueUrls = [...new Set(
+            matches
+                .map(match => match[2].trim())
+                .filter(url => url && !/^(?:data:|#|var\()/i.test(url))
+        )];
 
         // 分批下載與轉碼
         for (let i = 0; i < uniqueUrls.length; i += IMAGE_BATCH_SIZE) {
             const batch = uniqueUrls.slice(i, i + IMAGE_BATCH_SIZE);
             await Promise.all(batch.map(async (resourceUrl) => {
                 try {
-                    const absoluteUrl = resourceUrl.startsWith("http")
-                        ? resourceUrl
-                        : new URL(resourceUrl, window.location.origin).href;
+                    const absoluteUrl = this._resolveResourceUrl(resourceUrl, document.baseURI);
+                    const fetchUrl = new URL(absoluteUrl);
+                    const fragment = fetchUrl.hash;
+                    fetchUrl.hash = "";
 
-                    const response = await fetch(absoluteUrl);
-                    if (!response.ok) return;
+                    const response = await this._fetchWithTimeout(fetchUrl.href);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
                     const blob = await response.blob();
                     const dataUri = await this._blobToDataUri(blob);
-                    urlMap.set(resourceUrl, dataUri);
-                } catch {
-                    // 下載失敗 (CORS 等)，保持原 URL
+                    urlMap.set(resourceUrl, dataUri + fragment);
+                } catch (error) {
+                    this._recordResourceFailure("CSS resource", resourceUrl, error);
+                    // 使用空的 data URI，避免離線檔案再次對外連線。
+                    urlMap.set(resourceUrl, "data:,");
                 }
             }));
         }
 
-        // 替換 CSS 中的 URL
-        let result = cssText;
-        for (const [originalUrl, dataUri] of urlMap) {
-            // 使用 replaceAll 替換所有出現的位置 (同一資源可能被多個規則引用)
-            // 需要轉義正則特殊字元
-            const escaped = originalUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            result = result.replace(new RegExp(escaped, "g"), dataUri);
+        return cssText.replace(urlRegex, (match, quote, rawUrl) => {
+            const dataUri = urlMap.get(rawUrl.trim());
+            return dataUri ? `url(${quote}${dataUri}${quote})` : match;
+        });
+    }
+
+    /**
+     * 將根路徑交給 Foundry 補上部署前綴，其餘路徑依來源 CSS 解析。
+     */
+    _resolveResourceUrl(resourcePath, baseUrl) {
+        if (/^(?:https?:)?\/\//i.test(resourcePath) || /^[a-z][a-z\d+.-]*:/i.test(resourcePath)) {
+            return new URL(resourcePath, window.location.href).href;
         }
 
-        return result;
+        if (resourcePath.startsWith("/")) {
+            const routePath = resourcePath.replace(/^\/+/, "");
+            return new URL(foundry.utils.getRoute(routePath), window.location.origin).href;
+        }
+
+        return new URL(resourcePath, baseUrl).href;
+    }
+
+    /**
+     * 以瀏覽器原生 AbortController 限制單一資源的等待時間。
+     */
+    async _fetchWithTimeout(url) {
+        // AbortSignal.timeout remains active while callers consume text/blob bodies.
+        return fetch(url, { signal: AbortSignal.timeout(RESOURCE_TIMEOUT_MS) });
+    }
+
+    /**
+     * 紀錄不含 query/hash 的資源位置，避免錯誤記錄洩漏簽章參數。
+     */
+    _recordResourceFailure(type, resourceUrl, error) {
+        let safeUrl = String(resourceUrl).split(/[?#]/, 1)[0];
+        try {
+            const parsed = new URL(resourceUrl, document.baseURI);
+            safeUrl = `${parsed.origin}${parsed.pathname}`;
+        } catch {
+            // 非 URL 輸入沿用已移除 query/hash 的文字。
+        }
+
+        this.resourceFailures.push({
+            type,
+            url: safeUrl,
+            error: error?.message || String(error)
+        });
+        console.warn(`[YCIO] 無法內嵌 ${type}: ${safeUrl}`, error);
     }
 
     /**

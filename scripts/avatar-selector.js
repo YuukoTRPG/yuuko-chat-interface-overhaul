@@ -23,8 +23,12 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // --- 防抖動儲存視窗位置與大小 ---
         this._savePositionDebounced = foundry.utils.debounce((pos) => {
-            game.settings.set(MODULE_ID, "avatarSelectorPosition", pos);
+            void game.settings.set(MODULE_ID, "avatarSelectorPosition", pos)
+                .catch(error => console.error("YCIO | 儲存頭像視窗位置失敗:", error));
         }, 500);
+
+        // 序列化所有 avatarList 寫入，避免不同 UI 操作互相覆蓋。
+        this._avatarMutationQueue = Promise.resolve();
     }
 
     static DEFAULT_OPTIONS = {
@@ -55,9 +59,12 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
      * 覆寫 setPosition 自動存檔
      */
     setPosition(position = {}) {
-        const newPosition = super.setPosition(position);
-        this._savePositionDebounced(newPosition);
-        return newPosition;
+        const result = super.setPosition(position);
+        if (this._savePositionDebounced && this.position) {
+            const { left, top, width, height } = this.position;
+            this._savePositionDebounced({ left, top, width, height });
+        }
+        return result;
     }
 
     /**
@@ -134,7 +141,7 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
             // 1. 開始拖曳
             card.addEventListener('dragstart', ev => {
                 ev.dataTransfer.effectAllowed = "move";
-                ev.dataTransfer.setData("text/plain", card.dataset.index);
+                ev.dataTransfer.setData("text/plain", card.dataset.src);
 
                 // 關鍵修正：使用 setTimeout 延遲樣式套用
                 // 讓瀏覽器先抓取「原本不透明」的卡片作為殘影，之後再把卡片變半透明
@@ -180,14 +187,14 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
                 // 放下時立刻移除樣式
                 card.classList.remove('drag-over');
 
-                const fromIndex = parseInt(ev.dataTransfer.getData("text/plain"));
-                const toIndex = parseInt(card.dataset.index);
+                const fromSrc = ev.dataTransfer.getData("text/plain");
+                const toSrc = card.dataset.src;
 
                 // 檢查數據有效性
-                if (isNaN(fromIndex) || isNaN(toIndex) || fromIndex === toIndex) return;
+                if (!fromSrc || !toSrc || fromSrc === toSrc) return;
 
                 // 呼叫排序邏輯
-                await this._reorderAvatars(fromIndex, toIndex);
+                await this._reorderAvatars(fromSrc, toSrc);
             });
         });
     }
@@ -199,23 +206,68 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
      */
 
     /**
+     * 將所有頭像 flag 操作排入同一佇列。
+     * @param {() => Promise<boolean>} task
+     * @returns {Promise<boolean>}
+     */
+    _queueAvatarTask(task) {
+        const operation = this._avatarMutationQueue.then(task);
+        this._avatarMutationQueue = operation.catch(error => {
+            console.error("YCIO | 更新頭像設定失敗", error);
+            ui.notifications.error(game.i18n.localize("YCIO.Avatar.ErrorUpdateList"));
+            return false;
+        });
+        return this._avatarMutationQueue;
+    }
+
+    /**
+     * 將 avatarList 的讀取、轉換與寫入排入同一佇列。
+     * @param {(avatars: Array) => Array|null} transform
+     * @returns {Promise<boolean>}
+     */
+    _queueAvatarMutation(transform) {
+        return this._queueAvatarTask(async () => {
+            const savedAvatars = this.target.getFlag(MODULE_ID, "avatarList");
+            const currentList = Array.isArray(savedAvatars)
+                ? savedAvatars.map(avatar => ({ ...avatar }))
+                : [];
+            const nextList = transform(currentList);
+            if (!nextList) return false;
+
+            const currentSelected = this.target.getFlag(MODULE_ID, "currentAvatar");
+            const selectedWasRemoved = currentList.some(avatar => avatar.src === currentSelected)
+                && !nextList.some(avatar => avatar.src === currentSelected);
+
+            let listWasSaved = false;
+            try {
+                await this.target.setFlag(MODULE_ID, "avatarList", nextList);
+                listWasSaved = true;
+                if (selectedWasRemoved) {
+                    await this.target.unsetFlag(MODULE_ID, "currentAvatar");
+                }
+            } finally {
+                if (listWasSaved) Hooks.callAll("YCIO_AvatarChanged");
+            }
+
+            if (this.rendered) await this.render();
+            return true;
+        });
+    }
+
+    /**
      * 新增頭像：呼叫 FilePicker
      */
     static async onAddAvatar(event, target) {
-        const fp = new FilePicker({
+        const fp = new foundry.applications.apps.FilePicker({
             type: "image",
             callback: async (path) => {
-                const currentList = this.target.getFlag(MODULE_ID, "avatarList") || [];
-                // 檢查是否重複 (比對 src)
-                if (!currentList.some(a => a.src === path)) {
-                    // 物件結構
-                    const newList = [...currentList, { src: path, label: "" }];
-                    await this.target.setFlag(MODULE_ID, "avatarList", newList);
-                    this.render();
-                }
+                await this._queueAvatarMutation(currentList => {
+                    if (currentList.some(avatar => avatar.src === path)) return null;
+                    return [...currentList, { src: path, label: "" }];
+                });
             }
         });
-        fp.browse();
+        await fp.browse();
     }
 
     /**
@@ -231,17 +283,20 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
             activeInput.blur();
         }
 
-        // 等待任何正在進行的存檔動作完成 (防止競態條件)
-        if (this._pendingSave) {
-            await this._pendingSave;
-        }
-
         const src = target.dataset.src; // 空字串代表預設，有值代表自選
-        await this.target.setFlag(MODULE_ID, "currentAvatar", src);
-        this.render(); // 重繪以更新選取狀態 (黃框)
+        await this._queueAvatarTask(async () => {
+            if (src && src !== "__NO_AVATAR__") {
+                const currentList = this.target.getFlag(MODULE_ID, "avatarList") || [];
+                if (!currentList.some(avatar => avatar.src === src)) return false;
+            }
 
-        // 通知主視窗 (如果有的話) 重繪輸入框附近的頭像預覽
-        Hooks.callAll("YCIO_AvatarChanged");
+            await this.target.setFlag(MODULE_ID, "currentAvatar", src);
+            if (this.rendered) await this.render(); // 重繪以更新選取狀態 (黃框)
+
+            // 通知主視窗 (如果有的話) 重繪輸入框附近的頭像預覽
+            Hooks.callAll("YCIO_AvatarChanged");
+            return true;
+        });
     }
 
     /**
@@ -250,80 +305,54 @@ export class AvatarSelector extends HandlebarsApplicationMixin(ApplicationV2) {
     static async onDeleteAvatar(event, target) {
         // 阻止事件冒泡 (避免觸發選擇)
         event.stopPropagation();
-        const index = parseInt(target.dataset.index); // 用 index 刪除比較準確
+        const src = target.closest(".avatar-card")?.dataset.src;
+        if (!src) return;
 
-        // 1. 更新列表
-        const currentList = this.target.getFlag(MODULE_ID, "avatarList") || [];
-
-        const itemToDelete = currentList[index];
-        if (!itemToDelete) return;
-
-        const newList = currentList.filter((_, i) => i !== index);
-        await this.target.setFlag(MODULE_ID, "avatarList", newList);
-
-        // 2. 如果刪除的是當前選中的，重置回預設
-        const currentSelected = this.target.getFlag(MODULE_ID, "currentAvatar");
-        if (currentSelected === itemToDelete.src) {
-            await this.target.unsetFlag(MODULE_ID, "currentAvatar");
-        }
-        // 3. 重新渲染
-        this.render();
+        await this._queueAvatarMutation(currentList => {
+            const index = currentList.findIndex(avatar => avatar.src === src);
+            if (index < 0) return null;
+            return currentList.filter((_, currentIndex) => currentIndex !== index);
+        });
     }
 
     /**
      * 更新頭像註解
      */
     static async onUpdateLabel(event, target) {
-        const index = parseInt(target.dataset.index);
+        const src = target.closest(".avatar-card")?.dataset.src;
         const newLabel = target.value;
+        if (!src) return;
 
-        // 建立存檔任務
-        const saveTask = (async () => {
-            const currentList = this.target.getFlag(MODULE_ID, "avatarList") || [];
-
-            // 只有當內容真的改變且 index 有效時才存檔
-            if (currentList[index] && currentList[index].label !== newLabel) {
-                // console.log(`YCIO | 更新註解 [${index}]: ${newLabel}`); // 除錯 Log
-                currentList[index].label = newLabel;
-                await this.target.setFlag(MODULE_ID, "avatarList", currentList);
-            }
-        })();
-
-        // 掛載任務鎖，讓 onSelectAvatar 可以等待它
-        this._pendingSave = saveTask;
-
-        try {
-            await saveTask;
-        } finally {
-            // 任務結束後解鎖
-            if (this._pendingSave === saveTask) {
-                this._pendingSave = null;
-            }
-        }
+        await this._queueAvatarMutation(currentList => {
+            const index = currentList.findIndex(avatar => avatar.src === src);
+            if (index < 0 || currentList[index].label === newLabel) return null;
+            return currentList.map((avatar, currentIndex) => (
+                currentIndex === index ? { ...avatar, label: newLabel } : avatar
+            ));
+        });
     }
 
     /**
      * 處理頭像陣列的重新排序
      */
-    async _reorderAvatars(fromIndex, toIndex) {
-        const currentList = this.target.getFlag(MODULE_ID, "avatarList") || [];
+    async _reorderAvatars(fromSrc, toSrc) {
+        await this._queueAvatarMutation(currentList => {
+            const fromIndex = currentList.findIndex(avatar => avatar.src === fromSrc);
+            const toIndex = currentList.findIndex(avatar => avatar.src === toSrc);
+            if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return null;
 
-        // 防呆檢查
-        if (!currentList[fromIndex]) return;
-
-        // 陣列操作：取出 -> 插入
-        const itemToMove = currentList.splice(fromIndex, 1)[0]; // 移除來源
-        currentList.splice(toIndex, 0, itemToMove);            // 插到目標位置
-
-        // 存檔並重繪
-        await this.target.setFlag(MODULE_ID, "avatarList", currentList);
-        this.render();
+            const nextList = [...currentList];
+            const [itemToMove] = nextList.splice(fromIndex, 1);
+            nextList.splice(toIndex, 0, itemToMove);
+            return nextList;
+        });
     }
 
     /**
      * 確認按鈕 (關閉視窗)
      */
-    static onConfirm(event, target) {
+    static async onConfirm(event, target) {
+        await this._avatarMutationQueue;
         this.close();
     }
 }
@@ -351,7 +380,8 @@ export class InlineAvatarPicker extends HandlebarsApplicationMixin(ApplicationV2
 
         // 防抖動儲存視窗位置 (500ms)
         this._savePositionDebounced = foundry.utils.debounce((pos) => {
-            game.settings.set(MODULE_ID, "inlinePickerPosition", pos);
+            void game.settings.set(MODULE_ID, "inlinePickerPosition", pos)
+                .catch(error => console.error("YCIO | 儲存表符視窗位置失敗:", error));
         }, 500);
     }
 
@@ -377,9 +407,12 @@ export class InlineAvatarPicker extends HandlebarsApplicationMixin(ApplicationV2
      * 覆寫 setPosition 以便在移動/縮放時自動存檔
      */
     setPosition(position = {}) {
-        const newPosition = super.setPosition(position);
-        this._savePositionDebounced(newPosition);
-        return newPosition;
+        const result = super.setPosition(position);
+        if (this._savePositionDebounced && this.position) {
+            const { left, top, width, height } = this.position;
+            this._savePositionDebounced({ left, top, width, height });
+        }
+        return result;
     }
 
     /**

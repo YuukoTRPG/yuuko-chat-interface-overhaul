@@ -4,7 +4,8 @@
     "MinimizeIcon": "最小化",
     "Warning": {
       "NoLabeledAvatars": "目前的發言身分沒有設定任何帶註解的頭像",
-      "FailedMsg": "訊息發送失敗"
+      "FailedMsg": "訊息發送失敗",
+      "InitialRenderFailed": "無法開啟 YCIO 聊天視窗，請查看主控台取得詳細資訊。"
     },
     "Menu": {
       "ExportLog": "導出聊天紀錄",
@@ -15,7 +16,7 @@
       "About": "關於本模組"
     },
     "Tabs": {
-      "Public": "公開訊息",
+      "Label": "聊天分頁",
       "OOC": "場外"
     },
     "Input": {
@@ -24,6 +25,10 @@
       "TypingNone": "沒人在打字",
       "Typing": " 正在輸入...",
       "AvatarSetting": "選擇頭像",
+      "Speaker": "發言身分",
+      "Formatting": "文字格式",
+      "JumpToBottom": "回到底部",
+      "NewMessages": "有新訊息",
       "Bold": "粗體",
       "Italic": "斜體",
       "Strikethrough": "刪除線",
@@ -43,6 +48,12 @@
       "OOC": "場外"
     },
     "Settings": {
+      "Sections": {
+        "Controls": "操作設定",
+        "Audio": "音效設定",
+        "Interface": "介面設定",
+        "Compatibility": "相容性設定"
+      },
       "SwapEnter": {
         "Name": "➤以Shift+Enter送出訊息",
         "Hint": "勾選後，Shift+Enter才會送出訊息，Enter鍵為普通的換行。"
@@ -75,11 +86,7 @@
       },
       "BackgroundOpacity": {
         "Name": "➤浮動聊天視窗背景透明度",
-        "Hint": "調整（你自己的）浮動聊天視窗背景透明度（0為完全透明）。"
-      },
-      "MessageOpacity": {
-        "Name": "➤訊息獨立透明度",
-        "Hint": "調整訊息內容的透明度，最小限制為 0.5，以確保文字閱讀性。"
+        "Hint": "調整（你自己的）浮動聊天視窗背景透明度（最低 30%）。"
       },
       "CleanSender": {
         "Name": "➤精簡發言者資訊",
@@ -125,6 +132,10 @@
     "Avatar": {
       "WindowTitle": "選擇發言頭像",
       "Add": "新增頭像",
+      "Select": "選擇頭像",
+      "Delete": "刪除頭像",
+      "Label": "頭像註解",
+      "ErrorUpdateList": "更新頭像清單失敗，請重試。",
       "Managing": "正在管理角色：",
       "Default": "預設",
       "NoAvatar": "不顯示(GM專用)",
@@ -140,17 +151,25 @@
     "Editor": {
       "WindowTitle": "編輯訊息",
       "Edit": "編輯訊息",
+      "Content": "訊息內容",
+      "Conflict": "訊息已被其他操作更新，已取消儲存以避免覆蓋。",
+      "ErrorUpdate": "更新訊息失敗，請重試。",
       "Update": "確認編輯訊息"
     },
     "Exporter": {
       "Title": "導出聊天紀錄",
       "Description": "請選擇要導出的頻道分頁。導出過程會將所有圖片轉換為內嵌格式，這可能需要幾分鐘的時間。",
+      "IncludePrivate": "包含私密訊息",
+      "IncludePrivateHint": "包含你目前可見的密語、暗骰與其他私密訊息。",
+      "PrivateWarning": "匯出檔可能包含敏感的私密訊息，分享前請先確認內容。",
       "OOCLabel": "場外",
       "OOCButton": "場外",
       "WarningNoSelection": "請至少選擇一個要導出的分頁",
       "InfoPreparing": "正在準備導出，包含圖片轉換可能需要一些時間，請稍候...",
       "InfoDownloadingCSS": "正在下載並封裝樣式表...",
       "InfoComplete": "導出完成！",
+      "WarningResourceFailures": "有 {count} 個外部資源已省略；匯出檔的顯示可能不完整。",
+      "ErrorFailed": "聊天紀錄匯出失敗：{error}",
       "ButtonStart": "開始導出",
       "HtmlTitle": "聊天紀錄導出"
     },
@@ -168,8 +187,7 @@
       "ProjectLink": "GitHub 倉庫",
       "Author": "作者",
       "Contact": "聯絡方式",
-      "Donate": "贊助悠子",
-      "Close": "關閉"
+      "Donate": "贊助悠子"
     }
   }
 }

@@ -4,10 +4,19 @@
  */
 
 import { FloatingChat } from "./floating-chat.js";
-import { registerSettings } from "./config.js";
+import { MODULE_ID, registerSettings } from "./config.js";
 
 // 用於儲存視窗實例，讓下方的 Hooks 可以存取它
 let floatingChatInstance;
+
+/**
+ * Foundry Hooks do not await async callbacks. FloatingChat owns one content
+ * queue shared by message mutations, tab changes, history loads and route refreshes.
+ */
+function queueMessageSync(task) {
+    const app = floatingChatInstance;
+    if (app?.rendered) void app.queueContentMutation(() => task(app));
+}
 
 /**
  * --------------------------------------------
@@ -21,21 +30,29 @@ Hooks.once("init", () => {
     registerSettings(); // 註冊設定
 });
 
-Hooks.once("ready", () => {
+Hooks.once("ready", async () => {
     console.log("YCIO | 模組準備就緒 (Ready)");
     // 初始化原生側邊欄顯示狀態
     updateNativeSidebarVisibility();
     // 建立視窗實例
     floatingChatInstance = new FloatingChat();
     // 渲染視窗 (參數 true 代表強制顯示)
-    floatingChatInstance.render(true);
+    try {
+        await floatingChatInstance.render(true);
+        // 補入初次 render 快照期間建立、當時尚無 DOM 可接收的訊息。
+        await floatingChatInstance.reconcileMessages();
+    } catch (error) {
+        console.error("YCIO | 初始聊天視窗渲染失敗:", error);
+        ui.notifications.error(game.i18n.localize("YCIO.Warning.InitialRenderFailed"));
+    }
 });
 
 /**
  * 更新原生側邊欄的可見度，讀取設定並切換 Body Class
  */
 function updateNativeSidebarVisibility() {
-    const mode = game.settings.get("yuuko-chat-interface-overhaul", "hideNativeSidebar");
+    // Lowercase also repairs the legacy invalid default value "All".
+    const mode = String(game.settings.get(MODULE_ID, "hideNativeSidebar") || "none").toLowerCase();
     const isGM = game.user.isGM;
 
     // 判斷是否需要隱藏
@@ -71,7 +88,7 @@ Hooks.on("createChatMessage", (message, options, userId) => {
 
     // 檢查視窗是否已建立且已渲染 (rendered)，避免報錯
     if (floatingChatInstance?.rendered) {
-        floatingChatInstance.appendMessage(message);
+        queueMessageSync(app => app.appendMessage(message));
     }
 });
 
@@ -81,7 +98,7 @@ Hooks.on("createChatMessage", (message, options, userId) => {
  */
 Hooks.on("deleteChatMessage", (message, options, userId) => {
     if (floatingChatInstance?.rendered) {
-        floatingChatInstance.deleteMessageFromDOM(message.id);
+        queueMessageSync(app => app.deleteMessageFromDOM(message.id));
     }
 });
 
@@ -91,11 +108,8 @@ Hooks.on("deleteChatMessage", (message, options, userId) => {
  */
 Hooks.on("updateChatMessage", (message, changes, options, userId) => {
     if (floatingChatInstance?.rendered) {
-        // 優化效能：只有當內容 (content)、密語對象 (whisper) 或盲骰狀態 (blind) 改變時，才需要重繪
-        // 其他更新 (如 flags 變動) 如果不影響顯示則忽略
-        if (changes.content || changes.whisper || changes.blind || changes.flags || changes.rolls) {
-            floatingChatInstance.updateMessageInDOM(message);
-        }
+        // ChatMessage 更新頻率很低；全量重新判斷路由比維護易漏欄位的白名單可靠。
+        queueMessageSync(app => app.updateMessageInDOM(message));
     }
 });
 

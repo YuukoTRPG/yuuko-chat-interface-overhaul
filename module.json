@@ -4,12 +4,12 @@
   "version": "1.1.1",
   "compatibility": {
     "minimum": "13",
-    "verified": "14.364"
+    "verified": "13"
   },
   "description": "This module is designed to replace the native sidebar chat, aiming to enhance the experience of playing text-based TTRPGs. <br>It offers features such as scene-based conversation tabs, avatar management for speakers, and a simple text formatting editor.",
   "flags": {
     "canUpload": false,
-    "lastUpdate": "2026-06-26"
+    "lastUpdate": "2026-07-30"
   },
   "esmodules": [
     "scripts/main.js"

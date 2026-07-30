@@ -4,7 +4,8 @@
         "MinimizeIcon": "最小化",
         "Warning": {
             "NoLabeledAvatars": "目前的发言身份没有设置任何带注解的头像",
-            "FailedMsg": "消息发送失败"
+            "FailedMsg": "消息发送失败",
+            "InitialRenderFailed": "无法打开 YCIO 聊天窗口，请查看控制台获取详细信息。"
         },
         "Menu": {
             "ExportLog": "导出聊天记录",
@@ -15,7 +16,7 @@
             "About": "关于本模组"
         },
         "Tabs": {
-            "Public": "公开消息",
+            "Label": "聊天分页",
             "OOC": "场外"
         },
         "Input": {
@@ -24,6 +25,10 @@
             "TypingNone": "没人在打字",
             "Typing": " 正在输入...",
             "AvatarSetting": "选择头像",
+            "Speaker": "发言身份",
+            "Formatting": "文字格式",
+            "JumpToBottom": "回到底部",
+            "NewMessages": "有新消息",
             "Bold": "粗体",
             "Italic": "斜体",
             "Strikethrough": "删除线",
@@ -43,6 +48,12 @@
             "OOC": "场外"
         },
         "Settings": {
+            "Sections": {
+                "Controls": "操作设置",
+                "Audio": "音效设置",
+                "Interface": "界面设置",
+                "Compatibility": "兼容性设置"
+            },
             "SwapEnter": {
                 "Name": "➤以Shift+Enter发送消息",
                 "Hint": "勾选后，Shift+Enter才会发送消息，Enter键为普通的换行。"
@@ -75,11 +86,7 @@
             },
             "BackgroundOpacity": {
                 "Name": "➤浮动聊天窗口背景透明度",
-                "Hint": "调整（你自己的）浮动聊天窗口背景透明度（0为完全透明）。"
-            },
-            "MessageOpacity": {
-                "Name": "➤消息独立透明度",
-                "Hint": "调整消息内容的透明度，最小限制为 0.5，以确保文字阅读性。"
+                "Hint": "调整（你自己的）浮动聊天窗口背景透明度（最低30%）。"
             },
             "CleanSender": {
                 "Name": "➤精简发言者信息",
@@ -125,6 +132,10 @@
         "Avatar": {
             "WindowTitle": "选择发言头像",
             "Add": "新增头像",
+            "Select": "选择头像",
+            "Delete": "删除头像",
+            "Label": "头像注解",
+            "ErrorUpdateList": "更新头像列表失败，请重试。",
             "Managing": "正在管理角色：",
             "Default": "默认",
             "NoAvatar": "不显示(GM专用)",
@@ -140,17 +151,25 @@
         "Editor": {
             "WindowTitle": "编辑消息",
             "Edit": "编辑消息",
+            "Content": "消息内容",
+            "Conflict": "消息已被其他操作更新，已取消保存以避免覆盖。",
+            "ErrorUpdate": "更新消息失败，请重试。",
             "Update": "确认编辑消息"
         },
         "Exporter": {
             "Title": "导出聊天记录",
             "Description": "请选择要导出的频道分页。导出过程会将所有图片转换为内嵌格式，这可能需要几分钟的时间。",
+            "IncludePrivate": "包含私密消息",
+            "IncludePrivateHint": "包含你当前可见的密语、暗骰与其他私密消息。",
+            "PrivateWarning": "导出文件可能包含敏感的私密消息，分享前请先确认内容。",
             "OOCLabel": "场外",
             "OOCButton": "场外",
             "WarningNoSelection": "请至少选择一个要导出的分页",
             "InfoPreparing": "正在准备导出，包含图片转换可能需要一些时间，请稍候...",
             "InfoDownloadingCSS": "正在下载并封装样式表...",
             "InfoComplete": "导出完成！",
+            "WarningResourceFailures": "有 {count} 个外部资源已省略；导出文件的显示可能不完整。",
+            "ErrorFailed": "聊天记录导出失败：{error}",
             "ButtonStart": "开始导出",
             "HtmlTitle": "聊天记录导出"
         },
@@ -168,8 +187,7 @@
             "ProjectLink": "GitHub 仓库",
             "Author": "作者",
             "Contact": "联系方式",
-            "Donate": "赞助悠子",
-            "Close": "关闭"
+            "Donate": "赞助悠子"
         }
     }
 }

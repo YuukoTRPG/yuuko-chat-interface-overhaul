@@ -8,7 +8,9 @@
         </div>
     </div>
     {{! 回到底部的按鈕}}
-    <button type="button" class="jump-to-bottom" data-action="jumpToBottom" aria-label="Jump to Bottom">
-        <i class="fas fa-arrow-down"></i>
+    <button type="button" class="jump-to-bottom" data-action="jumpToBottom" aria-live="polite">
+        <i class="fas fa-arrow-down" aria-hidden="true"></i>
+        <span class="jump-label-default">{{localize 'YCIO.Input.JumpToBottom'}}</span>
+        <span class="jump-label-unread">{{localize 'YCIO.Input.NewMessages'}}</span>
     </button>
 </section>

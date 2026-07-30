@@ -4,7 +4,8 @@
         "MinimizeIcon": "最小化",
         "Warning": {
             "NoLabeledAvatars": "現在の発言キャラクターには注釈のあるアバターが設定されていません。",
-            "FailedMsg": "メッセージの送信に失敗しました"
+            "FailedMsg": "メッセージの送信に失敗しました",
+            "InitialRenderFailed": "YCIOチャットウィンドウを開けませんでした。詳細はコンソールを確認してください。"
         },
         "Menu": {
             "ExportLog": "チャットログを書き出す",
@@ -15,7 +16,7 @@
             "About": "このモジュールについて"
         },
         "Tabs": {
-            "Public": "公開",
+            "Label": "チャットタブ",
             "OOC": "雑談"
         },
         "Input": {
@@ -24,6 +25,10 @@
             "TypingNone": "誰も入力していません",
             "Typing": " が入力中...",
             "AvatarSetting": "アバターを選択",
+            "Speaker": "発言者",
+            "Formatting": "文字書式",
+            "JumpToBottom": "一番下へ",
+            "NewMessages": "新着メッセージ",
             "Bold": "太字",
             "Italic": "斜体",
             "Strikethrough": "取り消し線",
@@ -43,6 +48,12 @@
             "OOC": "雑談"
         },
         "Settings": {
+            "Sections": {
+                "Controls": "操作設定",
+                "Audio": "音声設定",
+                "Interface": "インターフェース設定",
+                "Compatibility": "互換性設定"
+            },
             "SwapEnter": {
                 "Name": "➤Shift+Enterで送信",
                 "Hint": "チェックすると、Shift+Enterでのみメッセージが送信されます。Enterは改行になります。"
@@ -75,11 +86,7 @@
             },
             "BackgroundOpacity": {
                 "Name": "➤フロートチャットウィンドウの背景の不透明度",
-                "Hint": "（自分自身の）フロートチャットウィンドウの背景の不透明度を調整します（0で完全透明）。"
-            },
-            "MessageOpacity": {
-                "Name": "➤メッセージの独立した不透明度",
-                "Hint": "メッセージボックスの不透明度を調整します。文字の読みやすさを確保するため、最小値は 0.5 です。"
+                "Hint": "（自分自身の）フロートチャットウィンドウの背景の不透明度を調整します（最低30%）。"
             },
             "CleanSender": {
                 "Name": "➤発言者情報のシンプル化",
@@ -125,6 +132,10 @@
         "Avatar": {
             "WindowTitle": "アバターの選択",
             "Add": "アバターを追加",
+            "Select": "アバターを選択",
+            "Delete": "アバターを削除",
+            "Label": "アバターの注釈",
+            "ErrorUpdateList": "アバター一覧の更新に失敗しました。もう一度お試しください。",
             "Managing": "管理中のキャラクター：",
             "Default": "デフォルト",
             "NoAvatar": "非表示(GM専用)",
@@ -140,17 +151,25 @@
         "Editor": {
             "WindowTitle": "メッセージの編集",
             "Edit": "メッセージを編集する",
+            "Content": "メッセージ内容",
+            "Conflict": "メッセージは別の操作で更新されています。上書きを避けるため保存をキャンセルしました。",
+            "ErrorUpdate": "メッセージの更新に失敗しました。もう一度お試しください。",
             "Update": "編集を確定する"
         },
         "Exporter": {
             "Title": "チャットログを書き出す",
             "Description": "書き出すチャンネルタブを選択してください。エクスポート処理においてすべての画像は埋め込み形式に変換されるため、数分かかる場合があります。",
+            "IncludePrivate": "非公開メッセージを含める",
+            "IncludePrivateHint": "現在表示できる秘話、ブラインドロール、その他の非公開メッセージを含めます。",
+            "PrivateWarning": "エクスポートファイルには機密性の高い非公開メッセージが含まれる場合があります。共有前に内容を確認してください。",
             "OOCLabel": "雑談",
             "OOCButton": "雑談",
             "WarningNoSelection": "エクスポートするタブを少なくとも一つ選択してください",
             "InfoPreparing": "書き出しの準備中です。画像の変換が含まれるため、時間がかかる場合があります...",
             "InfoDownloadingCSS": "スタイルシートをダウンロード・パッケージング中...",
             "InfoComplete": "エクスポート完了！",
+            "WarningResourceFailures": "{count} 件の外部リソースを省略しました。表示が不完全になる場合があります。",
+            "ErrorFailed": "チャットログのエクスポートに失敗しました：{error}",
             "ButtonStart": "エクスポート開始",
             "HtmlTitle": "チャットログのエクスポート"
         },
@@ -168,8 +187,7 @@
             "ProjectLink": "GitHub リポジトリ",
             "Author": "作者",
             "Contact": "コンタクト",
-            "Donate": "悠子を支援する",
-            "Close": "閉じる"
+            "Donate": "悠子を支援する"
         }
     }
 }

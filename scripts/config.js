@@ -75,9 +75,6 @@ export function registerSettings() {
         type: String,
         filePicker: "audio", // V13: 顯示音訊檔案選擇器
         default: `modules/${MODULE_ID}/sounds/page.mp3`, // 預設路徑
-        onChange: () => {
-            // 僅提示變更
-        }
     });
 
     // 承上一個設定，OOC 是否播放音效 (World - GM Only)
@@ -100,10 +97,7 @@ export function registerSettings() {
         config: true,       // 顯示在設定選單中
         type: String,
         default: "",        // 預設為空 (代表使用預設標題)
-        onChange: () => {
-            // 標題改變通常需要重繪視窗，這裡先發送通知提醒
-            ui.notifications.info(game.i18n.localize("YCIO.Settings.WindowTitle.Changed"));
-        }
+        requiresReload: true
     });
 
     // 是否隱藏原生側邊欄 (World - GM Only)
@@ -118,7 +112,7 @@ export function registerSettings() {
             "all": "YCIO.Settings.HideNativeSidebar.Choices.All",   // 全部隱藏 (預設)
             "gm": "YCIO.Settings.HideNativeSidebar.Choices.GM"      // 僅 GM 顯示
         },
-        default: "All",
+        default: "all",
         onChange: () => Hooks.callAll("YCIO_UpdateSidebarVisibility") // 觸發主程式的監聽器
     });
 
@@ -150,20 +144,12 @@ export function registerSettings() {
         onChange: () => Hooks.callAll("YCIO_UpdateStyle") // 觸發自定義 Hook
     });
 
-    // 聊天訊息獨立透明度 (Client)
+    // 保留舊設定鍵供既有資料相容；目前沒有安全的背景-only 透明度實作，因此不顯示。
     game.settings.register(MODULE_ID, "messageOpacity", {
-        name: "YCIO.Settings.MessageOpacity.Name",
-        hint: "YCIO.Settings.MessageOpacity.Hint",
         scope: "client",
-        config: true,
+        config: false,
         type: Number,
-        default: 1.0,
-        range: {            // 顯示為滑桿
-            min: 0.5,
-            max: 1,
-            step: 0.05
-        },
-        onChange: () => Hooks.callAll("YCIO_UpdateStyle") // 觸發自定義 Hook
+        default: 1.0
     });
 
     // 淨化發言者名稱 (清理其他系統/模組塞入的頭像或徽章)
@@ -259,9 +245,6 @@ export function registerSettings() {
         },
         default: "native",
         requiresReload: true,
-        onChange: () => {
-            ui.notifications.info(game.i18n.localize("YCIO.Settings.HookArgumentType.Changed"));
-        }
     });
 
     // 訊息渲染模式的設定，renderChatLog/renderChatMessage/停用Hook
@@ -277,9 +260,6 @@ export function registerSettings() {
             "standard": "YCIO.Settings.HookMode.Standard", // "標準 (D&D 5e, PF2e) - 僅觸發 renderChatMessage",
             "clone": "YCIO.Settings.HookMode.Clone"        // "隔離 (SR 5e) - 使用 DOM 副本觸發 Hook"
         },
-        onChange: () => {
-            ui.notifications.info(game.i18n.localize("YCIO.Settings.HookMode.Changed"));
-        }
     });
 
     console.log("YCIO | 設定 (Settings) 已註冊");
@@ -294,7 +274,7 @@ Hooks.on("renderSettingsConfig", (app, html, data) => {
     // 1. 正確且兼容地取得 DOM 根節點
     // 如果 html 有 .jquery 屬性，代表它是 jQuery 物件，取 html[0] (原生的 HTMLElement)
     // 否則直接使用 app.element 或 html 本身
-    let domRoot = app.element || (html.jquery ? html[0] : html);
+    let domRoot = app.element || (html?.jquery ? html[0] : html);
 
     // 防呆：確保 domRoot 真的是一個可以執行 querySelector 的 DOM 節點
     if (!domRoot || typeof domRoot.querySelector !== "function") {
@@ -341,14 +321,14 @@ Hooks.on("renderSettingsConfig", (app, html, data) => {
 
     // 開始執行排版(插入標題)，區分 GM 與玩家視角
     if (game.user.isGM) {
-        injectHeader("swapEnterShiftEnter", "操作設定", "fas fa-keyboard");
-        injectHeader("notificationSoundPath", "音效設定", "fas fa-music");
-        injectHeader("windowTitle", "介面設定", "fas fa-desktop");
-        injectHeader("hookArgumentType", "相容性設定", "fas fa-cogs");
+        injectHeader("swapEnterShiftEnter", game.i18n.localize("YCIO.Settings.Sections.Controls"), "fas fa-keyboard");
+        injectHeader("notificationSoundPath", game.i18n.localize("YCIO.Settings.Sections.Audio"), "fas fa-music");
+        injectHeader("windowTitle", game.i18n.localize("YCIO.Settings.Sections.Interface"), "fas fa-desktop");
+        injectHeader("hookArgumentType", game.i18n.localize("YCIO.Settings.Sections.Compatibility"), "fas fa-cogs");
     } else {
         // 玩家視角的排版
-        injectHeader("swapEnterShiftEnter", "操作設定", "fas fa-keyboard");
-        injectHeader("backgroundColor", "介面設定", "fas fa-desktop");
+        injectHeader("swapEnterShiftEnter", game.i18n.localize("YCIO.Settings.Sections.Controls"), "fas fa-keyboard");
+        injectHeader("backgroundColor", game.i18n.localize("YCIO.Settings.Sections.Interface"), "fas fa-desktop");
     }
 
     // console.log("YCIO Debug | 設定介面排版注入完成。");

@@ -2,7 +2,7 @@
     {{!-- 頂部工具列 --}}
     <header class="controls">
         <button type="button" data-action="addAvatar" class="add-btn">
-            <i class="fas fa-plus"></i> {{localize "YCIO.Avatar.Add"}}
+            <i class="fas fa-plus" aria-hidden="true"></i> {{localize "YCIO.Avatar.Add"}}
         </button>
         <div class="info">
             {{localize "YCIO.Avatar.Managing"}} <strong>{{targetName}}</strong>
@@ -12,46 +12,52 @@
     {{!-- 頭像列表 --}}
     <div class="avatar-grid">
         {{!-- 1. 預設頭像 --}}
-        <div class="avatar-card {{#if (eq currentAvatar '')}}selected{{/if}}" 
-             data-action="selectAvatar" data-src="">
+        <button type="button" class="avatar-card {{#if (eq currentAvatar '')}}selected{{/if}}"
+             data-action="selectAvatar" data-src=""
+             aria-pressed="{{#if (eq currentAvatar '')}}true{{else}}false{{/if}}">
             
-            <div class="image-wrapper">
-                <img src="{{defaultAvatar}}" />
-            </div>
+            <span class="image-wrapper">
+                <img src="{{defaultAvatar}}" alt="" />
+            </span>
             
-            <div class="details">
+            <span class="details">
                 {{!-- 預設頭像沒有輸入框，顯示標籤即可 --}}
                 <span class="system-label">{{localize "YCIO.Avatar.Default"}}</span>
-            </div>
-        </div>
+            </span>
+        </button>
         
         {{!-- GM 專用：無頭像選項 --}}
         {{#if isGM}}
-        <div class="avatar-card {{#if (eq currentAvatar '__NO_AVATAR__')}}selected{{/if}}" 
-             data-action="selectAvatar" data-src="__NO_AVATAR__">
-            <div class="image-wrapper">
-                <img src="icons/svg/cancel.svg" />
-            </div>
-            <div class="details">
+        <button type="button" class="avatar-card {{#if (eq currentAvatar '__NO_AVATAR__')}}selected{{/if}}"
+             data-action="selectAvatar" data-src="__NO_AVATAR__"
+             aria-pressed="{{#if (eq currentAvatar '__NO_AVATAR__')}}true{{else}}false{{/if}}">
+            <span class="image-wrapper">
+                <img src="icons/svg/cancel.svg" alt="" />
+            </span>
+            <span class="details">
                 <span class="system-label">{{localize "YCIO.Avatar.NoAvatar"}}</span>
-            </div>
-        </div>
+            </span>
+        </button>
         {{/if}}
 
         {{!-- 2. 自定義頭像列表 --}}
         {{#each avatars}}
             <div class="avatar-card draggable-item {{#if (eq ../currentAvatar this.src)}}selected{{/if}}" 
                  draggable="true"
-                 data-action="selectAvatar" 
-                 data-src="{{this.src}}"
-                 data-index="{{@index}}">
+                 data-src="{{this.src}}">
                 
                 <div class="image-wrapper">
-                    <img src="{{this.src}}" draggable="false" />
+                    <button type="button" class="avatar-select-btn" data-action="selectAvatar"
+                            data-src="{{this.src}}"
+                            aria-label="{{localize 'YCIO.Avatar.Select'}} {{this.label}}"
+                            aria-pressed="{{#if (eq ../currentAvatar this.src)}}true{{else}}false{{/if}}">
+                        <img src="{{this.src}}" alt="" draggable="false" />
+                    </button>
                     
-                    {{!-- 刪除按鈕 (改用 index) --}}
-                    <button type="button" class="delete-btn" data-action="deleteAvatar" data-index="{{@index}}">
-                        <i class="fas fa-times"></i>
+                    {{!-- 刪除按鈕 --}}
+                    <button type="button" class="delete-btn" data-action="deleteAvatar"
+                            aria-label="{{localize 'YCIO.Avatar.Delete'}} {{this.label}}">
+                        <i class="fas fa-times" aria-hidden="true"></i>
                     </button>
                 </div>
 
@@ -60,7 +66,7 @@
                     <input type="text" class="avatar-label-input" 
                            value="{{this.label}}" 
                            placeholder="{{localize 'YCIO.Avatar.LabelPlaceholder'}}"
-                           data-action="updateLabel" data-index="{{@index}}">
+                           aria-label="{{localize 'YCIO.Avatar.Label'}}">
                 </div>
             </div>
         {{/each}}
@@ -69,7 +75,7 @@
     {{!-- 底部確認按鈕 --}}
     <footer class="footer">
         <button type="button" data-action="confirm" class="confirm-btn">
-            <i class="fas fa-check"></i> {{localize "YCIO.Avatar.Confirm"}}
+            <i class="fas fa-check" aria-hidden="true"></i> {{localize "YCIO.Avatar.Confirm"}}
         </button>
     </footer>
 </div>

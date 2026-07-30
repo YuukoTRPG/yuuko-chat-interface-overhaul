@@ -6,13 +6,32 @@
 import { FLAG_SCOPE, FLAG_KEY, MODULE_ID } from "./config.js";
 import { MessageEditor } from "./message-editor.js";
 
+function isUsableSpeakerToken(token) {
+    return !!(token?.actor?.isOwner && (game.user.isGM || !token.hidden));
+}
+
 /**
  * 判斷場景中是否存在目前使用者可用來發言的 Token。
  * @param {Scene} scene - 場景文件
  * @returns {Boolean}
  */
 export function sceneHasOwnedSpeakerToken(scene) {
-    return !!scene?.tokens?.some(t => t.actor && t.actor.isOwner);
+    return !!scene?.tokens?.some(isUsableSpeakerToken);
+}
+
+/**
+ * 判斷場景是否應顯示為目前使用者的聊天分頁。
+ * Foundry v13 的 Scene 沒有舊版 `visible` getter，改用實際 source 欄位。
+ * @param {Scene} scene - 場景文件
+ * @returns {Boolean}
+ */
+export function isSceneAvailableToUser(scene) {
+    if (!scene) return false;
+    return game.user.isGM
+        || scene.navigation
+        || scene.active
+        || scene.id === canvas.scene?.id
+        || sceneHasOwnedSpeakerToken(scene);
 }
 
 /**
@@ -21,12 +40,7 @@ export function sceneHasOwnedSpeakerToken(scene) {
  * @returns {Array<Scene>}
  */
 export function getAvailableSpeakerScenes() {
-    return game.scenes.filter(scene => {
-        return game.user.isGM
-            || scene.visible
-            || scene.id === canvas.scene?.id
-            || sceneHasOwnedSpeakerToken(scene);
-    });
+    return game.scenes.filter(isSceneAvailableToUser);
 }
 
 /**
@@ -58,7 +72,7 @@ export function prepareSpeakerList() {
 
     for (const scene of validScenes) {
         // 找出該場景中，玩家擁有權限的 Token (且有關聯 Actor)
-        const tokens = scene.tokens.filter(t => t.actor && t.actor.isOwner);
+        const tokens = scene.tokens.filter(isUsableSpeakerToken);
 
         for (const token of tokens) {
             const value = `${scene.id}.${token.id}`;
@@ -88,12 +102,13 @@ export function getChatContextOptions() {
             condition: li => {
                 const element = li instanceof jQuery ? li[0] : li;
                 const message = game.messages.get(element.dataset.messageId);
-                const isLimited = message?.whisper.length || message?.blind;
-                return isLimited && (game.user.isGM || message?.isAuthor) && message?.isContentVisible;
+                const isLimited = message?.whisper?.length || message?.blind;
+                return isLimited && message?.canUserModify(game.user, "update") && message?.isContentVisible;
             },
             callback: li => {
                 const element = li instanceof jQuery ? li[0] : li;
                 const message = game.messages.get(element.dataset.messageId);
+                if (!message?.canUserModify(game.user, "update")) return;
                 return message?.update({ whisper: [], blind: false });
             }
         },
@@ -103,13 +118,17 @@ export function getChatContextOptions() {
             condition: li => {
                 const element = li instanceof jQuery ? li[0] : li;
                 const message = game.messages.get(element.dataset.messageId);
-                const isLimited = message?.whisper.length || message?.blind;
-                return !isLimited && (game.user.isGM || message?.isAuthor) && message?.isContentVisible;
+                const isLimited = message?.whisper?.length || message?.blind;
+                return !isLimited && message?.canUserModify(game.user, "update") && message?.isContentVisible;
             },
             callback: li => {
                 const element = li instanceof jQuery ? li[0] : li;
                 const message = game.messages.get(element.dataset.messageId);
-                return message?.update({ whisper: ChatMessage.getWhisperRecipients("gm").map(u => u.id), blind: false });
+                if (!message?.canUserModify(game.user, "update")) return;
+                return message?.update({
+                    whisper: foundry.documents.ChatMessage.getWhisperRecipients("gm").map(user => user.id),
+                    blind: false
+                });
             }
         },
         {
@@ -120,13 +139,10 @@ export function getChatContextOptions() {
                 const message = game.messages.get(element.dataset.messageId);
 
                 // 1. 基本權限檢查：只有作者或 GM 能編輯
-                if (!message?.isAuthor && !game.user.isGM) return false;
+                if (!message?.canUserModify(game.user, "update")) return false;
 
-                // 2. 資料層級檢查：如果是擲骰資料 (rolls 陣列 或 type 為 ROLL)，則禁止
-                if (message.rolls.length > 0) return false;
-
-                // 檢查 V13 的訊息類型常數 (ROLL = 5)
-                if (message.type === CONST.CHAT_MESSAGE_TYPES.ROLL) return false;
+                // v13 已移除 CHAT_MESSAGE_TYPES；使用文件的衍生屬性判斷。
+                if (message.isRoll || message.rolls?.length > 0) return false;
 
                 // 3. 內容檢查：避免編輯到內容為空的純系統訊息 (完全由 Flags/Template 渲染的)
                 // 如果 content 不存在或 trim 後為空字串，視為不可編輯
@@ -416,7 +432,7 @@ export function getSpeakerFromSelection(value) {
         }
     }
 
-    if (!game.user.isGM && !result.actorDoc?.isOwner) {
+    if (!game.user.isGM && (result.tokenDoc?.hidden || !result.actorDoc?.isOwner)) {
         return {
             speaker: { scene: null, token: null, actor: null, alias: game.user.name },
             user: game.user,
@@ -437,10 +453,20 @@ export function getSpeakerFromSelection(value) {
  * @returns {String} "rgba(...)" 字串
  */
 export function hexToRgba(hex, opacity) {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    let normalized = String(hex || "").trim();
+    if (/^#[0-9a-f]{3}$/i.test(normalized)) {
+        normalized = `#${normalized.slice(1).split("").map(c => c + c).join("")}`;
+    }
+    if (!/^#[0-9a-f]{6}$/i.test(normalized)) normalized = "#000000";
+
+    const numericOpacity = Number(opacity);
+    const alpha = Number.isFinite(numericOpacity)
+        ? Math.min(1, Math.max(0, numericOpacity))
+        : 1;
+    const r = parseInt(normalized.slice(1, 3), 16);
+    const g = parseInt(normalized.slice(3, 5), 16);
+    const b = parseInt(normalized.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 /**
@@ -458,12 +484,9 @@ export function triggerRenderHooks(app, message, htmlElement) {
     // 由於 htmlElement 已經在 enrichMessageHTML 中被確保為原生 DOM，可以使用原生的 cloneNode(true) 進行深層複製
     let baseElement = cloneMode ? htmlElement.cloneNode(true) : htmlElement;
 
-    // 根據設定，觸發對應世代的 Hook
-    if (argType === "native") {
-        // 現代版本，傳遞原生 DOM，並使用 V13 全新的 Hook 名稱
-        Hooks.callAll("renderChatMessageHTML", message, baseElement, message.system || {});
-    } else {
-        // 傳統相容，傳遞 jQuery 物件，使用舊的 Hook 名稱
+    // ChatMessage.renderHTML() 已由 v13 原生派送 renderChatMessageHTML。
+    // 只有使用者明確選擇舊 jQuery 相容模式時才補發舊 Hook。
+    if (argType === "jquery") {
         Hooks.callAll("renderChatMessage", message, $(baseElement), message.system || {});
     }
 }
@@ -500,6 +523,7 @@ export function insertTextFormat(textarea, startTag, endTag) {
     } else {
         textarea.setSelectionRange(start + startTag.length, end + startTag.length);
     }
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 /**
@@ -532,7 +556,6 @@ export function applyWindowStyles(element, user) {
 
     const colorHex = game.settings.get(MODULE_ID, "backgroundColor");
     const windowOpacity = game.settings.get(MODULE_ID, "backgroundOpacity");
-    const messageOpacity = game.settings.get(MODULE_ID, "messageOpacity");
 
     // 設定 CSS 變數背景色 (純色，無透明度)
     // 但因為將透明度拆分，將它與 rgba 結合給根背景使用，同時保留原始色碼變數以供參考
@@ -541,8 +564,7 @@ export function applyWindowStyles(element, user) {
     element.style.setProperty("--YCIO-bg", rgba);
     // 個別元件(如輸入框、標題列)如果需要繼承視窗透明度可使用這個變數 (不過在此情境下可以直接在根節點處理背景)
     element.style.setProperty("--YCIO-window-opacity", windowOpacity);
-    // 給訊息泡泡專用的透明度變數
-    element.style.setProperty("--YCIO-message-opacity", messageOpacity);
+    element.style.removeProperty("--YCIO-message-opacity");
 
     // 訊息文字顏色覆蓋
     const messageTextColor = game.settings.get(MODULE_ID, "messageTextColor");
@@ -578,8 +600,8 @@ export function applyWindowStyles(element, user) {
  * @returns {boolean} 是否播放
  */
 export function shouldPlayNotification(message) {
-    // 1. 自己的訊息不播放
-    if (message.isAuthor) return false;
+    // 不可見或不可讀內容不能形成通知側信道。
+    if (!message.visible || !message.isContentVisible || message.isAuthor) return false;
 
     // 2. 檢查是否有設定音效檔案
     const soundPath = game.settings.get(MODULE_ID, "notificationSoundPath");
@@ -591,12 +613,6 @@ export function shouldPlayNotification(message) {
 
     if (isOOC && !playOnOOC) return false;
 
-    // 4. 場景權限檢查：若訊息來自某場景，但玩家無權看到該場景（看不到該分頁），則不播放
-    if (!isOOC && message.speaker.scene) {
-        const scene = game.scenes.get(message.speaker.scene);
-        if (scene && !scene.visible && !game.user.isGM) return false;
-    }
-
     return true;
 }
 
@@ -607,7 +623,11 @@ export function shouldPlayNotification(message) {
  */
 export function getMessageRouteId(message) {
     if (!message.speaker.token) return "ooc";
-    return message.speaker.scene || "ooc";
+    const sceneId = message.speaker.scene;
+    const scene = game.scenes.get(sceneId);
+    // 原生聊天仍會顯示來自不可用場景的公開訊息／密語；YCIO 將其退回 OOC，
+    // 避免隱藏原生側欄後讓可見訊息完全消失。
+    return isSceneAvailableToUser(scene) ? sceneId : "ooc";
 }
 
 /**
@@ -618,15 +638,7 @@ export function getMessageRouteId(message) {
  */
 export function isMessageVisibleInTab(message, activeTabId) {
     if (!message.visible) return false;
-
-    const msgSceneId = message.speaker.scene;
-    const msgTokenId = message.speaker.token;
-
-    if (activeTabId === "ooc") {
-        return !msgTokenId;
-    } else {
-        return msgSceneId === activeTabId && !!msgTokenId;
-    }
+    return getMessageRouteId(message) === activeTabId;
 }
 
 /**
@@ -635,29 +647,46 @@ export function isMessageVisibleInTab(message, activeTabId) {
  */
 export function generateTypingStatusHTML() {
     // 1. 取得正在打字的人
-    const typingUsers = game.users.filter(u => u.getFlag(FLAG_SCOPE, FLAG_KEY) === true);
+    const typingUsers = game.users.filter(u => u.active && u.getFlag(FLAG_SCOPE, FLAG_KEY) === true);
 
     // 2. 取得正在「請等一下」的人
-    const waitingUsers = game.users.filter(u => u.getFlag(FLAG_SCOPE, "isWaiting") === true);
+    const waitingUsers = game.users.filter(u => u.active && u.getFlag(FLAG_SCOPE, "isWaiting") === true);
 
-    const statusParts = [];
+    const container = document.createElement("span");
+    const appendPart = element => {
+        if (container.childNodes.length) container.append(" | ");
+        container.append(element);
+    };
 
     if (typingUsers.length > 0) {
         const names = typingUsers.map(u => u.name).join(", ");
         const typingText = game.i18n.localize("YCIO.Input.Typing");
-        statusParts.push(`${names} ${typingText}`);
+        const part = document.createElement("span");
+        part.textContent = `${names} ${typingText}`;
+        appendPart(part);
     }
 
     if (waitingUsers.length > 0) {
         const names = waitingUsers.map(u => u.name).join(", ");
         const waitingText = game.i18n.localize("YCIO.Input.IsWaiting");
-        statusParts.push(`<span class="YCIO-status-waiting">${names} ${waitingText}</span>`);
+        const part = document.createElement("span");
+        part.className = "YCIO-status-waiting";
+        part.textContent = `${names} ${waitingText}`;
+        appendPart(part);
     }
 
-    if (statusParts.length > 0) {
-        return statusParts.join(" | ");
+    return container.childNodes.length ? container.innerHTML : null;
+}
+
+function isSafeImageSource(source) {
+    if (!source || source === "__NO_AVATAR__") return false;
+    try {
+        const url = new URL(String(source), document.baseURI);
+        return ["http:", "https:", "blob:"].includes(url.protocol)
+            || (url.protocol === "data:" && /^data:image\//i.test(String(source)));
+    } catch (_error) {
+        return false;
     }
-    return null;
 }
 
 /**
@@ -672,14 +701,50 @@ export function parseInlineAvatars(content, targetDoc) {
     const avatarList = targetDoc.getFlag(MODULE_ID, "avatarList") || [];
     if (avatarList.length === 0) return content;
 
-    //正則表達式字串替換
-    return content.replace(/\[\[(.*?)\]\]/g, (match, tagLabel) => {
-        const found = avatarList.find(a => a.label === tagLabel);
-        if (found) {
-            return `<img src="${found.src}" class="YCIO-inline-emote" alt="${tagLabel}">`;
+    const avatarsByLabel = new Map();
+    for (const avatar of avatarList) {
+        if (avatar.label && !avatarsByLabel.has(avatar.label) && isSafeImageSource(avatar.src)) {
+            avatarsByLabel.set(avatar.label, avatar);
         }
-        return match;
-    });
+    }
+    const source = String(content ?? "");
+    if (![...avatarsByLabel.keys()].some(label => source.includes(`[[${label}]]`))) return content;
+
+    const template = document.createElement("template");
+    template.innerHTML = source;
+    const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+    let replaced = false;
+    for (const textNode of textNodes) {
+        if (textNode.parentElement?.closest("script, style, code, pre")) continue;
+        const parts = textNode.textContent.split(/(\[\[.*?\]\])/g);
+        const markerLabel = part => part.startsWith("[[") && part.endsWith("]]")
+            ? part.slice(2, -2)
+            : null;
+        if (!parts.some(part => avatarsByLabel.has(markerLabel(part)))) continue;
+
+        const fragment = document.createDocumentFragment();
+        for (const part of parts) {
+            const label = markerLabel(part);
+            const avatar = label ? avatarsByLabel.get(label) : null;
+            if (!avatar) {
+                fragment.append(document.createTextNode(part));
+                continue;
+            }
+
+            const img = document.createElement("img");
+            img.src = String(avatar.src);
+            img.className = "YCIO-inline-emote";
+            img.alt = label;
+            fragment.append(img);
+            replaced = true;
+        }
+        textNode.replaceWith(fragment);
+    }
+
+    return replaced ? template.innerHTML : content;
 }
 
 /**
@@ -689,19 +754,25 @@ export function parseInlineAvatars(content, targetDoc) {
  * @returns {string} HTML 字串
  */
 export function generateAvatarTooltip(isUnlinked, currentUrl) {
-    if (isUnlinked) {
-        return `
-            <div style="text-align: left;">
-                <div style="margin-bottom: 5px; color: #ffcccc;">${game.i18n.localize("YCIO.Avatar.UnlinkedWarning")}</div>
-                <img src="${currentUrl}" style="max-width: 100px; max-height: 100px; border: 1px solid #666; border-radius: 4px; background: black;">
-            </div>
-        `;
-    } else {
-        return `
-            <div style="text-align: left;">
-                <div style="margin-bottom: 5px; font-weight: bold;">${game.i18n.localize("YCIO.Avatar.Current")}</div>
-                <img src="${currentUrl}" style="max-width: 100px; max-height: 100px; border: 1px solid #666; border-radius: 4px; background: black;">
-            </div>
-        `;
+    const wrapper = document.createElement("div");
+    wrapper.style.textAlign = "left";
+
+    const label = document.createElement("div");
+    label.style.marginBottom = "5px";
+    label.style.fontWeight = isUnlinked ? "normal" : "bold";
+    if (isUnlinked) label.style.color = "#ffcccc";
+    label.textContent = game.i18n.localize(isUnlinked
+        ? "YCIO.Avatar.UnlinkedWarning"
+        : "YCIO.Avatar.Current");
+    wrapper.append(label);
+
+    if (isSafeImageSource(currentUrl)) {
+        const img = document.createElement("img");
+        img.setAttribute("src", String(currentUrl));
+        img.alt = "";
+        img.style.cssText = "max-width:100px;max-height:100px;border:1px solid #666;border-radius:4px;background:black";
+        wrapper.append(img);
     }
+
+    return wrapper.outerHTML;
 }

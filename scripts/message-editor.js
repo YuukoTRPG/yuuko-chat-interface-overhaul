@@ -1,8 +1,37 @@
-import { FloatingChat } from "./floating-chat.js";
 import { InlineAvatarPicker } from "./avatar-selector.js";
 import { MODULE_ID } from "./config.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+
+function getEditorTextarea(target) {
+    return target.closest(".window-content")?.querySelector(".YCIO-chat-entry");
+}
+
+function insertTextFormat(textarea, startTag, endTag) {
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.slice(start, end);
+
+    textarea.setRangeText(`${startTag}${selectedText}${endTag}`, start, end);
+    textarea.focus();
+
+    const selectionStart = start + startTag.length;
+    const selectionEnd = start === end ? selectionStart : end + startTag.length;
+    textarea.setSelectionRange(selectionStart, selectionEnd);
+}
+
+function isSafeImageSource(source) {
+    if (!source || source === "__NO_AVATAR__") return false;
+    try {
+        const url = new URL(String(source), document.baseURI);
+        return ["http:", "https:", "blob:"].includes(url.protocol)
+            || (url.protocol === "data:" && /^data:image\//i.test(String(source)));
+    } catch (_error) {
+        return false;
+    }
+}
 
 /**
  * ============================================
@@ -14,6 +43,9 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     constructor(message) {
         super({ window: { title: game.i18n.localize("YCIO.Editor.WindowTitle") } });
         this.message = message;
+        this._originalContent = message.content;
+        this._editorContent = null;
+        this._saving = false;
 
         // 讀取並還原視窗位置
         const savedPos = game.settings.get(MODULE_ID, "messageEditorPosition");
@@ -26,7 +58,8 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // 防抖動儲存視窗位置與大小
         this._savePositionDebounced = foundry.utils.debounce((pos) => {
-            game.settings.set(MODULE_ID, "messageEditorPosition", pos);
+            void game.settings.set(MODULE_ID, "messageEditorPosition", pos)
+                .catch(error => console.error("YCIO | 儲存編輯器位置失敗:", error));
         }, 500);
     }
 
@@ -42,11 +75,10 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         },
         position: { width: 400, height: 300 },
         actions: {
-            // 直接復用 FloatingChat 的通用邏輯
-            formatBold: (e, t) => FloatingChat.onFormatBold(e, t),
-            formatItalic: (e, t) => FloatingChat.onFormatItalic(e, t),
-            formatStrikethrough: (e, t) => FloatingChat.onFormatStrikethrough(e, t),
-            applyTextColor: (e, t) => FloatingChat.onApplyTextColor(e, t),
+            formatBold: MessageEditor.onFormatBold,
+            formatItalic: MessageEditor.onFormatItalic,
+            formatStrikethrough: MessageEditor.onFormatStrikethrough,
+            applyTextColor: MessageEditor.onApplyTextColor,
 
             // 專屬邏輯
             formatInlineAvatar: MessageEditor.onFormatInlineAvatar,
@@ -60,14 +92,18 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     };
 
     setPosition(position = {}) {
-        const newPosition = super.setPosition(position);
-        this._savePositionDebounced(newPosition);
-        return newPosition;
+        const result = super.setPosition(position);
+        if (this._savePositionDebounced && this.position) {
+            const { left, top, width, height } = this.position;
+            this._savePositionDebounced({ left, top, width, height });
+        }
+        return result;
     }
 
     async _prepareContext(_options) {
         // 先執行還原，讓編輯器顯示 [[標籤]]
-        const restoredContent = this._restoreInlineAvatars(this.message.content);
+        const restoredContent = this._restoreInlineAvatars(this._originalContent);
+        this._editorContent = restoredContent;
         return {
             originalContent: restoredContent
         };
@@ -83,11 +119,12 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         const savedColor = game.settings.get(MODULE_ID, "lastUsedTextColor");
 
         // 找到編輯器視窗內的顏色選擇器，this.element 在 ApplicationV2 中是 HTML 元素本身
-        const colorPicker = this.element.querySelector("#chat-text-color-picker");
+        const colorPicker = this.element.querySelector(".YCIO-chat-text-color-picker, #chat-text-color-picker");
 
-        // 如果找到了，就套用顏色
-        if (colorPicker && savedColor) {
-            colorPicker.value = savedColor;
+        // 如果找到了，就套用共用 class 與記憶顏色
+        if (colorPicker) {
+            colorPicker.classList.add("YCIO-chat-text-color-picker");
+            if (savedColor) colorPicker.value = savedColor;
         }
     }
 
@@ -97,11 +134,15 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
      * @returns {string} 轉換成標籤的文字
      */
     _restoreInlineAvatars(content) {
-        // 尋找擁有 class="YCIO-inline-emote" 的 img 標籤，並抓取 alt 屬性中的文字
-        const regex = /<img[^>]+class=["']YCIO-inline-emote["'][^>]*alt=["'](.*?)["'][^>]*>/g;
-        return content.replace(regex, (match, altText) => {
-            return `[[${altText}]]`;
+        const template = document.createElement("template");
+        template.innerHTML = String(content ?? "");
+
+        template.content.querySelectorAll("img.YCIO-inline-emote").forEach(image => {
+            const label = image.getAttribute("alt") ?? "";
+            image.replaceWith(document.createTextNode(`[[${label}]]`));
         });
+
+        return template.innerHTML;
     }
 
     /**
@@ -115,17 +156,66 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         if (!targetDoc) return content;
 
         const avatarList = targetDoc.getFlag(MODULE_ID, "avatarList") || [];
-        if (avatarList.length === 0) return content;
+        if (!Array.isArray(avatarList) || avatarList.length === 0) return content;
 
-        // 正則替換
-        return content.replace(/\[\[(.*?)\]\]/g, (match, tagLabel) => {
-            const found = avatarList.find(a => a.label === tagLabel);
-            if (found) {
-                // 必須加上 class="YCIO-inline-emote" 以便下次還原
-                return `<img src="${found.src}" class="YCIO-inline-emote" alt="${tagLabel}">`;
+        const avatarsByLabel = new Map();
+        for (const avatar of avatarList) {
+            if (avatar?.label && isSafeImageSource(avatar.src) && !avatarsByLabel.has(avatar.label)) {
+                avatarsByLabel.set(avatar.label, avatar);
             }
-            return match;
+        }
+        const source = String(content ?? "");
+        if (![...avatarsByLabel.keys()].some(label => label && source.includes(`[[${label}]]`))) return content;
+        const template = document.createElement("template");
+        template.innerHTML = source;
+        const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT);
+        const textNodes = [];
+        let replaced = false;
+
+        while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+        textNodes.forEach(textNode => {
+            if (textNode.parentElement?.closest("script, style, code, pre")) return;
+            const text = textNode.textContent;
+            const markers = [];
+            let markerStart = text.indexOf("[[");
+
+            while (markerStart >= 0) {
+                const markerEnd = text.indexOf("]]", markerStart + 2);
+                if (markerEnd < 0) break;
+                markers.push({
+                    start: markerStart,
+                    end: markerEnd + 2,
+                    label: text.slice(markerStart + 2, markerEnd)
+                });
+                markerStart = text.indexOf("[[", markerEnd + 2);
+            }
+
+            if (!markers.some(marker => avatarsByLabel.has(marker.label))) return;
+
+            const fragment = document.createDocumentFragment();
+            let offset = 0;
+
+            markers.forEach(marker => {
+                const avatar = avatarsByLabel.get(marker.label);
+                if (!avatar) return;
+
+                fragment.append(document.createTextNode(text.slice(offset, marker.start)));
+
+                const image = document.createElement("img");
+                image.setAttribute("src", avatar.src);
+                image.classList.add("YCIO-inline-emote");
+                image.setAttribute("alt", marker.label);
+                fragment.append(image);
+                offset = marker.end;
+                replaced = true;
+            });
+
+            fragment.append(document.createTextNode(text.slice(offset)));
+            textNode.replaceWith(fragment);
         });
+
+        return replaced ? template.innerHTML : content;
     }
 
     /**
@@ -141,8 +231,9 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // 2. 其次找訊息指定 Token 的 Actor
         if (!targetDoc && message.speaker.token) {
-            const token = canvas.tokens.get(message.speaker.token);
-            targetDoc = token?.actor;
+            const scene = game.scenes.get(message.speaker.scene);
+            targetDoc = scene?.tokens.get(message.speaker.token)?.actor
+                ?? canvas.tokens?.get(message.speaker.token)?.actor;
         }
 
         // 3. 最後找訊息的作者 (User)
@@ -160,24 +251,68 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     static async onUpdateMessage(event, target) {
         // 在 ApplicationV2 的 static action 中，this 指向的是應用程式實例 (app)
         const app = this;
+        if (app._saving) return;
 
         const form = target.closest("form");
-        const textarea = form.querySelector("textarea");
-        const rawContent = textarea.value.trim(); // 這是包含 [[標籤]] 的原始文字
+        const textarea = form?.querySelector("textarea");
+        if (!textarea) return;
+        const rawContent = textarea.value; // 保留原文前後空白與換行
+
+        // 未編輯時直接關閉，避免 DOM 正規化造成無意義更新。
+        if (rawContent === app._editorContent) {
+            app.close();
+            return;
+        }
 
         // 執行解析：[[標籤]] -> <img ...>
         const finalContent = app._parseInlineAvatars(rawContent);
 
-        // 如果內容有變 (比較解析後的結果與原本的 HTML)，執行更新
-        if (finalContent !== app.message.content) {
-            await app.message.update({ content: finalContent });
+        if (finalContent === app._originalContent) {
+            app.close();
+            return;
         }
 
-        app.close();
+        const currentMessage = game.messages.get(app.message.id);
+        if (!currentMessage || currentMessage.content !== app._originalContent) {
+            ui.notifications.warn(game.i18n.localize("YCIO.Editor.Conflict"));
+            return;
+        }
+
+        app._saving = true;
+        try {
+            await currentMessage.update({ content: finalContent });
+            app.close();
+        } catch (error) {
+            console.error("YCIO | 更新訊息失敗", error);
+            ui.notifications.error(game.i18n.localize("YCIO.Editor.ErrorUpdate"));
+        } finally {
+            app._saving = false;
+        }
     }
 
     static onCancel(event, target) {
         this.close();
+    }
+
+    static onFormatBold(event, target) {
+        insertTextFormat(getEditorTextarea(target), "<b>", "</b>");
+    }
+
+    static onFormatItalic(event, target) {
+        insertTextFormat(getEditorTextarea(target), "<i>", "</i>");
+    }
+
+    static onFormatStrikethrough(event, target) {
+        insertTextFormat(getEditorTextarea(target), "<s>", "</s>");
+    }
+
+    static onApplyTextColor(event, target) {
+        const wrapper = target.closest(".window-content");
+        const picker = wrapper?.querySelector(".YCIO-chat-text-color-picker");
+        const textarea = wrapper?.querySelector(".YCIO-chat-entry");
+        if (picker && textarea) {
+            insertTextFormat(textarea, `<span style="color:${picker.value}">`, "</span>");
+        }
     }
 
     /**
@@ -200,8 +335,7 @@ export class MessageEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         }
 
         const onPick = (label) => {
-            // 呼叫 FloatingChat 的通用插入法
-            FloatingChat._insertFormat(target, `[[${label}]]`, "");
+            insertTextFormat(getEditorTextarea(target), `[[${label}]]`, "");
         };
 
         new InlineAvatarPicker(validList, onPick).render(true);

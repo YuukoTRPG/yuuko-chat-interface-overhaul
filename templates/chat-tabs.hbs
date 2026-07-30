@@ -1,15 +1,19 @@
-<nav class="tabs">
+<nav class="tabs" aria-label="{{localize 'YCIO.Tabs.Label'}}">
     {{!-- OOC 分頁：固定存在，點擊時不切換場景，但過濾無 Token 發言 --}}
-    <a class="item {{#if (eq activeTab 'ooc')}}active{{/if}}" data-tab="ooc">
-        <span class="YCIO-unread-dot {{#if oocHasUnread}}visible{{/if}}"></span>
+    <button type="button" class="item {{#if (eq activeTab 'ooc')}}active{{/if}}" data-action="switchTab" data-tab="ooc"
+        aria-label="{{localize 'YCIO.Tabs.OOC'}}{{#if oocHasUnread}} — {{localize 'YCIO.Input.NewMessages'}}{{/if}}"
+        {{#if (eq activeTab 'ooc')}}aria-current="page"{{/if}}>
+        <span class="YCIO-unread-dot {{#if oocHasUnread}}visible{{/if}}" aria-hidden="true"></span>
         <i class="fas fa-comment-slash"></i> {{localize 'YCIO.Tabs.OOC'}}
-    </a>
+    </button>
 
     {{!-- 場景分頁：動態生成 --}}
     {{#each scenes}}
-    <a class="item {{#if this.active}}active{{/if}}" data-tab="{{this.id}}" title="{{this.name}}">
-        <span class="YCIO-unread-dot {{#if this.hasUnread}}visible{{/if}}"></span>
+    <button type="button" class="item {{#if this.active}}active{{/if}}" data-action="switchTab" data-tab="{{this.id}}" title="{{this.name}}"
+        aria-label="{{this.name}}{{#if this.hasUnread}} — {{localize 'YCIO.Input.NewMessages'}}{{/if}}"
+        {{#if this.active}}aria-current="page"{{/if}}>
+        <span class="YCIO-unread-dot {{#if this.hasUnread}}visible{{/if}}" aria-hidden="true"></span>
         {{this.name}}
-    </a>
+    </button>
     {{/each}}
 </nav>

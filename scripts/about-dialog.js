@@ -30,8 +30,7 @@ export class AboutDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         return {
             moduleTitle: game.i18n.localize("YCIO.About.ModuleName"),
             version: moduleData?.version ?? "unknown",
-            lastUpdate: moduleData?.flags?.lastUpdate ?? "unknown",
-            isGM: game.user.isGM
+            lastUpdate: moduleData?.flags?.lastUpdate ?? "unknown"
         };
     }
 }
