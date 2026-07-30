@@ -1,7 +1,7 @@
 {
   "id": "yuuko-chat-interface-overhaul",
   "title": "Yuuko's Chat Interface Overhaul",
-  "version": "1.1.1",
+  "version": "1.2.0-dev",
   "compatibility": {
     "minimum": "13",
     "verified": "13"
