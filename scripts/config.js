@@ -122,9 +122,11 @@ export function registerSettings() {
         hint: "YCIO.Settings.BackgroundColor.Hint",
         scope: "client",    // client = 玩家個人設定
         config: true,
-        type: String,
-        default: "#000000",
-        inputType: "color", // FVTT 會自動生成顏色選擇器
+        type: new foundry.data.fields.ColorField({
+            required: true,
+            nullable: false,
+            initial: "#000000"
+        }),
         onChange: () => Hooks.callAll("YCIO_UpdateStyle") // 觸發自定義 Hook
     });
 
@@ -173,9 +175,11 @@ export function registerSettings() {
         hint: "YCIO.Settings.MessageTextColor.Hint",
         scope: "world",
         config: true,
-        type: String,
-        default: "#000000",
-        inputType: "color",
+        type: new foundry.data.fields.ColorField({
+            required: true,
+            nullable: false,
+            initial: "#000000"
+        }),
         onChange: () => {
             Hooks.callAll("YCIO_UpdateStyle");
             ui.notifications.info(game.i18n.localize("YCIO.Settings.StyleOverride.Changed"));
@@ -202,9 +206,11 @@ export function registerSettings() {
         hint: "YCIO.Settings.CustomMessageBgColor.Hint",
         scope: "world",
         config: true,
-        type: String,
-        default: "#e0e0e0",
-        inputType: "color",
+        type: new foundry.data.fields.ColorField({
+            required: true,
+            nullable: false,
+            initial: "#e0e0e0"
+        }),
         onChange: () => {
             Hooks.callAll("YCIO_UpdateStyle");
             ui.notifications.info(game.i18n.localize("YCIO.Settings.StyleOverride.Changed"));

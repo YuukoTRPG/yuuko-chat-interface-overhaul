@@ -337,8 +337,8 @@ export function enrichMessageHTML(message, htmlElement) {
     // --- 訊息文字顏色覆蓋：根據 GM 設定動態加入 class ---
     // 只有當 GM 明確設定了非預設的顏色時才啟用覆蓋
     // 預設情況下讓 FVTT 原生 CSS 的 color: var(--color-dark-1) 自然生效
-    const customTextColor = game.settings.get(MODULE_ID, "messageTextColor");
-    if (customTextColor && customTextColor !== "#000000") {
+    const customTextColor = colorToCss(game.settings.get(MODULE_ID, "messageTextColor"));
+    if (customTextColor !== "#000000") {
         element.classList.add("YCIO-custom-text-color");
     }
 
@@ -453,7 +453,7 @@ export function getSpeakerFromSelection(value) {
  * @returns {String} "rgba(...)" 字串
  */
 export function hexToRgba(hex, opacity) {
-    let normalized = String(hex || "").trim();
+    let normalized = colorToCss(hex).trim();
     if (/^#[0-9a-f]{3}$/i.test(normalized)) {
         normalized = `#${normalized.slice(1).split("").map(c => c + c).join("")}`;
     }
@@ -467,6 +467,17 @@ export function hexToRgba(hex, opacity) {
     const g = parseInt(normalized.slice(3, 5), 16);
     const b = parseInt(normalized.slice(5, 7), 16);
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * 將 Foundry Color 或一般字串正規化為可供 CSS 使用的色碼。
+ * @param {String|Color|null|undefined} color
+ * @param {String} fallback
+ * @returns {String}
+ */
+function colorToCss(color, fallback = "#000000") {
+    const value = color?.css ?? color;
+    return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
 /**
@@ -554,7 +565,7 @@ export function autoResizeTextarea(textarea, maxPixelHeight) {
 export function applyWindowStyles(element, user) {
     if (!element) return;
 
-    const colorHex = game.settings.get(MODULE_ID, "backgroundColor");
+    const colorHex = colorToCss(game.settings.get(MODULE_ID, "backgroundColor"));
     const windowOpacity = game.settings.get(MODULE_ID, "backgroundOpacity");
 
     // 設定 CSS 變數背景色 (純色，無透明度)
@@ -567,13 +578,13 @@ export function applyWindowStyles(element, user) {
     element.style.removeProperty("--YCIO-message-opacity");
 
     // 訊息文字顏色覆蓋
-    const messageTextColor = game.settings.get(MODULE_ID, "messageTextColor");
+    const messageTextColor = colorToCss(game.settings.get(MODULE_ID, "messageTextColor"));
     element.style.setProperty("--YCIO-message-text-color", messageTextColor);
 
     // 自訂訊息背景色覆蓋
     const enableCustomBg = game.settings.get(MODULE_ID, "enableCustomMessageBg");
     if (enableCustomBg) {
-        const customBgColor = game.settings.get(MODULE_ID, "customMessageBgColor");
+        const customBgColor = colorToCss(game.settings.get(MODULE_ID, "customMessageBgColor"), "#e0e0e0");
         element.style.setProperty("--YCIO-custom-message-bg", customBgColor);
     } else {
         // 必須移除變數，因為 CSS 變數即使設為空字串仍被視為「已設定」
