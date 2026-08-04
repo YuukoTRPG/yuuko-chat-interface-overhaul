@@ -554,26 +554,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             // 1. 發話身分選單
             const speakerSelect = this.element.querySelector("#chat-speaker-select");
             if (speakerSelect) {
-                const currentValue = speakerSelect.value;
-                const now = Date.now();
-                const ANIMATION_DURATION = 1200; // 動畫持續時間 (毫秒)，配合 CSS
-
-                // 如果這是第一次渲染 (null) 不閃爍
-                if (this._lastSpeakerValue !== null && this._lastSpeakerValue !== currentValue) {
-                    this._lastFlashTime = now; // 偵測到變動，更新閃爍時間戳
-                }
-
-                // 更新紀錄
-                this._lastSpeakerValue = currentValue;
-
-                // --- 執行閃爍邏輯 ---
-                // 判斷條件：如果「現在時間」距離「最後閃爍時間」在動畫長度內
-                // 這確保了即使 DOM 因為切換分頁被重建，新長出來的 DOM 也會因為符合時間差而繼續閃爍
-                if (now - this._lastFlashTime < ANIMATION_DURATION) {
-                    speakerSelect.classList.remove("YCIO-pulse-animation");
-                    void speakerSelect.offsetWidth; // 強制 Reflow
-                    speakerSelect.classList.add("YCIO-pulse-animation");
-                }
+                this._syncSpeakerSelectionState(speakerSelect);
 
                 speakerSelect.addEventListener("change", async (ev) => {
                     // 手動變更時，立即更新時間戳並觸發閃爍
@@ -862,8 +843,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 }
             });
 
-            // 5. 場景列表更新監聽 (新增/刪除/改名，還有選擇Token時重繪)
-            register("controlToken", () => this.render({ parts: ["input", "tabs"] }));
+            // 5. 場景列表更新監聽 (新增/刪除/改名，選擇 Token 時僅更新選單)
+            register("controlToken", () => this._refreshSpeakerSelect());
             const queueSceneRefresh = () => this.queueContentMutation(() => this._refreshSceneUI());
             register("createToken", queueSceneRefresh);
             register("deleteToken", queueSceneRefresh);
@@ -914,6 +895,55 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         applyWindowStyles(this.element, game.user);
     }
 
+    /**
+     * 同步發話身分的狀態與切換動畫。
+     * @param {HTMLSelectElement} speakerSelect
+     */
+    _syncSpeakerSelectionState(speakerSelect) {
+        const currentValue = speakerSelect.value;
+        const now = Date.now();
+        const ANIMATION_DURATION = 1200; // 動畫持續時間 (毫秒)，配合 CSS
+
+        // 如果這是第一次渲染 (null) 不閃爍
+        if (this._lastSpeakerValue !== null && this._lastSpeakerValue !== currentValue) {
+            this._lastFlashTime = now;
+        }
+
+        this._lastSpeakerValue = currentValue;
+
+        if (now - this._lastFlashTime < ANIMATION_DURATION) {
+            speakerSelect.classList.remove("YCIO-pulse-animation");
+            void speakerSelect.offsetWidth; // 強制 Reflow
+            speakerSelect.classList.add("YCIO-pulse-animation");
+        }
+    }
+
+    /**
+     * 原地更新發話身分選單，避免背景事件重繪 input part 並替換 textarea。
+     */
+    _refreshSpeakerSelect() {
+        const speakerSelect = this.element?.querySelector("#chat-speaker-select");
+        if (!speakerSelect) return;
+
+        const speakers = prepareSpeakerList();
+        const selectedValue = speakers.find(speaker => speaker.selected)?.value
+            ?? speakers[0]?.value
+            ?? "ooc";
+        const options = document.createDocumentFragment();
+
+        for (const speaker of speakers) {
+            const option = document.createElement("option");
+            option.value = speaker.value;
+            option.textContent = speaker.label;
+            option.selected = speaker.value === selectedValue;
+            options.appendChild(option);
+        }
+
+        speakerSelect.replaceChildren(options);
+        this._syncSpeakerSelectionState(speakerSelect);
+        this._updateAvatarBtnTooltip();
+    }
+
     async _refreshSceneUI() {
         const activeSceneIsAvailable = this.activeTab === "ooc"
             || getVisibleChatScenes().some(scene => scene.id === this.activeTab);
@@ -922,8 +952,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         const generation = ++this._contentGeneration;
         const tabId = this.activeTab;
         this._historyExhausted.clear();
-        await this.render({ parts: ["tabs", "input"] });
+        await this.render({ parts: ["tabs"] });
         if (generation !== this._contentGeneration || tabId !== this.activeTab) return;
+        this._refreshSpeakerSelect();
         await this._refreshChatLogDOM(generation, tabId);
     }
 
@@ -1078,8 +1109,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         const generation = ++this._contentGeneration;
 
         // 1. 重新渲染並等待渲染完成
-        await this.render({ parts: ["tabs", "input"] });
+        await this.render({ parts: ["tabs"] });
         if (generation !== this._contentGeneration || tabId !== this.activeTab) return;
+        this._refreshSpeakerSelect();
 
         // 2. 呼叫自定義的 DOM 抽換方法
         await this._refreshChatLogDOM(generation, tabId);
