@@ -20,27 +20,34 @@ export function sceneHasOwnedSpeakerToken(scene) {
 }
 
 /**
- * 判斷場景是否應顯示為目前使用者的聊天分頁。
- * Foundry v13 的 Scene 沒有舊版 `visible` getter，改用實際 source 欄位。
+ * 判斷目前使用者是否能看見場景。
+ * Foundry v13 已移除舊版 `Scene.visible` getter，改用文件權限判定；
+ * 目前實際顯示在玩家畫布上的場景仍視為可見。
  * @param {Scene} scene - 場景文件
  * @returns {Boolean}
  */
-export function isSceneAvailableToUser(scene) {
+export function isSceneVisibleToUser(scene) {
     if (!scene) return false;
     return game.user.isGM
-        || scene.navigation
-        || scene.active
         || scene.id === canvas.scene?.id
-        || sceneHasOwnedSpeakerToken(scene);
+        || scene.testUserPermission(game.user, CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED);
 }
 
 /**
- * 取得目前使用者可用於聊天的場景列表。
- * 除了導覽列可見場景，也納入當前畫布與任何包含自有 Token 的場景。
+ * 取得目前使用者可看見的聊天場景分頁。
+ * @returns {Array<Scene>}
+ */
+export function getVisibleChatScenes() {
+    return game.scenes.filter(isSceneVisibleToUser);
+}
+
+/**
+ * 取得目前使用者可用來選擇發言 Token 的場景列表。
+ * 發言身分與聊天分頁分開判斷，避免 Token 擁有權繞過場景可見權限。
  * @returns {Array<Scene>}
  */
 export function getAvailableSpeakerScenes() {
-    return game.scenes.filter(isSceneAvailableToUser);
+    return game.scenes.filter(scene => isSceneVisibleToUser(scene) && sceneHasOwnedSpeakerToken(scene));
 }
 
 /**
@@ -412,13 +419,14 @@ export function getSpeakerFromSelection(value) {
 
     // 情況 2: 選擇了 Token (格式 "SceneID.TokenID")
     const [sceneId, tokenId] = value.split(".");
+    const scene = game.scenes.get(sceneId);
+    if (!isSceneVisibleToUser(scene)) return result;
 
     result.isToken = true;
     result.speaker.scene = sceneId;
     result.speaker.token = tokenId;
 
     // 嘗試查找實體 (支援跨場景查找)
-    const scene = game.scenes.get(sceneId);
     const tokenDoc = scene?.tokens.get(tokenId);
 
     if (tokenDoc) {
@@ -638,7 +646,7 @@ export function getMessageRouteId(message) {
     const scene = game.scenes.get(sceneId);
     // 原生聊天仍會顯示來自不可用場景的公開訊息／密語；YCIO 將其退回 OOC，
     // 避免隱藏原生側欄後讓可見訊息完全消失。
-    return isSceneAvailableToUser(scene) ? sceneId : "ooc";
+    return isSceneVisibleToUser(scene) ? sceneId : "ooc";
 }
 
 /**

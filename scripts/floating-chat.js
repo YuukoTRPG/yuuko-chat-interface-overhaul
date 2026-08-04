@@ -15,7 +15,8 @@ import {
     applyWindowStyles,
     shouldPlayNotification,
     getMessageRouteId,
-    getAvailableSpeakerScenes,
+    getVisibleChatScenes,
+    isSceneVisibleToUser,
     isMessageVisibleInTab,
     generateTypingStatusHTML,
     parseInlineAvatars,
@@ -360,7 +361,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     async _prepareContext(_options = {}) {
         // 1. 準備場景列表 (給 chat-tabs.hbs 使用)
-        const availableScenes = getAvailableSpeakerScenes();
+        const availableScenes = getVisibleChatScenes();
         const scenes = availableScenes.map(s => ({
             id: s.id,
             name: s.navName || s.name,
@@ -596,7 +597,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                     const [sceneId, tokenId] = value.split(".");
                     if (canvas.scene?.id !== sceneId) {
                         const scene = game.scenes.get(sceneId);
-                        if (scene) await scene.view();
+                        if (!isSceneVisibleToUser(scene)) {
+                            await this.changeTab("ooc", false);
+                            return;
+                        }
+                        await scene.view();
                     }
                     if (canvas.scene?.id === sceneId) {
                         const token = canvas.tokens.placeables.find(t => t.id === tokenId);
@@ -911,7 +916,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
     async _refreshSceneUI() {
         const activeSceneIsAvailable = this.activeTab === "ooc"
-            || getAvailableSpeakerScenes().some(scene => scene.id === this.activeTab);
+            || getVisibleChatScenes().some(scene => scene.id === this.activeTab);
         if (!activeSceneIsAvailable) return this._changeTab("ooc", false);
 
         const generation = ++this._contentGeneration;
@@ -1053,10 +1058,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     async _changeTab(tabId, triggerSceneView = true) {
-        if (this.activeTab === tabId) return;
-
-        const scene = tabId === "ooc" ? null : game.scenes.get(tabId);
-        if (tabId !== "ooc" && !scene) tabId = "ooc";
+        let scene = tabId === "ooc" ? null : game.scenes.get(tabId);
+        if (tabId !== "ooc" && !isSceneVisibleToUser(scene)) {
+            tabId = "ooc";
+            scene = null;
+        }
         if (this.activeTab === tabId) return;
 
         // 場景檢視失敗時不要提前提交分頁狀態，避免畫布、狀態與舊 DOM 分離。
