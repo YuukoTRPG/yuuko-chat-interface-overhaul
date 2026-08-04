@@ -5,7 +5,8 @@
     "Warning": {
       "NoLabeledAvatars": "目前的發言身分沒有設定任何帶註解的頭像",
       "FailedMsg": "訊息發送失敗",
-      "InitialRenderFailed": "無法開啟 YCIO 聊天視窗，請查看主控台取得詳細資訊。"
+      "InitialRenderFailed": "無法開啟 YCIO 聊天視窗，請查看主控台取得詳細資訊。",
+      "NoAvailableSpeaker": "目前分頁沒有可用的發言身分。"
     },
     "Menu": {
       "ExportLog": "導出聊天紀錄",
@@ -45,7 +46,9 @@
       "QuickRollNoSelection": "請至少選擇一顆骰子"
     },
     "Speaker": {
-      "OOC": "場外"
+      "OOC": "場外",
+      "Actor": "角色",
+      "NoAvailableToken": "無可用於發言的Token"
     },
     "Settings": {
       "Sections": {

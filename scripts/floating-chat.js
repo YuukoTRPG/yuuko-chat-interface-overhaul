@@ -4,6 +4,7 @@
  */
 
 import {
+    UNAVAILABLE_SPEAKER_VALUE,
     prepareSpeakerList,
     getChatContextOptions,
     enrichMessageHTML,
@@ -77,6 +78,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // 預設分頁：ooc
         this.activeTab = "ooc";
+        this._speakerSelectionByTab = new Map([["ooc", "ooc"]]);
 
         // 初始化 HTML 快取容器
         this._messageCache = new Map();
@@ -102,6 +104,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         this._typingWrite = Promise.resolve();
         this._isSending = false;
         this._isProcessingYCIOMessage = false;
+        this._speakerValidationFailed = false;
+        this._pendingSpeakerSelection = null;
 
         // --- 馬賽克發言者 (暫態，重整即恢復) ---
         this._isMosaicActive = false;
@@ -384,8 +388,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             }
         }
 
-        // 準備發話身份列表 (Speakers)，呼叫chat-helpers.js的函式
-        const speakers = prepareSpeakerList();
+        // 準備目前分頁可用的發話身分，並同步合法的回退值。
+        const speakers = this._prepareSpeakerOptions();
+        const speakerSelectDisabled = speakers.every(speaker => speaker.disabled);
 
         // --- 狀態暫存機制 ---
         // 嘗試讀取當前 DOM 中的輸入框內容 (如果視窗已經存在)
@@ -398,6 +403,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             activeTab: this.activeTab,
             oocHasUnread: this._unreadTabs.has("ooc"), // 傳遞 OOC 分頁的未讀狀態
             speakers: speakers,
+            speakerSelectDisabled,
             draftContent: draftContent,
             isGM: game.user.isGM,
             messageElements
@@ -569,26 +575,35 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                     this._lastSpeakerValue = ev.target.value;
 
                     const value = ev.target.value;
-                    if (value === "ooc") {
+                    const selection = getSpeakerFromSelection(value, this.activeTab);
+                    if (!selection.valid) {
+                        this._refreshSpeakerSelect();
+                        return;
+                    }
+                    this._speakerSelectionByTab.set(this.activeTab, value);
+
+                    if (selection.kind === "user") {
                         if (canvas.tokens) canvas.tokens.releaseAll();
-                        this.changeTab("ooc", false);
+                        void this.changeTab("ooc", false);
+                        return;
+                    }
+                    if (selection.kind === "actor") {
                         return;
                     }
 
-                    const [sceneId, tokenId] = value.split(".");
+                    const { scene: sceneId, token: tokenId } = selection.speaker;
                     if (canvas.scene?.id !== sceneId) {
                         const scene = game.scenes.get(sceneId);
-                        if (!isSceneVisibleToUser(scene)) {
-                            await this.changeTab("ooc", false);
-                            return;
+                        try {
+                            await scene.view();
+                        } catch (error) {
+                            console.error("YCIO | 切換發言身分場景失敗:", error);
                         }
-                        await scene.view();
                     }
                     if (canvas.scene?.id === sceneId) {
                         const token = canvas.tokens.placeables.find(t => t.id === tokenId);
                         if (token) {
                             token.control({ releaseOthers: true });
-                            this.changeTab(sceneId, false);
                         }
                     }
                 });
@@ -610,16 +625,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
                     const speakerSelect = this.element.querySelector("#chat-speaker-select");
                     const value = speakerSelect ? speakerSelect.value : "ooc";
-                    let targetDoc;
-
-                    if (value === "ooc") {
-                        targetDoc = game.user;
-                    } else {
-                        const [sceneId, tokenId] = value.split(".");
-                        const scene = game.scenes.get(sceneId);
-                        const token = scene?.tokens.get(tokenId);
-                        if (token && token.actor) targetDoc = token.actor;
-                    }
+                    const selection = getSpeakerFromSelection(value, this.activeTab);
+                    const targetDoc = selection.valid ? (selection.actorDoc || selection.user) : null;
 
                     if (targetDoc) new AvatarSelector(targetDoc).render(true);
                 });
@@ -785,11 +792,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 const id = Hooks.on(hook, fn);
                 this._hooks.push({ hook, id });
             };
+            const queueSceneRefresh = () => this.queueContentMutation(() => this._refreshSceneUI());
             register("YCIO_UpdateStyle", () => this._applyCustomStyles());
 
             // 2. 打字狀態同步
             register("updateUser", (user, changes) => {
                 if (changes.flags?.[FLAG_SCOPE]) this._updateTypingDisplay();
+                if (user.id === game.user.id && ("role" in changes || "name" in changes)) {
+                    queueSceneRefresh();
+                }
             });
             register("YCIO_AvatarChanged", () => this._updateAvatarBtnTooltip());
 
@@ -809,28 +820,34 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 this._isProcessingYCIOMessage = false;
 
                 const speakerSelect = this.element.querySelector("#chat-speaker-select");
-                const selection = speakerSelect ? speakerSelect.value : "ooc";
+                const pendingSelection = this._pendingSpeakerSelection;
+                const selection = pendingSelection?.value ?? (speakerSelect ? speakerSelect.value : "ooc");
+                const selectionTabId = pendingSelection?.tabId ?? this.activeTab;
 
                 // 判斷使用者是否使用了 /ooc 指令
-                const isOOCCommand = messageDoc.style === CONST.CHAT_MESSAGE_STYLES.OOC;
+                const isOOCCommand = pendingSelection?.forceOOC
+                    || messageDoc.style === CONST.CHAT_MESSAGE_STYLES.OOC;
 
-                // 如果選單選的是 OOC，或者使用者手動打了 /ooc 指令
-                if (selection === "ooc" || isOOCCommand) {
-                    // 強制清洗為 OOC 身分
+                // 明確的 /ooc 指令維持 Foundry 原生語意：強制使用 User 身分。
+                if (isOOCCommand) {
                     messageDoc.updateSource({
                         speaker: {
                             actor: null,
                             token: null,
-                            scene: null, // 確保徹底脫離場景
+                            scene: null,
                             alias: game.user.name
                         }
                     });
                 } else {
-                    // 選單選的是 Token，且使用者沒打 /ooc -> 強制鎖定為該 Token
-                    const { speaker } = getSpeakerFromSelection(selection);
+                    const resolved = getSpeakerFromSelection(selection, selectionTabId);
+                    if (!resolved.valid) {
+                        this._speakerValidationFailed = true;
+                        ui.notifications.warn(game.i18n.localize("YCIO.Warning.NoAvailableSpeaker"));
+                        return false;
+                    }
 
                     messageDoc.updateSource({
-                        speaker
+                        speaker: resolved.speaker
                     });
                 }
 
@@ -843,9 +860,19 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 }
             });
 
-            // 5. 場景列表更新監聽 (新增/刪除/改名，選擇 Token 時僅更新選單)
-            register("controlToken", () => this._refreshSpeakerSelect());
-            const queueSceneRefresh = () => this.queueContentMutation(() => this._refreshSceneUI());
+            // 5. 場景與發言身分更新監聽
+            register("controlToken", (token, controlled) => {
+                if (controlled) {
+                    const tokenDoc = token?.document ?? token;
+                    const sceneId = tokenDoc?.parent?.id ?? canvas.scene?.id;
+                    const value = sceneId && tokenDoc?.id ? `${sceneId}.${tokenDoc.id}` : null;
+                    const selection = getSpeakerFromSelection(value, this.activeTab);
+                    if (selection.valid && selection.kind === "token") {
+                        this._speakerSelectionByTab.set(this.activeTab, value);
+                    }
+                }
+                this._refreshSpeakerSelect();
+            });
             register("createToken", queueSceneRefresh);
             register("deleteToken", queueSceneRefresh);
             register("updateToken", (token, changes) => {
@@ -859,13 +886,19 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             register("updateActor", (actor, changes) => {
                 const keys = Object.keys(changes);
                 const ownershipChanged = keys.some(k => k.includes("ownership"));
+                const nameChanged = keys.includes("name");
 
-                if (ownershipChanged) {
+                if (ownershipChanged || nameChanged) {
                     queueSceneRefresh();
                 }
             });
+            register("createActor", queueSceneRefresh);
+            register("deleteActor", queueSceneRefresh);
             register("createScene", queueSceneRefresh);
-            register("deleteScene", queueSceneRefresh);
+            register("deleteScene", (scene) => {
+                this._speakerSelectionByTab.delete(scene.id);
+                queueSceneRefresh();
+            });
             register("updateScene", (scene, changes) => {
                 // 取得所有變更的屬性名稱 (Keys)
                 const keys = Object.keys(changes);
@@ -893,6 +926,33 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     _applyCustomStyles() {
         applyWindowStyles(this.element, game.user);
+    }
+
+    /**
+     * 產生目前分頁的發言身分選項，並把失效記憶同步成安全回退值。
+     * @param {string} tabId - 分頁 ID
+     * @returns {Array<Object>}
+     */
+    _prepareSpeakerOptions(tabId = this.activeTab) {
+        const speakers = prepareSpeakerList(tabId, this._speakerSelectionByTab.get(tabId));
+        const selectedValue = speakers.find(speaker => speaker.selected)?.value;
+        if (selectedValue) this._speakerSelectionByTab.set(tabId, selectedValue);
+        return speakers;
+    }
+
+    /**
+     * 在切換 activeTab 前保存舊分頁目前可見且合法的選擇。
+     * @param {string} tabId - 尚未切換前的分頁 ID
+     */
+    _rememberSpeakerForTab(tabId = this.activeTab) {
+        const speakerSelect = this.element?.querySelector("#chat-speaker-select");
+        if (!speakerSelect) return;
+
+        const value = speakerSelect.value;
+        const selection = getSpeakerFromSelection(value, tabId);
+        if (selection.valid || value === UNAVAILABLE_SPEAKER_VALUE) {
+            this._speakerSelectionByTab.set(tabId, value);
+        }
     }
 
     /**
@@ -925,7 +985,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         const speakerSelect = this.element?.querySelector("#chat-speaker-select");
         if (!speakerSelect) return;
 
-        const speakers = prepareSpeakerList();
+        const speakers = this._prepareSpeakerOptions();
         const selectedValue = speakers.find(speaker => speaker.selected)?.value
             ?? speakers[0]?.value
             ?? "ooc";
@@ -936,10 +996,14 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             option.value = speaker.value;
             option.textContent = speaker.label;
             option.selected = speaker.value === selectedValue;
+            option.disabled = !!speaker.disabled;
             options.appendChild(option);
         }
 
         speakerSelect.replaceChildren(options);
+        const disabled = speakers.every(speaker => speaker.disabled);
+        speakerSelect.disabled = disabled;
+        speakerSelect.setAttribute("aria-disabled", String(disabled));
         this._syncSpeakerSelectionState(speakerSelect);
         this._updateAvatarBtnTooltip();
     }
@@ -1095,6 +1159,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             scene = null;
         }
         if (this.activeTab === tabId) return;
+
+        this._rememberSpeakerForTab(this.activeTab);
 
         // 場景檢視失敗時不要提前提交分頁狀態，避免畫布、狀態與舊 DOM 分離。
         if (triggerSceneView && scene) await scene.view();
@@ -1434,8 +1500,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // 在 Class 內決定誰是發話者 (UI 狀態邏輯)
         const speakerSelect = this.element.querySelector("#chat-speaker-select");
         const value = speakerSelect ? speakerSelect.value : "ooc";
-        const { actorDoc, user } = getSpeakerFromSelection(value);
-        const targetDoc = actorDoc || user;
+        const selection = getSpeakerFromSelection(value, this.activeTab);
+        const isExplicitOOC = /^\/ooc(?:\s|$)/i.test(content.trim());
+        if (!isExplicitOOC && !selection.valid) {
+            ui.notifications.warn(game.i18n.localize("YCIO.Warning.NoAvailableSpeaker"));
+            return false;
+        }
+        const targetDoc = isExplicitOOC
+            ? game.user
+            : selection.actorDoc || selection.user;
 
         // 呼叫 Helper 進行行內頭像替換
         content = parseInlineAvatars(content, targetDoc);
@@ -1444,15 +1517,23 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         try {
             this._isSending = true;
             this._isProcessingYCIOMessage = true;
+            this._speakerValidationFailed = false;
+            this._pendingSpeakerSelection = {
+                value,
+                tabId: this.activeTab,
+                forceOOC: isExplicitOOC
+            };
             if (sendButton) sendButton.disabled = true;
             await ui.chat.processMessage(content);
-            return true;
+            return !this._speakerValidationFailed;
         } catch (err) {
             console.error("YCIO | 訊息處理錯誤:", err);
             ui.notifications.error(game.i18n.localize("YCIO.Warning.FailedMsg") + "（" + err + "）");
             return false;
         } finally {
             this._isProcessingYCIOMessage = false;
+            this._speakerValidationFailed = false;
+            this._pendingSpeakerSelection = null;
             this._isSending = false;
             if (sendButton) sendButton.disabled = false;
         }
@@ -1597,10 +1678,13 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         const value = speakerSelect ? speakerSelect.value : "ooc";
 
         // 使用 helper
-        const { actorDoc, user } = getSpeakerFromSelection(value);
-        const targetDoc = actorDoc || user;
+        const selection = getSpeakerFromSelection(value, this.activeTab);
+        const targetDoc = selection.valid ? (selection.actorDoc || selection.user) : null;
 
-        if (!targetDoc) return;
+        if (!targetDoc) {
+            ui.notifications.warn(game.i18n.localize("YCIO.Warning.NoAvailableSpeaker"));
+            return;
+        }
 
         // 2. 讀取並過濾列表 (只顯示有註解的)
         const rawList = targetDoc.getFlag(MODULE_ID, "avatarList") || [];
@@ -1799,14 +1883,22 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // 1. 使用 helper 取得完整資訊
         // 直接解構出需要的資訊：Token 狀態、連結狀態、以及 speaker/user 物件
-        const { isToken, isLinked, speaker, user } = getSpeakerFromSelection(value);
+        const selection = getSpeakerFromSelection(value, this.activeTab);
+        const { isToken, isLinked, speaker, user } = selection;
 
         // 判斷是否為「未連結 Token」(是 Token 且 未連結)
-        const isUnlinked = isToken && !isLinked;
+        const isUnlinked = selection.valid && isToken && !isLinked;
+        const isDisabled = !selection.valid || isUnlinked;
 
         // 2. 切換 CSS Class (控制按鈕變灰)
-        btn.classList.toggle("YCIO-disabled", isUnlinked);
-        btn.setAttribute("aria-disabled", String(isUnlinked));
+        btn.classList.toggle("YCIO-disabled", isDisabled);
+        btn.setAttribute("aria-disabled", String(isDisabled));
+
+        if (!selection.valid) {
+            btn.dataset.tooltip = game.i18n.localize("YCIO.Warning.NoAvailableSpeaker");
+            btn.dataset.tooltipClass = "YCIO-avatar-tooltip";
+            return;
+        }
 
         // 3. 計算當前頭像 URL
         // resolveCurrentAvatar 需要 {speaker, user} 結構，helper 回傳的物件剛好包含這些

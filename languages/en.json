@@ -5,7 +5,8 @@
     "Warning": {
       "NoLabeledAvatars": "The current speaker has no avatars with labels.",
       "FailedMsg": "Message failed to send.",
-      "InitialRenderFailed": "The YCIO chat window could not be opened. Check the console for details."
+      "InitialRenderFailed": "The YCIO chat window could not be opened. Check the console for details.",
+      "NoAvailableSpeaker": "There is no available speaking identity in the current tab."
     },
     "Menu": {
       "ExportLog": "Export Chat Log",
@@ -45,7 +46,9 @@
       "QuickRollNoSelection": "Please select at least one die."
     },
     "Speaker": {
-      "OOC": "OOC"
+      "OOC": "OOC",
+      "Actor": "Actor",
+      "NoAvailableToken": "No Token available for speaking"
     },
     "Settings": {
       "Sections": {

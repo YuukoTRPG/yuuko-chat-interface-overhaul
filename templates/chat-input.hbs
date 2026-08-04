@@ -2,9 +2,11 @@
     {{! 發話身份選擇區 }}
     <div class="speaker-row">
         <div class="speaker-select-wrapper">
-            <select id="chat-speaker-select" aria-label="{{localize 'YCIO.Input.Speaker'}}">
+            <select id="chat-speaker-select" aria-label="{{localize 'YCIO.Input.Speaker'}}"
+                {{#if speakerSelectDisabled}}disabled{{/if}}>
                 {{#each speakers}}
-                <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>
+                <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}
+                    {{#if this.disabled}}disabled{{/if}}>
                     {{this.label}}
                 </option>
                 {{/each}}

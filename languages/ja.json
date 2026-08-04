@@ -5,7 +5,8 @@
         "Warning": {
             "NoLabeledAvatars": "現在の発言キャラクターには注釈のあるアバターが設定されていません。",
             "FailedMsg": "メッセージの送信に失敗しました",
-            "InitialRenderFailed": "YCIOチャットウィンドウを開けませんでした。詳細はコンソールを確認してください。"
+            "InitialRenderFailed": "YCIOチャットウィンドウを開けませんでした。詳細はコンソールを確認してください。",
+            "NoAvailableSpeaker": "現在のタブには使用可能な発言者がいません。"
         },
         "Menu": {
             "ExportLog": "チャットログを書き出す",
@@ -45,7 +46,9 @@
             "QuickRollNoSelection": "少なくとも一つのダイスを選択してください"
         },
         "Speaker": {
-            "OOC": "雑談"
+            "OOC": "雑談",
+            "Actor": "アクター",
+            "NoAvailableToken": "発言に使用できるトークンがありません"
         },
         "Settings": {
             "Sections": {

@@ -6,6 +6,8 @@
 import { FLAG_SCOPE, FLAG_KEY, MODULE_ID } from "./config.js";
 import { MessageEditor } from "./message-editor.js";
 
+export const UNAVAILABLE_SPEAKER_VALUE = "unavailable";
+
 function isUsableSpeakerToken(token) {
     return !!(token?.actor?.isOwner && (game.user.isGM || !token.hidden));
 }
@@ -51,45 +53,68 @@ export function getAvailableSpeakerScenes() {
 }
 
 /**
- * 準備發話身份列表 (Speakers)
- * 遍歷場景與 Token，回傳符合下拉選單格式的陣列
+ * 準備目前聊天分頁可用的發話身份列表。
+ * OOC 提供 User 與擁有權限的世界 Actor；場景分頁只提供該場景的 Token。
+ * @param {String} activeTabId - 目前分頁 ID（"ooc" 或 Scene ID）
+ * @param {String|null} preferredValue - 該分頁上一次選取的值
  * @returns {Array} 包含發言身分選項的陣列
  */
-export function prepareSpeakerList() {
-    // 1. 找出當前選中的 Token (用於標記 selected)
-    const controlled = canvas.tokens?.controlled[0];
-    let currentSelectionValue = "ooc"; // 預設 OOC
-
-    if (controlled) {
-        // 如果當前有選中 Token，值為 "SceneID.TokenID"
-        currentSelectionValue = `${canvas.scene.id}.${controlled.id}`;
-    }
-
+export function prepareSpeakerList(activeTabId, preferredValue = null) {
     const speakers = [];
 
-    // 2. 加入 OOC 選項
-    speakers.push({
-        value: "ooc",
-        label: `${game.user.name} (${game.i18n.localize("YCIO.Speaker.OOC")})`,
-        selected: currentSelectionValue === "ooc"
-    });
+    if (activeTabId === "ooc") {
+        speakers.push({
+            value: "ooc",
+            label: `${game.user.name} (${game.i18n.localize("YCIO.Speaker.OOC")})`,
+            selected: false
+        });
 
-    // 3. 遍歷可用場景，找出玩家擁有的 Token
-    const validScenes = getAvailableSpeakerScenes();
-
-    for (const scene of validScenes) {
-        // 找出該場景中，玩家擁有權限的 Token (且有關聯 Actor)
-        const tokens = scene.tokens.filter(isUsableSpeakerToken);
-
-        for (const token of tokens) {
-            const value = `${scene.id}.${token.id}`;
+        for (const actor of game.actors.filter(actor => actor.isOwner)) {
             speakers.push({
-                value: value,
-                label: `${token.name} (${scene.navName || scene.name})`,
-                selected: value === currentSelectionValue
+                value: `actor:${actor.id}`,
+                label: `${actor.name} (${game.i18n.localize("YCIO.Speaker.Actor")})`,
+                selected: false
             });
         }
+
+        const selectedValue = speakers.some(speaker => speaker.value === preferredValue)
+            ? preferredValue
+            : "ooc";
+        speakers.forEach(speaker => speaker.selected = speaker.value === selectedValue);
+        return speakers;
     }
+
+    const scene = game.scenes.get(activeTabId);
+    const tokens = isSceneVisibleToUser(scene)
+        ? scene.tokens.filter(isUsableSpeakerToken)
+        : [];
+
+    if (tokens.length === 0) {
+        return [{
+            value: UNAVAILABLE_SPEAKER_VALUE,
+            label: game.i18n.localize("YCIO.Speaker.NoAvailableToken"),
+            selected: true,
+            disabled: true
+        }];
+    }
+
+    for (const token of tokens) {
+        speakers.push({
+            value: `${scene.id}.${token.id}`,
+            label: `${token.name} (${scene.navName || scene.name})`,
+            selected: false
+        });
+    }
+
+    const controlledValue = canvas.scene?.id === scene.id && canvas.tokens?.controlled[0]
+        ? `${scene.id}.${canvas.tokens.controlled[0].id}`
+        : null;
+    const selectedValue = speakers.some(speaker => speaker.value === preferredValue)
+        ? preferredValue
+        : speakers.some(speaker => speaker.value === controlledValue)
+            ? controlledValue
+            : speakers[0].value;
+    speakers.forEach(speaker => speaker.selected = speaker.value === selectedValue);
 
     return speakers;
 }
@@ -397,51 +422,28 @@ export function enrichMessageHTML(message, htmlElement) {
 }
 
 /**
- * 根據下拉選單的值，解析出完整的身分資訊
- * @param {String} value - 下拉選單的值 (例如 "ooc" 或 "SceneID.TokenID")
- * @returns {Object} 包含 speaker, user, actorDoc, tokenDoc, isToken, isLinked
+ * 根據下拉選單的值，解析並驗證完整身分資訊。
+ * @param {String} value - "ooc"、"actor:ActorID" 或 "SceneID.TokenID"
+ * @param {String|null} expectedTabId - 預期所屬分頁，避免 stale 值跨分頁使用
+ * @returns {Object} 包含 valid, kind, speaker, user, actorDoc, tokenDoc, isToken, isLinked
  */
-export function getSpeakerFromSelection(value) {
-    // 預設回傳結構 (OOC / User)
-    const result = {
-        speaker: { scene: null, token: null, actor: null, alias: game.user.name }, // 保持 FVTT speaker 結構
-        user: game.user,       // User Document
-        actorDoc: null,        // Actor Document
-        tokenDoc: null,        // Token Document
-        isToken: false,        // 是否為 Token
-        isLinked: false        // 是否為連結 (Linked) 角色
-    };
+export function getSpeakerFromSelection(value, expectedTabId = null) {
+    const invalid = () => ({
+        valid: false,
+        kind: "invalid",
+        speaker: { scene: null, token: null, actor: null, alias: game.user.name },
+        user: game.user,
+        actorDoc: null,
+        tokenDoc: null,
+        isToken: false,
+        isLinked: false
+    });
 
-    // 情況 1: OOC 或無值
-    if (!value || value === "ooc") {
-        return result;
-    }
-
-    // 情況 2: 選擇了 Token (格式 "SceneID.TokenID")
-    const [sceneId, tokenId] = value.split(".");
-    const scene = game.scenes.get(sceneId);
-    if (!isSceneVisibleToUser(scene)) return result;
-
-    result.isToken = true;
-    result.speaker.scene = sceneId;
-    result.speaker.token = tokenId;
-
-    // 嘗試查找實體 (支援跨場景查找)
-    const tokenDoc = scene?.tokens.get(tokenId);
-
-    if (tokenDoc) {
-        result.tokenDoc = tokenDoc;
-        result.speaker.alias = tokenDoc.name;
-        result.isLinked = tokenDoc.actorLink; // 直接讀取屬性
-
-        if (tokenDoc.actor) {
-            result.actorDoc = tokenDoc.actor;
-            result.speaker.actor = tokenDoc.actor.id;
-        }
-    }
-
-    if (!game.user.isGM && (result.tokenDoc?.hidden || !result.actorDoc?.isOwner)) {
+    if (value === "ooc") {
+        if (expectedTabId !== null && expectedTabId !== "ooc") return invalid();
         return {
+            valid: true,
+            kind: "user",
             speaker: { scene: null, token: null, actor: null, alias: game.user.name },
             user: game.user,
             actorDoc: null,
@@ -451,7 +453,55 @@ export function getSpeakerFromSelection(value) {
         };
     }
 
-    return result;
+    if (value?.startsWith("actor:")) {
+        if (expectedTabId !== null && expectedTabId !== "ooc") return invalid();
+        const actorId = value.slice("actor:".length);
+        const actorDoc = game.actors.get(actorId);
+        if (!actorDoc?.isOwner) return invalid();
+
+        return {
+            valid: true,
+            kind: "actor",
+            speaker: { scene: null, token: null, actor: actorDoc.id, alias: actorDoc.name },
+            user: game.user,
+            actorDoc,
+            tokenDoc: null,
+            isToken: false,
+            isLinked: false
+        };
+    }
+
+    if (!value || value === UNAVAILABLE_SPEAKER_VALUE || expectedTabId === "ooc") {
+        return invalid();
+    }
+
+    const parts = value.split(".");
+    if (parts.length !== 2 || parts.some(part => !part)) return invalid();
+    const [sceneId, tokenId] = parts;
+    if (expectedTabId !== null && expectedTabId !== sceneId) return invalid();
+
+    const scene = game.scenes.get(sceneId);
+    if (!isSceneVisibleToUser(scene)) return invalid();
+
+    const tokenDoc = scene.tokens.get(tokenId);
+    if (!isUsableSpeakerToken(tokenDoc)) return invalid();
+    const actorDoc = tokenDoc.actor;
+
+    return {
+        valid: true,
+        kind: "token",
+        speaker: {
+            scene: sceneId,
+            token: tokenId,
+            actor: actorDoc.id,
+            alias: tokenDoc.name
+        },
+        user: game.user,
+        actorDoc,
+        tokenDoc,
+        isToken: true,
+        isLinked: tokenDoc.actorLink
+    };
 }
 
 /**
