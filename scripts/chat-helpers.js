@@ -22,16 +22,15 @@ export function sceneHasOwnedSpeakerToken(scene) {
 }
 
 /**
- * 判斷目前使用者是否能看見場景。
- * Foundry v13 已移除舊版 `Scene.visible` getter，改用文件權限判定；
- * 目前實際顯示在玩家畫布上的場景仍視為可見。
+ * 判斷目前使用者是否能在 YCIO 看見場景。
+ * Foundry v13 已移除舊版 `Scene.visible` getter，改用文件權限判定。
+ * YCIO 不以目前畫布作為可見依據，確保場景權限撤除後立即隱藏分頁與訊息。
  * @param {Scene} scene - 場景文件
  * @returns {Boolean}
  */
 export function isSceneVisibleToUser(scene) {
     if (!scene) return false;
     return game.user.isGM
-        || scene.id === canvas.scene?.id
         || scene.testUserPermission(game.user, CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED);
 }
 
@@ -41,28 +40,6 @@ export function isSceneVisibleToUser(scene) {
  */
 export function getVisibleChatScenes() {
     return game.scenes.filter(isSceneVisibleToUser);
-}
-
-/**
- * 若場景不是所有世界使用者都可見，回傳新訊息應使用的 whisper 收件者。
- * 收件者固定為發言者、正在觀看該場景的在線使用者、
- * 具場景 LIMITED 以上權限的使用者與所有 GM；
- * Active Scene 或全員皆可見時回傳 null，讓訊息維持公開。
- * @param {Scene} scene - 訊息所屬場景
- * @param {String} authorId - 發言者 User ID
- * @returns {Array<String>|null}
- */
-export function getRestrictedSceneRecipients(scene, authorId = game.user.id) {
-    if (!scene || scene.active) return null;
-
-    const recipients = game.users
-        .filter(user => user.id === authorId
-            || user.isGM
-            || (user.active && user.viewedScene === scene.id)
-            || scene.testUserPermission(user, CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED))
-        .map(user => user.id);
-
-    return recipients.length < game.users.size ? recipients : null;
 }
 
 /**

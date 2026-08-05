@@ -6,8 +6,7 @@
             "NoLabeledAvatars": "目前的发言身份没有设置任何带注解的头像",
             "FailedMsg": "消息发送失败",
             "InitialRenderFailed": "无法打开 YCIO 聊天窗口，请查看控制台获取详细信息。",
-            "NoAvailableSpeaker": "当前分页没有可用的发言身份。",
-            "PrivateSceneWhisperDenied": "无法在受限场景发送消息：你没有“私密消息”权限。"
+            "NoAvailableSpeaker": "当前分页没有可用的发言身份。"
         },
         "Menu": {
             "ExportLog": "导出聊天记录",
