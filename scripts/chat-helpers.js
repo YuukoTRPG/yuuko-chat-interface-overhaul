@@ -44,6 +44,28 @@ export function getVisibleChatScenes() {
 }
 
 /**
+ * 若場景不是所有世界使用者都可見，回傳新訊息應使用的 whisper 收件者。
+ * 收件者固定為發言者、正在觀看該場景的在線使用者、
+ * 具場景 LIMITED 以上權限的使用者與所有 GM；
+ * Active Scene 或全員皆可見時回傳 null，讓訊息維持公開。
+ * @param {Scene} scene - 訊息所屬場景
+ * @param {String} authorId - 發言者 User ID
+ * @returns {Array<String>|null}
+ */
+export function getRestrictedSceneRecipients(scene, authorId = game.user.id) {
+    if (!scene || scene.active) return null;
+
+    const recipients = game.users
+        .filter(user => user.id === authorId
+            || user.isGM
+            || (user.active && user.viewedScene === scene.id)
+            || scene.testUserPermission(user, CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED))
+        .map(user => user.id);
+
+    return recipients.length < game.users.size ? recipients : null;
+}
+
+/**
  * 取得目前使用者可用來選擇發言 Token 的場景列表。
  * 發言身分與聊天分頁分開判斷，避免 Token 擁有權繞過場景可見權限。
  * @returns {Array<Scene>}
@@ -688,15 +710,17 @@ export function shouldPlayNotification(message) {
 /**
  * 判斷訊息該歸類到哪個分頁 ID
  * @param {ChatMessage} message - 訊息物件
- * @returns {String} 分頁 ID ("ooc" 或場景 ID)
+ * @returns {String|null} 分頁 ID；無權查看場景時回傳 null
  */
 export function getMessageRouteId(message) {
     if (!message.speaker.token) return "ooc";
     const sceneId = message.speaker.scene;
     const scene = game.scenes.get(sceneId);
-    // 原生聊天仍會顯示來自不可用場景的公開訊息／密語；YCIO 將其退回 OOC，
-    // 避免隱藏原生側欄後讓可見訊息完全消失。
-    return isSceneVisibleToUser(scene) ? sceneId : "ooc";
+    if (!scene) return game.user.isGM ? "ooc" : null;
+
+    // 場景權限同時是分頁內容的可見邊界；不可見場景不得退回 OOC，
+    // 否則世界公開的 ChatMessage 會洩漏到沒有場景權限的玩家。
+    return isSceneVisibleToUser(scene) ? sceneId : null;
 }
 
 /**
@@ -706,8 +730,9 @@ export function getMessageRouteId(message) {
  * @returns {boolean} 是否可見
  */
 export function isMessageVisibleInTab(message, activeTabId) {
-    if (!message.visible) return false;
-    return getMessageRouteId(message) === activeTabId;
+    if (!message.visible || !activeTabId) return false;
+    const routeId = getMessageRouteId(message);
+    return routeId !== null && routeId === activeTabId;
 }
 
 /**

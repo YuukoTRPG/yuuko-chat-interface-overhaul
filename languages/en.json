@@ -6,7 +6,8 @@
       "NoLabeledAvatars": "The current speaker has no avatars with labels.",
       "FailedMsg": "Message failed to send.",
       "InitialRenderFailed": "The YCIO chat window could not be opened. Check the console for details.",
-      "NoAvailableSpeaker": "There is no available speaking identity in the current tab."
+      "NoAvailableSpeaker": "There is no available speaking identity in the current tab.",
+      "PrivateSceneWhisperDenied": "Cannot send in a restricted scene because you do not have permission to whisper messages."
     },
     "Menu": {
       "ExportLog": "Export Chat Log",

@@ -17,6 +17,7 @@ import {
     shouldPlayNotification,
     getMessageRouteId,
     getVisibleChatScenes,
+    getRestrictedSceneRecipients,
     isSceneVisibleToUser,
     isMessageVisibleInTab,
     generateTypingStatusHTML,
@@ -848,9 +849,20 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                         return false;
                     }
 
-                    messageDoc.updateSource({
-                        speaker: resolved.speaker
-                    });
+                    const sourceUpdate = { speaker: resolved.speaker };
+                    if (resolved.kind === "token" && !messageDoc.whisper?.length && !messageDoc.blind) {
+                        const scene = game.scenes.get(resolved.speaker.scene);
+                        const recipients = getRestrictedSceneRecipients(scene, userId);
+                        if (recipients) {
+                            if (!game.user.can("MESSAGE_WHISPER")) {
+                                this._speakerValidationFailed = true;
+                                ui.notifications.warn(game.i18n.localize("YCIO.Warning.PrivateSceneWhisperDenied"));
+                                return false;
+                            }
+                            sourceUpdate.whisper = recipients;
+                        }
+                    }
+                    messageDoc.updateSource(sourceUpdate);
                 }
 
                 // 計算並寫入頭像快照

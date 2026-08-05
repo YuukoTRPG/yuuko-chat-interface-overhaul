@@ -6,7 +6,8 @@
             "NoLabeledAvatars": "現在の発言キャラクターには注釈のあるアバターが設定されていません。",
             "FailedMsg": "メッセージの送信に失敗しました",
             "InitialRenderFailed": "YCIOチャットウィンドウを開けませんでした。詳細はコンソールを確認してください。",
-            "NoAvailableSpeaker": "現在のタブには使用可能な発言者がいません。"
+            "NoAvailableSpeaker": "現在のタブには使用可能な発言者がいません。",
+            "PrivateSceneWhisperDenied": "制限されたシーンでは、プライベートメッセージの権限がないため送信できません。"
         },
         "Menu": {
             "ExportLog": "チャットログを書き出す",
