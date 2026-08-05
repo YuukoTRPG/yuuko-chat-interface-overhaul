@@ -824,12 +824,14 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 const selection = pendingSelection?.value ?? (speakerSelect ? speakerSelect.value : "ooc");
                 const selectionTabId = pendingSelection?.tabId ?? this.activeTab;
 
-                // 判斷使用者是否使用了 /ooc 指令
-                const isOOCCommand = pendingSelection?.forceOOC
-                    || messageDoc.style === CONST.CHAT_MESSAGE_STYLES.OOC;
+                // YCIO 的送出快照才是明確 /ooc 的依據。Foundry 在沒有受控 Token 時，
+                // 普通訊息本來就會先產生 OOC style，不能據此覆蓋已記憶的發言身分。
+                const forceUserSpeaker = pendingSelection
+                    ? pendingSelection.forceOOC === true
+                    : messageDoc.style === CONST.CHAT_MESSAGE_STYLES.OOC;
 
                 // 明確的 /ooc 指令維持 Foundry 原生語意：強制使用 User 身分。
-                if (isOOCCommand) {
+                if (forceUserSpeaker) {
                     messageDoc.updateSource({
                         speaker: {
                             actor: null,
@@ -1509,6 +1511,12 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         const targetDoc = isExplicitOOC
             ? game.user
             : selection.actorDoc || selection.user;
+        // 直接把 Token speaker 交給 Foundry，讓它不依賴畫布是否仍控制該 Token。
+        // OOC 的 User／Actor 則先用 User speaker 取得正確的 OOC style，
+        // Actor 身分會在 preCreateChatMessage 依送出快照套回。
+        const processSpeaker = selection.kind === "token" && !isExplicitOOC
+            ? selection.speaker
+            : { scene: null, token: null, actor: null, alias: game.user.name };
 
         // 呼叫 Helper 進行行內頭像替換
         content = parseInlineAvatars(content, targetDoc);
@@ -1524,7 +1532,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 forceOOC: isExplicitOOC
             };
             if (sendButton) sendButton.disabled = true;
-            await ui.chat.processMessage(content);
+            await ui.chat.processMessage(content, { speaker: processSpeaker });
             return !this._speakerValidationFailed;
         } catch (err) {
             console.error("YCIO | 訊息處理錯誤:", err);
