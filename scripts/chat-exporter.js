@@ -144,6 +144,13 @@ class ChatExporter {
             this._inlineCSSResources(rootVarsCSS),
             this._inlineCSSResources(chatVarsInline)
         ]);
+        const cssAssetResult = this._deduplicateCSSDataUris([
+            this.cssContent,
+            rootVarsCSS,
+            chatVarsInline
+        ]);
+        [this.cssContent, rootVarsCSS, chatVarsInline] = cssAssetResult.sections;
+        if (cssAssetResult.registry) rootVarsCSS = cssAssetResult.registry + rootVarsCSS;
 
         // 4. 準備 HTML 結構
         const dateStr = new Date().toISOString().split("T")[0];
@@ -627,6 +634,194 @@ class ChatExporter {
             const dataUri = urlMap.get(rawUrl.trim());
             return dataUri ? `url(${quote}${dataUri}${quote})` : match;
         });
+    }
+
+    /**
+     * 將跨 CSS 區塊重複的圖片 Data URI 收納至靜態 custom-property registry。
+     * 只處理 custom property、background 或 background-image 中明確的 url()，
+     * 避免碰觸註解、字串、descriptor 與其他 CSS 內容。
+     * @param {string[]} cssSections - this.cssContent、rootVarsCSS、chatVarsInline
+     * @returns {{ sections: string[], registry: string }}
+     */
+    _deduplicateCSSDataUris(cssSections) {
+        const dataUriPattern = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]*={0,2}$/i;
+        const allowedProperties = new Set(["background", "background-image"]);
+        const usagesBySection = cssSections.map(() => []);
+        const counts = new Map();
+
+        const skipQuoted = (text, start) => {
+            const quote = text[start];
+            let index = start + 1;
+            while (index < text.length) {
+                if (text[index] === "\\") {
+                    index += 2;
+                } else if (text[index] === quote) {
+                    return index + 1;
+                } else {
+                    index += 1;
+                }
+            }
+            return text.length;
+        };
+        const findUrlEnd = (text, openIndex) => {
+            let index = openIndex + 1;
+            while (index < text.length) {
+                if (text[index] === "\\") {
+                    index += 2;
+                } else if (text[index] === "\"" || text[index] === "'") {
+                    index = skipQuoted(text, index);
+                } else if (text[index] === ")") {
+                    return index + 1;
+                } else {
+                    index += 1;
+                }
+            }
+            return -1;
+        };
+        const isNameCharacter = character => character && (
+            /[A-Za-z0-9_-]/.test(character) || character.charCodeAt(0) >= 0x80
+        );
+        const startsWithAtRule = header => {
+            let index = 0;
+            while (index < header.length) {
+                if (/\s/.test(header[index])) {
+                    index += 1;
+                    continue;
+                }
+                if (header.startsWith("/*", index)) {
+                    const commentEnd = header.indexOf("*/", index + 2);
+                    if (commentEnd === -1) return true;
+                    index = commentEnd + 2;
+                    continue;
+                }
+                return header[index] === "@";
+            }
+            return false;
+        };
+        const getDeclarationName = statement => {
+            const withoutComments = statement.replace(/\/\*[\s\S]*?\*\//g, "").trimStart();
+            return withoutComments.match(
+                /^([-_A-Za-z\u0080-\uFFFF][-_A-Za-z0-9\u0080-\uFFFF]*)\s*:/
+            )?.[1] || null;
+        };
+
+        cssSections.forEach((cssText, sectionIndex) => {
+            const blockStack = [];
+            let statementStart = 0;
+            let index = 0;
+            while (index < cssText.length) {
+                if (cssText.startsWith("/*", index)) {
+                    const commentEnd = cssText.indexOf("*/", index + 2);
+                    index = commentEnd === -1 ? cssText.length : commentEnd + 2;
+                    continue;
+                }
+
+                const character = cssText[index];
+                if (character === "\"" || character === "'") {
+                    index = skipQuoted(cssText, index);
+                    continue;
+                }
+
+                if (character === "{") {
+                    blockStack.push(startsWithAtRule(cssText.slice(statementStart, index)));
+                    statementStart = index + 1;
+                    index += 1;
+                    continue;
+                }
+                if (character === "}") {
+                    if (blockStack.length > 0) blockStack.pop();
+                    statementStart = index + 1;
+                    index += 1;
+                    continue;
+                }
+                if (character === ";") {
+                    statementStart = index + 1;
+                    index += 1;
+                    continue;
+                }
+
+                const isUrlFunction = cssText.slice(index, index + 3).toLowerCase() === "url"
+                    && !isNameCharacter(cssText[index - 1])
+                    && cssText[index - 1] !== "\\"
+                    && cssText[index + 3] === "(";
+                if (!isUrlFunction) {
+                    index += 1;
+                    continue;
+                }
+
+                const end = findUrlEnd(cssText, index + 3);
+                if (end === -1) {
+                    index = cssText.length;
+                    continue;
+                }
+
+                const innermostIsDescriptor = blockStack[blockStack.length - 1] === true;
+                const declarationName = getDeclarationName(cssText.slice(statementStart, index));
+                const isAllowedProperty = declarationName?.startsWith("--")
+                    || allowedProperties.has(declarationName?.toLowerCase());
+                const isAllowedTopLevelDeclaration = blockStack.length === 0 && sectionIndex === 2;
+                if (innermostIsDescriptor || !isAllowedProperty
+                    || (blockStack.length === 0 && !isAllowedTopLevelDeclaration)) {
+                    index = end;
+                    continue;
+                }
+
+                let dataUri = cssText.slice(index + 4, end - 1).trim();
+                if (dataUri.startsWith("\"") || dataUri.startsWith("'")) {
+                    const quote = dataUri[0];
+                    if (dataUri.length < 2 || dataUri[dataUri.length - 1] !== quote) {
+                        index = end;
+                        continue;
+                    }
+                    dataUri = dataUri.slice(1, -1);
+                }
+
+                if (dataUriPattern.test(dataUri)) {
+                    usagesBySection[sectionIndex].push({ start: index, end, dataUri });
+                    counts.set(dataUri, (counts.get(dataUri) || 0) + 1);
+                }
+                index = end;
+            }
+        });
+
+        const duplicateDataUris = [...counts].filter(([, count]) => count > 1);
+        if (duplicateDataUris.length === 0) {
+            return { sections: cssSections, registry: "" };
+        }
+
+        const sourceText = cssSections.join("\n");
+        const registryNames = new Map();
+        const registryEntries = [];
+        let nameIndex = 0;
+        for (const [dataUri] of duplicateDataUris) {
+            let name;
+            do {
+                name = `--ycio-export-css-${nameIndex.toString(36)}`;
+                nameIndex += 1;
+            } while (sourceText.includes(name));
+            registryNames.set(dataUri, name);
+            registryEntries.push(`    ${name}: url("${dataUri}");`);
+        }
+
+        const sections = cssSections.map((cssText, sectionIndex) => {
+            const replacements = usagesBySection[sectionIndex]
+                .filter(({ dataUri }) => registryNames.has(dataUri));
+            if (replacements.length === 0) return cssText;
+
+            let rewritten = "";
+            let cursor = 0;
+            for (const { start, end, dataUri } of replacements) {
+                rewritten += cssText.slice(cursor, start);
+                rewritten += `var(${registryNames.get(dataUri)})`;
+                cursor = end;
+            }
+            return rewritten + cssText.slice(cursor);
+        });
+
+        return {
+            sections,
+            registry: `:root {\n${registryEntries.join("\n")}\n}\n`
+        };
     }
 
     /**
