@@ -94,6 +94,9 @@ class ChatExporter {
     constructor() {
         this.cssContent = "";
         this.resourceFailures = [];
+        this.imageSourceCache = new Map(); // src -> Promise<short asset ID>
+        this.imageAssetIds = new Map(); // data URI -> short asset ID
+        this.imageAssets = new Map(); // short asset ID -> data URI
     }
 
     /**
@@ -211,12 +214,24 @@ class ChatExporter {
             </div>`;
         }
 
+        const imageAssetsJson = JSON.stringify(Object.fromEntries(this.imageAssets))
+            .replace(/[<>&\u2028\u2029]/g, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
+
         // 6. 結尾與腳本
         fullHtml += `
         </div>
     </div>
     <script nonce="${scriptNonce}">
-        // A. 簡單的分頁切換邏輯
+        // A. 回填離線圖片資源
+        const imageAssets = ${imageAssetsJson};
+        document.querySelectorAll("img[data-ycio-asset]").forEach(image => {
+            const assetId = image.dataset.ycioAsset;
+            if (Object.prototype.hasOwnProperty.call(imageAssets, assetId)) {
+                image.setAttribute("src", imageAssets[assetId]);
+            }
+        });
+
+        // B. 簡單的分頁切換邏輯
         function switchTab(targetId) {
             document.querySelectorAll(".tab-content").forEach(element => {
                 const active = element.id === targetId;
@@ -236,7 +251,7 @@ class ChatExporter {
             if (button) switchTab(button.dataset.target);
         });
 
-        // B. 通用擲骰展開互動 (Event Delegation)
+        // C. 通用擲骰展開互動 (Event Delegation)
         // 監聽整個頁面的點擊事件，不用對每個骰子綁定
         document.addEventListener('click', function(e) {
             // 1. 找到被點擊的骰子區塊
@@ -311,7 +326,7 @@ class ChatExporter {
             container.appendChild(html);
         }
 
-        // 3. 將容器內的所有圖片轉為 Base64，分批處理以避免記憶體爆炸
+        // 3. 將容器內的圖片登錄為共用離線資源，分批處理以避免記憶體爆炸
         const images = Array.from(container.querySelectorAll("img"));
         await this._convertImagesInBatches(images);
 
@@ -319,26 +334,47 @@ class ChatExporter {
     }
 
     /**
-     * 分批將圖片轉為 Base64，避免同時載入過多圖片導致記憶體溢出
+     * 分批將圖片轉為共用離線資源，避免同時載入過多圖片導致記憶體溢出
      * @param {HTMLImageElement[]} images - 所有需要轉碼的圖片元素
      */
     async _convertImagesInBatches(images) {
         for (let i = 0; i < images.length; i += IMAGE_BATCH_SIZE) {
             const batch = images.slice(i, i + IMAGE_BATCH_SIZE);
-            await Promise.all(batch.map(img => this._convertImageToBase64(img)));
+            await Promise.all(batch.map(img => this._convertImageToOfflineAsset(img)));
         }
     }
 
     /**
-     * 將 img 標籤的 src 替換為 Base64
+     * 將 img 標籤改為離線資源 ID
      */
-    async _convertImageToBase64(imgElement) {
+    async _convertImageToOfflineAsset(imgElement) {
         const src = imgElement.currentSrc || imgElement.src;
         // srcset 可能讓瀏覽器略過已內嵌的 src。
         imgElement.removeAttribute("srcset");
-        if (!src || src.startsWith("data:")) return;
+        // 不信任訊息原本帶入的內部屬性，只接受本次匯出產生的資源 ID。
+        imgElement.removeAttribute("data-ycio-asset");
+        if (!src) return;
 
         try {
+            const assetId = await this._getImageAssetId(src);
+            imgElement.removeAttribute("src");
+            imgElement.setAttribute("data-ycio-asset", assetId);
+        } catch (err) {
+            this._recordResourceFailure("image", src, err);
+            // 不留下會在離線檔案開啟時自動連線的遠端 URL。
+            imgElement.removeAttribute("src");
+            imgElement.removeAttribute("data-ycio-asset");
+        }
+    }
+
+    /**
+     * 取得離線圖片資源 ID；同一來源在所有分頁共用同一個 Promise。
+     */
+    _getImageAssetId(src) {
+        const cached = this.imageSourceCache.get(src);
+        if (cached) return cached;
+
+        const assetIdPromise = (/^data:/i.test(src) ? Promise.resolve(src) : (async () => {
             const response = await this._fetchWithTimeout(src);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
@@ -348,12 +384,28 @@ class ChatExporter {
             }
 
             // 直接內嵌原始 Blob，保留 JPEG/WebP/GIF 等原格式與動畫。
-            imgElement.src = await this._blobToDataUri(blob);
-        } catch (err) {
-            this._recordResourceFailure("image", src, err);
-            // 不留下會在離線檔案開啟時自動連線的遠端 URL。
-            imgElement.removeAttribute("src");
-        }
+            return this._blobToDataUri(blob);
+        })()).then(dataUri => this._registerImageAsset(dataUri)).catch(error => {
+            // 短暫性失敗不永久污染快取，讓後續批次仍可重試。
+            this.imageSourceCache.delete(src);
+            throw error;
+        });
+
+        this.imageSourceCache.set(src, assetIdPromise);
+        return assetIdPromise;
+    }
+
+    /**
+     * 將完全相同的 Data URI 共用同一個短 ID。
+     */
+    _registerImageAsset(dataUri) {
+        const cachedId = this.imageAssetIds.get(dataUri);
+        if (cachedId) return cachedId;
+
+        const assetId = `a${this.imageAssets.size.toString(36)}`;
+        this.imageAssetIds.set(dataUri, assetId);
+        this.imageAssets.set(assetId, dataUri);
+        return assetId;
     }
 
     /**
