@@ -12,6 +12,7 @@
         "Menu": {
             "ExportLog": "チャットログを書き出す",
             "ClearLog": "チャットログをクリア",
+            "ToggleTimestampMode": "メッセージ時刻表示を切り替える",
             "MosaicSpeaker": "発言者をモザイク（スクショ用）",
             "MosaicSpeakerOff": "モザイク解除",
             "Settings": "モジュール設定",

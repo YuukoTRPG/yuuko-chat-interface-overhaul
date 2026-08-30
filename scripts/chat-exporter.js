@@ -3,7 +3,7 @@
  * 負責處理聊天紀錄的導出、圖片 Base64 轉換與 HTML 檔案生成
  */
 
-import { enrichMessageHTML, getMessageRouteId } from "./chat-helpers.js";
+import { applyMessageTimestampDisplay, enrichMessageHTML, getMessageRouteId } from "./chat-helpers.js";
 import { MODULE_ID } from "./config.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -329,6 +329,7 @@ class ChatExporter {
             const html = await msg.renderHTML();
             // 注入頭像與 YCIO 結構 (重複利用既有函式)
             enrichMessageHTML(msg, html, { includeAvatarPreview: false }); // 此時 html 已經變成 <li class="message ...">...</li>
+            applyMessageTimestampDisplay(msg, html, { exportMode: true });
 
             container.appendChild(html);
         }

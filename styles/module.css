@@ -453,6 +453,11 @@
     box-sizing: border-box;
 }
 
+/* 保留原生節點供 Core 定時更新；使用者實際看到的是 YCIO 的時間副本。 */
+.YCIO-floating-chat-window .YCIO-native-message-timestamp {
+    display: none !important;
+}
+
 /* 3. 右側內容區域 (包覆原本的 header 和 content) */
 .YCIO-floating-chat-window .message-body {
     flex: 1;

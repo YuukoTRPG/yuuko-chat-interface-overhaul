@@ -12,6 +12,7 @@
         "Menu": {
             "ExportLog": "导出聊天记录",
             "ClearLog": "清除聊天记录",
+            "ToggleTimestampMode": "切换消息时间显示模式",
             "MosaicSpeaker": "马赛克发言者（撷图用）",
             "MosaicSpeakerOff": "解除马赛克",
             "Settings": "模组设置",

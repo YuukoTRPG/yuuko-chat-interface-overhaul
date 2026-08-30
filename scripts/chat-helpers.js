@@ -582,6 +582,69 @@ export function triggerRenderHooks(app, message, htmlElement) {
     }
 }
 
+/**
+ * 依使用者電腦的本機時區格式化訊息送出時間。
+ * @param {number|Date} timestamp - Foundry 訊息的 Unix epoch 毫秒時間戳記
+ * @param {{alwaysIncludeDate?: boolean, now?: number}} [options={}]
+ * @returns {string} HH:MM:SS，或 YYYY/MM/DD HH:MM:SS
+ */
+export function formatMessageTimestamp(timestamp, options = {}) {
+    const { alwaysIncludeDate = false, now = Date.now() } = options;
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return "";
+
+    const pad = value => String(value).padStart(2, "0");
+    const time = `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    const age = Number(now) - date.getTime();
+    if (!alwaysIncludeDate && age <= 24 * 60 * 60 * 1000) return time;
+
+    return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${time}`;
+}
+
+/**
+ * 套用 YCIO 的訊息時間戳記顯示模式。
+ * 互動聊天會保留原生 timestamp 作為第一個隱藏節點，讓 Core 既有的定時更新與
+ * 相容 Hook 繼續作用；可見副本才由 YCIO 依使用者設定更新。匯出時則直接改寫原生節點。
+ * @param {ChatMessage} message - 訊息文件
+ * @param {HTMLElement|jQuery} htmlElement - 訊息的原生 DOM 或 jQuery 物件
+ * @param {{mode?: string, exportMode?: boolean}} [options={}]
+ * @returns {HTMLElement} 處理後 DOM
+ */
+export function applyMessageTimestampDisplay(message, htmlElement, options = {}) {
+    const { mode = "absolute", exportMode = false } = options;
+    const element = htmlElement instanceof jQuery ? htmlElement[0] : htmlElement;
+    if (!element?.querySelector) return element;
+
+    // 明確排除 YCIO 可見副本，避免每次刷新時把副本誤當原生 timestamp。
+    const nativeTimestamp = element.querySelector(".message-timestamp:not(.YCIO-message-timestamp)");
+    if (!nativeTimestamp) return element;
+
+    if (exportMode) {
+        element.querySelectorAll(".YCIO-message-timestamp").forEach(timestamp => timestamp.remove());
+        nativeTimestamp.classList.remove("YCIO-native-message-timestamp");
+        nativeTimestamp.removeAttribute("aria-hidden");
+        nativeTimestamp.textContent = formatMessageTimestamp(message.timestamp, { alwaysIncludeDate: true });
+        return element;
+    }
+
+    let displayTimestamp = element.querySelector(".YCIO-message-timestamp");
+    if (!displayTimestamp) {
+        displayTimestamp = nativeTimestamp.cloneNode(true);
+        displayTimestamp.classList.remove("YCIO-native-message-timestamp");
+        displayTimestamp.classList.add("YCIO-message-timestamp");
+        displayTimestamp.removeAttribute("aria-hidden");
+        nativeTimestamp.after(displayTimestamp);
+    }
+
+    nativeTimestamp.classList.add("YCIO-native-message-timestamp");
+    nativeTimestamp.setAttribute("aria-hidden", "true");
+    const displayText = mode === "relative"
+        ? foundry.utils.timeSince(message.timestamp)
+        : formatMessageTimestamp(message.timestamp);
+    if (displayTimestamp.textContent !== displayText) displayTimestamp.textContent = displayText;
+    return element;
+}
+
 
 /**
  * ============================================

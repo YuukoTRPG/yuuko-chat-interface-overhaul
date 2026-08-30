@@ -19,6 +19,7 @@ import {
     getVisibleChatScenes,
     isSceneVisibleToUser,
     isMessageVisibleInTab,
+    applyMessageTimestampDisplay,
     generateTypingStatusHTML,
     parseInlineAvatars,
     generateAvatarTooltip
@@ -144,6 +145,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             // 放入靜態按鈕（所有玩家可見）
             controls: [
                 {
+                    icon: "fas fa-clock",
+                    label: "YCIO.Menu.ToggleTimestampMode",
+                    action: "toggleTimestampMode"
+                },
+                {
                     icon: "fas fa-eye-slash",
                     label: "YCIO.Menu.MosaicSpeaker",
                     action: "toggleMosaicSpeaker"
@@ -184,6 +190,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             // 右上按鈕 Action
             exportLog: FloatingChat.onExportLog,
             flushLog: FloatingChat.onFlushLog,
+            toggleTimestampMode: FloatingChat.onToggleTimestampMode,
             toggleMosaicSpeaker: FloatingChat.onToggleMosaicSpeaker,
             openSettings: FloatingChat.onOpenSettings,
             openAbout: FloatingChat.onOpenAbout
@@ -280,6 +287,17 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     static onExportLog(event, target) {
         if (!game.user.isGM) return;
         new ChatExportDialog().render(true);
+    }
+
+    /**
+     * Action: 切換目前使用者的訊息時間顯示模式。
+     */
+    static async onToggleTimestampMode(event, target) {
+        event.preventDefault();
+        const currentMode = game.settings.get(MODULE_ID, "messageTimestampMode");
+        const nextMode = currentMode === "relative" ? "absolute" : "relative";
+        await game.settings.set(MODULE_ID, "messageTimestampMode", nextMode);
+        this._refreshMessageTimestamps();
     }
 
     /**
@@ -803,7 +821,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // 啟動或重置捲動檢查計時器 (每 1000ms 檢查一次)
         if (this._scrollCheckInterval) clearInterval(this._scrollCheckInterval);
-        this._scrollCheckInterval = setInterval(() => this._toggleJumpToBottomButton(), 1000);
+        this._scrollCheckInterval = setInterval(() => {
+            this._toggleJumpToBottomButton();
+            this._refreshMessageTimestamps();
+        }, 1000);
 
         // --- D. Hooks 註冊 (只需註冊一次) ---
         if (!this._mainHooksRegistered) {
@@ -1185,15 +1206,37 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     async _getMessageElement(message, { fresh = false } = {}) {
         if (!fresh) {
             const cached = this._messageCache.get(message.id);
-            if (cached) return cached;
+            if (cached) {
+                applyMessageTimestampDisplay(message, cached, {
+                    mode: game.settings.get(MODULE_ID, "messageTimestampMode")
+                });
+                return cached;
+            }
         }
 
         const rendered = await message.renderHTML();
         const element = rendered instanceof jQuery ? rendered[0] : rendered;
         enrichMessageHTML(message, element);
         triggerRenderHooks(this, message, element);
+        applyMessageTimestampDisplay(message, element, {
+            mode: game.settings.get(MODULE_ID, "messageTimestampMode")
+        });
         this._cacheMessage(message.id, element);
         return element;
+    }
+
+    /**
+     * 更新目前浮動聊天視窗中所有可見訊息的時間顯示。
+     */
+    _refreshMessageTimestamps() {
+        const log = this.element?.querySelector("#custom-chat-log");
+        if (!log) return;
+
+        const mode = game.settings.get(MODULE_ID, "messageTimestampMode");
+        for (const element of log.querySelectorAll(".chat-message[data-message-id]")) {
+            const message = game.messages.get(element.dataset.messageId);
+            if (message) applyMessageTimestampDisplay(message, element, { mode });
+        }
     }
 
 

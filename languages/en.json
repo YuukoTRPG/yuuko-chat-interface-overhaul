@@ -12,6 +12,7 @@
     "Menu": {
       "ExportLog": "Export Chat Log",
       "ClearLog": "Clear Chat Log",
+      "ToggleTimestampMode": "Toggle Message Timestamp Mode",
       "MosaicSpeaker": "Blur Speakers (for screenshots)",
       "MosaicSpeakerOff": "Remove Blurs",
       "Settings": "Module Settings",

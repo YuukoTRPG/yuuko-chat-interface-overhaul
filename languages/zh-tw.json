@@ -12,6 +12,7 @@
     "Menu": {
       "ExportLog": "導出聊天紀錄",
       "ClearLog": "清除聊天紀錄",
+      "ToggleTimestampMode": "切換訊息時間顯示模式",
       "MosaicSpeaker": "馬賽克發言者（擷圖用）",
       "MosaicSpeakerOff": "解除馬賽克",
       "Settings": "模組設定",

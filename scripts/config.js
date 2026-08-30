@@ -36,7 +36,15 @@ export function registerSettings() {
         default: {}
     });
 
-    // 4. 訊息編輯視窗位置
+    // 4. 訊息時間顯示模式（每位使用者自行選擇）
+    game.settings.register(MODULE_ID, "messageTimestampMode", {
+        scope: "client",
+        config: false,
+        type: String,
+        default: "absolute"
+    });
+
+    // 5. 訊息編輯視窗位置
     game.settings.register(MODULE_ID, "messageEditorPosition", {
         scope: "client",
         config: false,
@@ -44,7 +52,7 @@ export function registerSettings() {
         default: {}
     });
 
-    // 5. 文字顏色選擇器最後選的顏色
+    // 6. 文字顏色選擇器最後選的顏色
     game.settings.register(MODULE_ID, "lastUsedTextColor", {
         scope: "client",      // 存在玩家端
         config: false,        // 不顯示在設定選單
