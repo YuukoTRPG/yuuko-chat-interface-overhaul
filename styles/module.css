@@ -196,12 +196,16 @@
     position: absolute;
     top: 100%;
     left: 0;
-    right: 0;
+    right: auto;
+    width: max-content;
+    max-width: 100%;
+    box-sizing: border-box;
     z-index: 20;
     display: flex;
     flex-direction: column;
     gap: 2px;
     max-height: min(40vh, 260px);
+    overflow-x: hidden;
     overflow-y: auto;
     padding: 4px;
     border: 1px solid #555;
@@ -220,6 +224,7 @@
     appearance: none;
     display: flex;
     align-items: center;
+    justify-content: flex-start;
     flex: 0 0 auto;
     width: 100%;
     min-width: 0;
