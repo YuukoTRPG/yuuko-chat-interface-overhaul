@@ -339,7 +339,7 @@ export function getAvatarUrl(message) {
  * 改造訊息 HTML：注入頭像與調整結構
  * @param {ChatMessage} message - 訊息物件
  * @param {HTMLElement|jQuery} htmlElement - Foundry 渲染出的原生 DOM 或 jQuery 物件
- * @param {{includeAvatarPreview?: boolean}} [options={}] - 是否在安全的頭像來源上加入原生 Tooltip 大圖預覽
+ * @param {{includeAvatarPreview?: boolean}} [options={}] - 是否在安全的頭像來源上加入點擊式 Tooltip 大圖預覽
  * @returns {HTMLElement} 處理後 DOM
  */
 export function enrichMessageHTML(message, htmlElement, options = {}) {
@@ -409,8 +409,16 @@ export function enrichMessageHTML(message, htmlElement, options = {}) {
             previewImg.setAttribute("src", String(avatarUrl));
             previewImg.alt = "";
             previewImg.className = "YCIO-message-avatar-preview-image";
-            avatarDiv.dataset.tooltip = previewImg.outerHTML;
-            avatarDiv.dataset.tooltipClass = "YCIO-message-avatar-tooltip";
+            avatarDiv.addEventListener("click", event => {
+                if (event.button !== 0) return;
+                game.tooltip.activate(avatarDiv, {
+                    html: previewImg.cloneNode(true),
+                    cssClass: "YCIO-message-avatar-tooltip"
+                });
+            });
+            avatarDiv.addEventListener("mouseleave", () => {
+                if (game.tooltip.element === avatarDiv) game.tooltip.deactivate();
+            });
         }
 
         // 建立右側內容容器 (message-body)
