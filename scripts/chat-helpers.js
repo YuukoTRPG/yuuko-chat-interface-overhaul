@@ -411,6 +411,10 @@ export function enrichMessageHTML(message, htmlElement, options = {}) {
             previewImg.className = "YCIO-message-avatar-preview-image";
             avatarDiv.addEventListener("click", event => {
                 if (event.button !== 0) return;
+                if (game.tooltip.element === avatarDiv) {
+                    game.tooltip.deactivate();
+                    return;
+                }
                 game.tooltip.activate(avatarDiv, {
                     html: previewImg.cloneNode(true),
                     cssClass: "YCIO-message-avatar-tooltip"
