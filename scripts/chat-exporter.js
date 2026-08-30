@@ -328,7 +328,7 @@ class ChatExporter {
             // 渲染原始 HTML
             const html = await msg.renderHTML();
             // 注入頭像與 YCIO 結構 (重複利用既有函式)
-            enrichMessageHTML(msg, html); // 此時 html 已經變成 <li class="message ...">...</li>
+            enrichMessageHTML(msg, html, { includeAvatarPreview: false }); // 此時 html 已經變成 <li class="message ...">...</li>
 
             container.appendChild(html);
         }

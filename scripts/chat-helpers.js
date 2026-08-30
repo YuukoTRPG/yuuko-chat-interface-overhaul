@@ -339,9 +339,11 @@ export function getAvatarUrl(message) {
  * 改造訊息 HTML：注入頭像與調整結構
  * @param {ChatMessage} message - 訊息物件
  * @param {HTMLElement|jQuery} htmlElement - Foundry 渲染出的原生 DOM 或 jQuery 物件
+ * @param {{includeAvatarPreview?: boolean}} [options={}] - 是否在安全的頭像來源上加入原生 Tooltip 大圖預覽
  * @returns {HTMLElement} 處理後 DOM
  */
-export function enrichMessageHTML(message, htmlElement) {
+export function enrichMessageHTML(message, htmlElement, options = {}) {
+    const { includeAvatarPreview = true } = options;
 
     // 相容性處理，無論傳進來的是 jQuery 物件還是 HTMLElement (V13標準)，統一轉為原生 DOM
     const element = htmlElement instanceof jQuery ? htmlElement[0] : htmlElement;
@@ -401,6 +403,15 @@ export function enrichMessageHTML(message, htmlElement) {
         img.src = avatarUrl;
         img.alt = message.speaker.alias || "Avatar";
         avatarDiv.appendChild(img);
+
+        if (includeAvatarPreview && isSafeImageSource(avatarUrl)) {
+            const previewImg = document.createElement("img");
+            previewImg.setAttribute("src", String(avatarUrl));
+            previewImg.alt = "";
+            previewImg.className = "YCIO-message-avatar-preview-image";
+            avatarDiv.dataset.tooltip = previewImg.outerHTML;
+            avatarDiv.dataset.tooltipClass = "YCIO-message-avatar-tooltip";
+        }
 
         // 建立右側內容容器 (message-body)
         const bodyDiv = document.createElement("div");

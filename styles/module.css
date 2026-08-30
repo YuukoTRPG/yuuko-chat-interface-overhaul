@@ -421,6 +421,7 @@
     margin-top: 2px;
     /* 微調對齊 */
     border: 1px solid #666;
+    cursor: zoom-in;
 }
 
 .YCIO-floating-chat-window .message-avatar img {
@@ -430,6 +431,26 @@
     /* 保持比例填滿 */
     border: none;
     display: block;
+}
+
+/* Foundry 將 Tooltip 附加到視窗外，因此不可限定在 YCIO 聊天視窗內。 */
+.YCIO-message-avatar-tooltip {
+    padding: 4px;
+    max-width: none;
+    transition-delay: 0s !important;
+}
+
+.YCIO-message-avatar-tooltip .YCIO-message-avatar-preview-image {
+    width: 256px;
+    height: 256px;
+    max-width: 45vw;
+    max-height: 45vh;
+    object-fit: contain;
+    background: #000;
+    border: 1px solid #666;
+    border-radius: 4px;
+    display: block;
+    box-sizing: border-box;
 }
 
 /* 3. 右側內容區域 (包覆原本的 header 和 content) */
