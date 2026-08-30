@@ -13,5 +13,6 @@ tests/
 .agents/
 .antigravitycli/
 
-# 上下文地圖（僅給AI參照，不上git）
-CONTEXT_MAP.md
+# 本機專案文件（AI 上下文、規劃與筆記，不上 Git）
+/.local-docs/
+/AGENTS.md
