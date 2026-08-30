@@ -1106,9 +1106,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         this._savePositionDebounced?.cancel?.();
         this._removeCollapsedTabsListeners();
         this._collapsedTabsOpen = false;
-        this._tabContextMenu?.close?.({ animate: false });
+        this._closeRenderedContextMenu(this._tabContextMenu);
         this._tabContextMenu = null;
-        this._contextMenu?.close?.({ animate: false });
+        this._closeRenderedContextMenu(this._contextMenu);
         this._contextMenu = null;
         this._hooks.forEach(({ hook, id }) => Hooks.off(hook, id));
         this._hooks = [];
@@ -1918,15 +1918,20 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         ];
     }
 
+    _closeRenderedContextMenu(menu) {
+        if (!menu?.element) return;
+        void menu.close({ animate: false });
+    }
+
     _initializeTabContextMenu(container) {
-        this._tabContextMenu?.close?.({ animate: false });
+        this._closeRenderedContextMenu(this._tabContextMenu);
         this._tabContextMenu = null;
         if (!game.user?.isGM || !container) return;
 
         this._tabContextMenu = this._createContextMenu(
             () => this._getSceneTabContextOptions(),
             ".YCIO-scene-tab[data-scene-id]",
-            { container }
+            { container, fixed: true }
         );
     }
 
@@ -1958,7 +1963,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     _initializeContextMenu(html) {
         const element = html instanceof jQuery ? html[0] : html;
-        this._contextMenu?.close?.({ animate: false });
+        this._closeRenderedContextMenu(this._contextMenu);
+        this._contextMenu = null;
         this._contextMenu = this._createContextMenu(
             () => getChatContextOptions(),
             ".message",
