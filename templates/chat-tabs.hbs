@@ -1,19 +1,51 @@
-<nav class="tabs" aria-label="{{localize 'YCIO.Tabs.Label'}}">
-    {{!-- OOC 分頁：固定存在，點擊時不切換場景，但過濾無 Token 發言 --}}
-    <button type="button" class="item {{#if (eq activeTab 'ooc')}}active{{/if}}" data-action="switchTab" data-tab="ooc"
-        aria-label="{{localize 'YCIO.Tabs.OOC'}}{{#if oocHasUnread}} — {{localize 'YCIO.Input.NewMessages'}}{{/if}}"
-        {{#if (eq activeTab 'ooc')}}aria-current="page"{{/if}}>
-        <span class="YCIO-unread-dot {{#if oocHasUnread}}visible{{/if}}" aria-hidden="true"></span>
-        <i class="fas fa-comment-slash"></i> {{localize 'YCIO.Tabs.OOC'}}
+<div class="YCIO-chat-tabs-shell">
+    {{#if collapsedScenes}}
+    <button type="button" class="YCIO-collapsed-tabs-toggle" data-action="toggleCollapsedTabs"
+        data-tooltip="{{localize 'YCIO.Tabs.ShowCollapsed'}}"
+        aria-label="{{localize 'YCIO.Tabs.ShowCollapsed'}}{{#if collapsedHasUnread}} — {{localize 'YCIO.Input.NewMessages'}}{{/if}}"
+        aria-expanded="{{#if collapsedTabsOpen}}true{{else}}false{{/if}}"
+        aria-controls="YCIO-collapsed-chat-tabs">
+        <span class="YCIO-unread-dot {{#if collapsedHasUnread}}visible{{/if}}" aria-hidden="true"></span>
+        <i class="fas fa-chevron-down" aria-hidden="true"></i>
     </button>
+    {{/if}}
 
-    {{!-- 場景分頁：動態生成 --}}
-    {{#each scenes}}
-    <button type="button" class="item {{#if this.active}}active{{/if}}" data-action="switchTab" data-tab="{{this.id}}" title="{{this.name}}"
-        aria-label="{{this.name}}{{#if this.hasUnread}} — {{localize 'YCIO.Input.NewMessages'}}{{/if}}"
-        {{#if this.active}}aria-current="page"{{/if}}>
-        <span class="YCIO-unread-dot {{#if this.hasUnread}}visible{{/if}}" aria-hidden="true"></span>
-        {{this.name}}
-    </button>
-    {{/each}}
-</nav>
+    <nav class="tabs" aria-label="{{localize 'YCIO.Tabs.Label'}}">
+        {{!-- OOC 分頁：固定存在，點擊時不切換場景，但過濾無 Token 發言 --}}
+        <button type="button" class="item {{#if (eq activeTab 'ooc')}}active{{/if}}" data-action="switchTab" data-tab="ooc"
+            aria-label="{{localize 'YCIO.Tabs.OOC'}}{{#if oocHasUnread}} — {{localize 'YCIO.Input.NewMessages'}}{{/if}}"
+            {{#if (eq activeTab 'ooc')}}aria-current="page"{{/if}}>
+            <span class="YCIO-unread-dot {{#if oocHasUnread}}visible{{/if}}" aria-hidden="true"></span>
+            <i class="fas fa-comment-slash" aria-hidden="true"></i> {{localize 'YCIO.Tabs.OOC'}}
+        </button>
+
+        {{!-- 主要 Scene 分頁；active 的已收合 Scene 會暫時提升至此。 --}}
+        {{#each scenes}}
+        <button type="button" class="item YCIO-scene-tab {{#if this.active}}active{{/if}} {{#if this.collapsed}}YCIO-collapsed-active{{/if}}"
+            data-action="switchTab" data-tab="{{this.id}}" data-scene-id="{{this.id}}" title="{{this.name}}"
+            aria-label="{{this.name}}{{#if this.collapsed}} — {{localize 'YCIO.Tabs.CollapsedActive'}}{{/if}}{{#if this.hasUnread}} — {{localize 'YCIO.Input.NewMessages'}}{{/if}}"
+            {{#if this.active}}aria-current="page"{{/if}}>
+            <span class="YCIO-unread-dot {{#if this.hasUnread}}visible{{/if}}" aria-hidden="true"></span>
+            {{this.name}}
+            {{#if this.collapsed}}
+            <i class="fas fa-chevron-down YCIO-collapsed-active-icon"
+                data-tooltip="{{localize 'YCIO.Tabs.CollapsedActive'}}" aria-hidden="true"></i>
+            {{/if}}
+        </button>
+        {{/each}}
+    </nav>
+
+    {{#if collapsedScenes}}
+    <div id="YCIO-collapsed-chat-tabs" class="YCIO-collapsed-tabs-panel" role="group"
+        aria-label="{{localize 'YCIO.Tabs.CollapsedLabel'}}" {{#if collapsedTabsOpen}}{{else}}hidden{{/if}}>
+        {{#each collapsedScenes}}
+        <button type="button" class="item YCIO-scene-tab" data-action="switchTab" data-tab="{{this.id}}"
+            data-scene-id="{{this.id}}" title="{{this.name}}"
+            aria-label="{{this.name}}{{#if this.hasUnread}} — {{localize 'YCIO.Input.NewMessages'}}{{/if}}">
+            <span class="YCIO-unread-dot {{#if this.hasUnread}}visible{{/if}}" aria-hidden="true"></span>
+            <span class="YCIO-collapsed-tab-name">{{this.name}}</span>
+        </button>
+        {{/each}}
+    </div>
+    {{/if}}
+</div>

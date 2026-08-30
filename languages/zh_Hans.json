@@ -6,7 +6,8 @@
             "NoLabeledAvatars": "目前的发言身份没有设置任何带注解的头像",
             "FailedMsg": "消息发送失败",
             "InitialRenderFailed": "无法打开 YCIO 聊天窗口，请查看控制台获取详细信息。",
-            "NoAvailableSpeaker": "当前分页没有可用的发言身份。"
+            "NoAvailableSpeaker": "当前分页没有可用的发言身份。",
+            "UpdateCollapsedTabsFailed": "无法更新对话分页的收合状态，请查看控制台获取详细信息。"
         },
         "Menu": {
             "ExportLog": "导出聊天记录",
@@ -18,7 +19,12 @@
         },
         "Tabs": {
             "Label": "聊天分页",
-            "OOC": "场外"
+            "OOC": "场外",
+            "CollapsedLabel": "已收合的对话分页",
+            "ShowCollapsed": "显示已收合的对话分页",
+            "Collapse": "收合对话分页",
+            "Restore": "移回主要分页栏",
+            "CollapsedActive": "已收合（当前使用中，暂时显示于主要分页栏）"
         },
         "Input": {
             "Placeholder": "输入消息...",

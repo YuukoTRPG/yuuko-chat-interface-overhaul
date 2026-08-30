@@ -25,6 +25,12 @@ import {
 } from "./chat-helpers.js";
 
 import { FLAG_SCOPE, FLAG_KEY, MODULE_ID } from "./config.js"; // 打字狀態同步常數
+import {
+    analyzeSceneChatTabUpdate,
+    isSceneChatTabCollapsed,
+    partitionSceneChatTabs,
+    setSceneChatTabCollapsedState
+} from "./chat-tab-collapse.js";
 import { AvatarSelector, InlineAvatarPicker } from "./avatar-selector.js"; // 頭像選擇器
 import { ChatExportDialog } from "./chat-exporter.js"; // 聊天記錄匯出
 import { AboutDialog } from "./about-dialog.js"; // 關於本模組對話框
@@ -89,6 +95,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // --- 未讀分頁狀態追蹤 (Unread Tabs Tracking) ---
         // 記錄當下有哪些分頁 (ooc 或 SceneID) 包含未讀訊息
         this._unreadTabs = new Set();
+        this._collapsedTabsOpen = false;
+        this._tabContextMenu = null;
+        this._collapsedTabsClickOutside = null;
+        this._collapsedTabsKeydown = null;
+        this._collapsedTabsEventDocument = null;
 
         // --- 狀態追蹤變數 ---
         this._isLoadingOlder = false;       // 防止重複觸發載入歷史訊息
@@ -158,6 +169,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             deleteMessage: FloatingChat.onDeleteMessage, // 刪除訊息
             jumpToBottom: FloatingChat.onJumpToBottom,   // 跳至底部
             switchTab: FloatingChat.onSwitchTab,         // 切換分頁
+            toggleCollapsedTabs: FloatingChat.onToggleCollapsedTabs,
             toggleMinimize: FloatingChat.onToggleMinimize, // 最小化/還原
             toggleWait: FloatingChat.onToggleWait,       // 切換稍等一下
             toggleQuickRoll: FloatingChat.onToggleQuickRoll, // 快速擲骰
@@ -364,14 +376,14 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * @returns {Object} 提供給 Handlebars 的資料
      */
     async _prepareContext(_options = {}) {
-        // 1. 準備場景列表 (給 chat-tabs.hbs 使用)
+        // 1. 先依既有 Scene 權限取得可見列表，再套用純 UI 的收合分類。
         const availableScenes = getVisibleChatScenes();
-        const scenes = availableScenes.map(s => ({
-            id: s.id,
-            name: s.navName || s.name,
-            active: s.id === this.activeTab,
-            hasUnread: this._unreadTabs.has(s.id) // 標記是否有未讀訊息
-        }));
+        const {
+            primaryScenes,
+            collapsedScenes,
+            collapsedHasUnread
+        } = partitionSceneChatTabs(availableScenes, this.activeTab, this._unreadTabs, MODULE_ID);
+        if (collapsedScenes.length === 0) this._collapsedTabsOpen = false;
 
         // tabs/input 的局部 render 不需要重新渲染 50 則訊息。
         const requestedParts = _options.parts || Object.keys(FloatingChat.PARTS);
@@ -399,7 +411,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         const draftContent = inputEl ? inputEl.value : "";
 
         return {
-            scenes: scenes,
+            scenes: primaryScenes,
+            collapsedScenes,
+            collapsedHasUnread,
+            collapsedTabsOpen: this._collapsedTabsOpen,
             activeTab: this.activeTab,
             oocHasUnread: this._unreadTabs.has("ooc"), // 傳遞 OOC 分頁的未讀狀態
             speakers: speakers,
@@ -462,7 +477,14 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // 判斷這次渲染了哪些部分 (如果是初次渲染，parts 會是 undefined，代表全部)
         const parts = options.parts || ["tabs", "content", "input"];
 
-        // --- A. 內容區 (Content) 事件綁定 ---
+        // --- A. 分頁區 (Tabs) 事件綁定 ---
+        if (parts.includes("tabs")) {
+            const tabsShell = this.element.querySelector(".YCIO-chat-tabs-shell");
+            this._initializeCollapsedTabsUI(tabsShell);
+            this._initializeTabContextMenu(tabsShell);
+        }
+
+        // --- B. 內容區 (Content) 事件綁定 ---
         if (parts.includes("content")) {
             const log = this.element.querySelector("#custom-chat-log");
             if (log) {
@@ -545,7 +567,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             }
         }
 
-        // --- B. 輸入區 (Input) 事件綁定 ---
+        // --- C. 輸入區 (Input) 事件綁定 ---
         // 包含：發話身分選單、頭像按鈕、顏色選擇器、輸入框、發送按鈕
         if (parts.includes("input")) {
             if (this._quickRollClickOutsideTimeout) {
@@ -783,7 +805,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         if (this._scrollCheckInterval) clearInterval(this._scrollCheckInterval);
         this._scrollCheckInterval = setInterval(() => this._toggleJumpToBottomButton(), 1000);
 
-        // --- C. Hooks 註冊 (只需註冊一次) ---
+        // --- D. Hooks 註冊 (只需註冊一次) ---
         if (!this._mainHooksRegistered) {
             this._mainHooksRegistered = true; // 鎖定，防止重複註冊
 
@@ -793,6 +815,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 this._hooks.push({ hook, id });
             };
             const queueSceneRefresh = () => this.queueContentMutation(() => this._refreshSceneUI());
+            const queueTabsRefresh = () => this.queueContentMutation(() => this.render({ parts: ["tabs"] }));
             register("YCIO_UpdateStyle", () => this._applyCustomStyles());
 
             // 2. 打字狀態同步
@@ -900,23 +923,12 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 queueSceneRefresh();
             });
             register("updateScene", (scene, changes) => {
-                // 取得所有變更的屬性名稱 (Keys)
-                const keys = Object.keys(changes);
+                const impact = analyzeSceneChatTabUpdate(changes, MODULE_ID);
 
-                // 1. 檢查是否涉及權限變更 (包含 ownership, ownership.default, ownership.UserID...)
-                // 使用 includes 可以同時捕捉 "ownership" 和 "ownership.xxxx"
-                const ownershipChanged = keys.some(k => k.includes("ownership"));
-
-                // Scene update diff 使用 source 欄位；visible 是衍生 getter，不會出現在 changes。
-                const visibilityChanged = keys.includes("navigation") || keys.includes("active");
-
-                // 3. 檢查名稱變更
-                const nameChanged = keys.includes("name") || keys.includes("navName");
-
-                // 只有當上述任一條件成立時，才觸發重繪
-                if (ownershipChanged || visibilityChanged || nameChanged) {
-                    queueSceneRefresh();
-                }
+                // 權限、名稱或既有可見性欄位仍需完整同步內容與發言者。
+                if (impact.requiresFullRefresh) queueSceneRefresh();
+                // 單純收合 flag 只替換 tabs part，保留輸入 textarea 與 IME composition。
+                else if (impact.collapseChanged) queueTabsRefresh();
             });
         }
     }
@@ -1008,6 +1020,59 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         this._updateAvatarBtnTooltip();
     }
 
+    _setCollapsedTabsOpen(open, { restoreFocus = false } = {}) {
+        const toggle = this.element?.querySelector(".YCIO-collapsed-tabs-toggle");
+        const panel = this.element?.querySelector("#YCIO-collapsed-chat-tabs");
+        const nextOpen = !!open && !!toggle && !!panel;
+        this._collapsedTabsOpen = nextOpen;
+
+        toggle?.setAttribute("aria-expanded", String(nextOpen));
+        if (panel) panel.hidden = !nextOpen;
+        if (!nextOpen && restoreFocus) toggle?.focus();
+    }
+
+    _removeCollapsedTabsListeners() {
+        const eventDocument = this._collapsedTabsEventDocument;
+        if (eventDocument && this._collapsedTabsClickOutside) {
+            eventDocument.removeEventListener("click", this._collapsedTabsClickOutside);
+        }
+        if (eventDocument && this._collapsedTabsKeydown) {
+            eventDocument.removeEventListener("keydown", this._collapsedTabsKeydown);
+        }
+        this._collapsedTabsClickOutside = null;
+        this._collapsedTabsKeydown = null;
+        this._collapsedTabsEventDocument = null;
+    }
+
+    _initializeCollapsedTabsUI(tabsShell) {
+        this._removeCollapsedTabsListeners();
+        const toggle = tabsShell?.querySelector(".YCIO-collapsed-tabs-toggle");
+        const panel = tabsShell?.querySelector("#YCIO-collapsed-chat-tabs");
+        if (!toggle || !panel) {
+            this._collapsedTabsOpen = false;
+            return;
+        }
+
+        this._setCollapsedTabsOpen(this._collapsedTabsOpen);
+        const eventDocument = tabsShell.ownerDocument;
+        this._collapsedTabsEventDocument = eventDocument;
+        this._collapsedTabsClickOutside = event => {
+            if (!this._collapsedTabsOpen) return;
+            const currentToggle = this.element?.querySelector(".YCIO-collapsed-tabs-toggle");
+            const currentPanel = this.element?.querySelector("#YCIO-collapsed-chat-tabs");
+            if (currentToggle?.contains(event.target) || currentPanel?.contains(event.target)) return;
+            this._setCollapsedTabsOpen(false);
+        };
+        this._collapsedTabsKeydown = event => {
+            if (event.key !== "Escape" || !this._collapsedTabsOpen) return;
+            event.preventDefault();
+            event.stopPropagation();
+            this._setCollapsedTabsOpen(false, { restoreFocus: true });
+        };
+        eventDocument.addEventListener("click", this._collapsedTabsClickOutside);
+        eventDocument.addEventListener("keydown", this._collapsedTabsKeydown);
+    }
+
     async _refreshSceneUI() {
         const activeSceneIsAvailable = this.activeTab === "ooc"
             || getVisibleChatScenes().some(scene => scene.id === this.activeTab);
@@ -1039,6 +1104,10 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         this._typingDesired = false;
 
         this._savePositionDebounced?.cancel?.();
+        this._removeCollapsedTabsListeners();
+        this._collapsedTabsOpen = false;
+        this._tabContextMenu?.close?.({ animate: false });
+        this._tabContextMenu = null;
         this._contextMenu?.close?.({ animate: false });
         this._contextMenu = null;
         this._hooks.forEach(({ hook, id }) => Hooks.off(hook, id));
@@ -1139,8 +1208,18 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     static onSwitchTab(event, target) {
         event.preventDefault();
+        this._setCollapsedTabsOpen(false);
         // 呼叫實例方法 changeTab
         this.changeTab(target.dataset.tab);
+    }
+
+    /**
+     * Action: 顯示或關閉已收合的 Scene 分頁面板。
+     */
+    static onToggleCollapsedTabs(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        this._setCollapsedTabsOpen(!this._collapsedTabsOpen);
     }
 
     /**
@@ -1798,6 +1877,80 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * 9. 右鍵選單 (Context Menu)
      * ============================================
      */
+
+    _getSceneTabTarget(target) {
+        const element = target?.jquery ? target[0] : target;
+        const sceneId = element?.dataset?.sceneId;
+        return {
+            sceneId,
+            scene: sceneId ? game.scenes.get(sceneId) : null
+        };
+    }
+
+    _canManageSceneTab(target) {
+        if (!game.user?.isGM) return false;
+        const { scene } = this._getSceneTabTarget(target);
+        return !!scene?.canUserModify?.(game.user, "update");
+    }
+
+    _getSceneTabContextOptions() {
+        return [
+            {
+                name: "YCIO.Tabs.Collapse",
+                icon: '<i class="fas fa-chevron-down"></i>',
+                condition: target => {
+                    const { scene } = this._getSceneTabTarget(target);
+                    return this._canManageSceneTab(target)
+                        && !isSceneChatTabCollapsed(scene, MODULE_ID);
+                },
+                callback: target => this._setSceneTabCollapsed(target, true)
+            },
+            {
+                name: "YCIO.Tabs.Restore",
+                icon: '<i class="fas fa-arrow-up"></i>',
+                condition: target => {
+                    const { scene } = this._getSceneTabTarget(target);
+                    return this._canManageSceneTab(target)
+                        && isSceneChatTabCollapsed(scene, MODULE_ID);
+                },
+                callback: target => this._setSceneTabCollapsed(target, false)
+            }
+        ];
+    }
+
+    _initializeTabContextMenu(container) {
+        this._tabContextMenu?.close?.({ animate: false });
+        this._tabContextMenu = null;
+        if (!game.user?.isGM || !container) return;
+
+        this._tabContextMenu = this._createContextMenu(
+            () => this._getSceneTabContextOptions(),
+            ".YCIO-scene-tab[data-scene-id]",
+            { container }
+        );
+    }
+
+    async _setSceneTabCollapsed(target, collapsed) {
+        const { sceneId, scene } = this._getSceneTabTarget(target);
+        try {
+            if (!game.user?.isGM) throw new Error("Only a GM may manage collapsed Scene chat tabs.");
+            if (!scene) throw new Error(`Scene ${sceneId || "<missing>"} no longer exists.`);
+            if (!scene.canUserModify?.(game.user, "update")) {
+                throw new Error(`The current GM cannot update Scene ${scene.id}.`);
+            }
+
+            await setSceneChatTabCollapsedState(scene, collapsed, MODULE_ID);
+            return true;
+        } catch (error) {
+            console.error("YCIO | 更新場景對話分頁收合狀態失敗:", {
+                sceneId,
+                collapsed,
+                error
+            });
+            ui.notifications.error(game.i18n.localize("YCIO.Warning.UpdateCollapsedTabsFailed"));
+            return false;
+        }
+    }
 
     /**
      * 初始化右鍵選單

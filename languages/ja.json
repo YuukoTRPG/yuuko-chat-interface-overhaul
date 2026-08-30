@@ -6,7 +6,8 @@
             "NoLabeledAvatars": "現在の発言キャラクターには注釈のあるアバターが設定されていません。",
             "FailedMsg": "メッセージの送信に失敗しました",
             "InitialRenderFailed": "YCIOチャットウィンドウを開けませんでした。詳細はコンソールを確認してください。",
-            "NoAvailableSpeaker": "現在のタブには使用可能な発言者がいません。"
+            "NoAvailableSpeaker": "現在のタブには使用可能な発言者がいません。",
+            "UpdateCollapsedTabsFailed": "チャットタブの折りたたみ状態を更新できませんでした。詳細はコンソールを確認してください。"
         },
         "Menu": {
             "ExportLog": "チャットログを書き出す",
@@ -18,7 +19,12 @@
         },
         "Tabs": {
             "Label": "チャットタブ",
-            "OOC": "雑談"
+            "OOC": "雑談",
+            "CollapsedLabel": "折りたたんだチャットタブ",
+            "ShowCollapsed": "折りたたんだチャットタブを表示",
+            "Collapse": "チャットタブを折りたたむ",
+            "Restore": "メインのタブバーに戻す",
+            "CollapsedActive": "折りたたみ済み（現在使用中のためメインのタブバーに一時表示）"
         },
         "Input": {
             "Placeholder": "メッセージを入力...",

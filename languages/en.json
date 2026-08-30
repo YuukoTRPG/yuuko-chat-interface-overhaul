@@ -6,7 +6,8 @@
       "NoLabeledAvatars": "The current speaker has no avatars with labels.",
       "FailedMsg": "Message failed to send.",
       "InitialRenderFailed": "The YCIO chat window could not be opened. Check the console for details.",
-      "NoAvailableSpeaker": "There is no available speaking identity in the current tab."
+      "NoAvailableSpeaker": "There is no available speaking identity in the current tab.",
+      "UpdateCollapsedTabsFailed": "The collapsed chat-tab state could not be updated. Check the console for details."
     },
     "Menu": {
       "ExportLog": "Export Chat Log",
@@ -18,7 +19,12 @@
     },
     "Tabs": {
       "Label": "Chat tabs",
-      "OOC": "OOC"
+      "OOC": "OOC",
+      "CollapsedLabel": "Collapsed chat tabs",
+      "ShowCollapsed": "Show collapsed chat tabs",
+      "Collapse": "Collapse chat tab",
+      "Restore": "Move to primary tab bar",
+      "CollapsedActive": "Collapsed (currently active and temporarily shown in the primary tab bar)"
     },
     "Input": {
       "Placeholder": "Type a message...",

@@ -6,7 +6,8 @@
       "NoLabeledAvatars": "目前的發言身分沒有設定任何帶註解的頭像",
       "FailedMsg": "訊息發送失敗",
       "InitialRenderFailed": "無法開啟 YCIO 聊天視窗，請查看主控台取得詳細資訊。",
-      "NoAvailableSpeaker": "目前分頁沒有可用的發言身分。"
+      "NoAvailableSpeaker": "目前分頁沒有可用的發言身分。",
+      "UpdateCollapsedTabsFailed": "無法更新對話分頁的收合狀態，請查看主控台取得詳細資訊。"
     },
     "Menu": {
       "ExportLog": "導出聊天紀錄",
@@ -18,7 +19,12 @@
     },
     "Tabs": {
       "Label": "聊天分頁",
-      "OOC": "場外"
+      "OOC": "場外",
+      "CollapsedLabel": "已收合的對話分頁",
+      "ShowCollapsed": "顯示已收合的對話分頁",
+      "Collapse": "收合對話分頁",
+      "Restore": "移回主要分頁列",
+      "CollapsedActive": "已收合（目前使用中，暫時顯示於主要分頁列）"
     },
     "Input": {
       "Placeholder": "輸入訊息...",
