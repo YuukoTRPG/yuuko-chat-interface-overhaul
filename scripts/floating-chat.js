@@ -37,6 +37,7 @@ import { ChatExportDialog } from "./chat-exporter.js"; // 聊天記錄匯出
 import { AboutDialog } from "./about-dialog.js"; // 關於本模組對話框
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+const MESSAGE_TIMESTAMP_REFRESH_INTERVAL_MS = 15_000;
 
 export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     constructor(options = {}) {
@@ -108,6 +109,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         this._lastSpeakerValue = null;      // 記錄上一次的發言身分，預設為 null
         this._lastFlashTime = 0;            // 記錄上一次觸發閃爍的時間
         this._scrollCheckInterval = null;   // 捲動檢查計時器
+        this._timestampRefreshInterval = null; // 訊息時間戳記更新計時器
 
         // --- 打字狀態變數 ---
         this._typingTimeout = null;         // 倒數計時器
@@ -821,10 +823,15 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // 啟動或重置捲動檢查計時器 (每 1000ms 檢查一次)
         if (this._scrollCheckInterval) clearInterval(this._scrollCheckInterval);
-        this._scrollCheckInterval = setInterval(() => {
-            this._toggleJumpToBottomButton();
-            this._refreshMessageTimestamps();
-        }, 1000);
+        this._scrollCheckInterval = setInterval(() => this._toggleJumpToBottomButton(), 1000);
+
+        // 與 Foundry 原生聊天一致，每 15 秒更新一次訊息時間戳記。
+        if (!this._timestampRefreshInterval) {
+            this._timestampRefreshInterval = setInterval(
+                () => this._refreshMessageTimestamps(),
+                MESSAGE_TIMESTAMP_REFRESH_INTERVAL_MS
+            );
+        }
 
         // --- D. Hooks 註冊 (只需註冊一次) ---
         if (!this._mainHooksRegistered) {
@@ -1111,6 +1118,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     _onClose(options) {
         if (this._scrollCheckInterval) clearInterval(this._scrollCheckInterval);
         this._scrollCheckInterval = null;
+        if (this._timestampRefreshInterval) clearInterval(this._timestampRefreshInterval);
+        this._timestampRefreshInterval = null;
         if (this._typingTimeout) clearTimeout(this._typingTimeout);
         this._typingTimeout = null;
         if (this._quickRollClickOutsideTimeout) clearTimeout(this._quickRollClickOutsideTimeout);
