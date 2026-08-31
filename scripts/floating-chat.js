@@ -9,6 +9,7 @@ import {
     getChatContextOptions,
     enrichMessageHTML,
     resolveCurrentAvatar,
+    getAvatarUrl,
     getSpeakerFromSelection,
     triggerRenderHooks,
     insertTextFormat,
@@ -19,6 +20,10 @@ import {
     getVisibleChatScenes,
     isSceneVisibleToUser,
     isMessageVisibleInTab,
+    isOocBubbleEligible,
+    isSafeOocBubbleTextAttribute,
+    normalizeOocBubbleText,
+    applyMessageTimestampDisplay,
     generateTypingStatusHTML,
     parseInlineAvatars,
     generateAvatarTooltip
@@ -36,6 +41,19 @@ import { ChatExportDialog } from "./chat-exporter.js"; // 聊天記錄匯出
 import { AboutDialog } from "./about-dialog.js"; // 關於本模組對話框
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+const MESSAGE_TIMESTAMP_REFRESH_INTERVAL_MS = 15_000;
+const OOC_BUBBLE_ANIMATION_MS = 200;
+const OOC_BUBBLE_MAX_TEXT_LENGTH = 240;
+const OOC_BUBBLE_SAFE_TEXT_TAGS = new Set([
+    "a", "abbr", "b", "bdi", "bdo", "blockquote", "br", "caption", "cite", "code", "del", "div",
+    "em", "h1", "h2", "h3", "h4", "h5", "h6", "i", "ins", "kbd", "li", "mark", "ol", "p", "pre",
+    "q", "s", "samp", "span", "strong", "sub", "sup", "table", "tbody", "td", "tfoot", "th", "thead",
+    "time", "tr", "u", "ul", "var", "wbr"
+]);
+const OOC_BUBBLE_BLOCK_TEXT_TAGS = new Set([
+    "blockquote", "caption", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "ol", "p", "pre",
+    "table", "tbody", "td", "tfoot", "th", "thead", "tr", "ul"
+]);
 
 export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     constructor(options = {}) {
@@ -107,6 +125,18 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         this._lastSpeakerValue = null;      // 記錄上一次的發言身分，預設為 null
         this._lastFlashTime = 0;            // 記錄上一次觸發閃爍的時間
         this._scrollCheckInterval = null;   // 捲動檢查計時器
+        this._timestampRefreshInterval = null; // 訊息時間戳記更新計時器
+
+        // --- OOC 聊天氣泡（純客戶端暫態） ---
+        this._oocBubbleElement = null;
+        this._oocBubbleCurrent = null;
+        this._oocBubblePending = null;
+        this._oocBubblePhase = "hidden";
+        this._oocBubbleDeadline = 0;
+        this._oocBubbleHideTimeout = null;
+        this._oocBubbleTransitionTimeout = null;
+        this._oocBubblePositionFrame = null;
+        this._oocBubbleGeneration = 0;
 
         // --- 打字狀態變數 ---
         this._typingTimeout = null;         // 倒數計時器
@@ -143,6 +173,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             icon: "fas fa-comments",
             // 放入靜態按鈕（所有玩家可見）
             controls: [
+                {
+                    icon: "fas fa-clock",
+                    label: "YCIO.Menu.ToggleTimestampMode",
+                    action: "toggleTimestampMode"
+                },
                 {
                     icon: "fas fa-eye-slash",
                     label: "YCIO.Menu.MosaicSpeaker",
@@ -184,6 +219,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             // 右上按鈕 Action
             exportLog: FloatingChat.onExportLog,
             flushLog: FloatingChat.onFlushLog,
+            toggleTimestampMode: FloatingChat.onToggleTimestampMode,
             toggleMosaicSpeaker: FloatingChat.onToggleMosaicSpeaker,
             openSettings: FloatingChat.onOpenSettings,
             openAbout: FloatingChat.onOpenAbout
@@ -280,6 +316,17 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     static onExportLog(event, target) {
         if (!game.user.isGM) return;
         new ChatExportDialog().render(true);
+    }
+
+    /**
+     * Action: 切換目前使用者的訊息時間顯示模式。
+     */
+    static async onToggleTimestampMode(event, target) {
+        event.preventDefault();
+        const currentMode = game.settings.get(MODULE_ID, "messageTimestampMode");
+        const nextMode = currentMode === "relative" ? "absolute" : "relative";
+        await game.settings.set(MODULE_ID, "messageTimestampMode", nextMode);
+        this._refreshMessageTimestamps();
     }
 
     /**
@@ -476,6 +523,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
         // 判斷這次渲染了哪些部分 (如果是初次渲染，parts 會是 undefined，代表全部)
         const parts = options.parts || ["tabs", "content", "input"];
+        this._syncOocBubbleAfterRender();
 
         // --- A. 分頁區 (Tabs) 事件綁定 ---
         if (parts.includes("tabs")) {
@@ -805,6 +853,14 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         if (this._scrollCheckInterval) clearInterval(this._scrollCheckInterval);
         this._scrollCheckInterval = setInterval(() => this._toggleJumpToBottomButton(), 1000);
 
+        // 與 Foundry 原生聊天一致，每 15 秒更新一次訊息時間戳記。
+        if (!this._timestampRefreshInterval) {
+            this._timestampRefreshInterval = setInterval(
+                () => this._refreshMessageTimestamps(),
+                MESSAGE_TIMESTAMP_REFRESH_INTERVAL_MS
+            );
+        }
+
         // --- D. Hooks 註冊 (只需註冊一次) ---
         if (!this._mainHooksRegistered) {
             this._mainHooksRegistered = true; // 鎖定，防止重複註冊
@@ -1088,8 +1144,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     _onClose(options) {
+        this._clearOocBubble({ removeElement: true });
         if (this._scrollCheckInterval) clearInterval(this._scrollCheckInterval);
         this._scrollCheckInterval = null;
+        if (this._timestampRefreshInterval) clearInterval(this._timestampRefreshInterval);
+        this._timestampRefreshInterval = null;
         if (this._typingTimeout) clearTimeout(this._typingTimeout);
         this._typingTimeout = null;
         if (this._quickRollClickOutsideTimeout) clearTimeout(this._quickRollClickOutsideTimeout);
@@ -1122,10 +1181,19 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     /**
+     * 最小化期間不顯示或累積 OOC 氣泡；還原後也不補播歷史訊息。
+     */
+    async minimize() {
+        this._clearOocBubble({ removeElement: false });
+        return super.minimize();
+    }
+
+    /**
      * 覆寫 setPosition 以便在移動/縮放時自動存檔
      */
     setPosition(position = {}) {
         const result = super.setPosition(position);
+        this._scheduleOocBubblePosition();
         this._savePositionDebounced?.({
             left: this.position.left,
             top: this.position.top,
@@ -1185,17 +1253,439 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     async _getMessageElement(message, { fresh = false } = {}) {
         if (!fresh) {
             const cached = this._messageCache.get(message.id);
-            if (cached) return cached;
+            if (cached) {
+                applyMessageTimestampDisplay(message, cached, {
+                    mode: game.settings.get(MODULE_ID, "messageTimestampMode")
+                });
+                return cached;
+            }
         }
 
         const rendered = await message.renderHTML();
         const element = rendered instanceof jQuery ? rendered[0] : rendered;
         enrichMessageHTML(message, element);
         triggerRenderHooks(this, message, element);
+        applyMessageTimestampDisplay(message, element, {
+            mode: game.settings.get(MODULE_ID, "messageTimestampMode")
+        });
         this._cacheMessage(message.id, element);
         return element;
     }
 
+    /**
+     * 更新目前浮動聊天視窗中所有可見訊息的時間顯示。
+     */
+    _refreshMessageTimestamps() {
+        const log = this.element?.querySelector("#custom-chat-log");
+        if (!log) return;
+
+        const mode = game.settings.get(MODULE_ID, "messageTimestampMode");
+        for (const element of log.querySelectorAll(".chat-message[data-message-id]")) {
+            const message = game.messages.get(element.dataset.messageId);
+            if (message) applyMessageTimestampDisplay(message, element, { mode });
+        }
+    }
+
+    /**
+     * 設定頁切換 OOC 氣泡時同步目前視窗；重新開啟不補播歷史訊息。
+     */
+    handleOocBubbleSettingChange() {
+        if (!game.settings.get(MODULE_ID, "oocChatBubbleEnabled")) {
+            this._clearOocBubble({ removeElement: false });
+        }
+    }
+
+    handleOocBubbleMessageCreated(message) {
+        this._showOocBubbleForMessage(message);
+    }
+
+    handleOocBubbleMessageDeleted(messageId) {
+        this._removeOocBubbleMessage(messageId);
+    }
+
+    handleOocBubbleMessageUpdate(message) {
+        const id = String(message.id);
+        const tracksMessage = this._oocBubbleCurrent?.messageId === id
+            || this._oocBubblePending?.messageId === id;
+        if (!tracksMessage) return;
+
+        const enabled = game.settings.get(MODULE_ID, "oocChatBubbleEnabled");
+        if (!isOocBubbleEligible(message, this.activeTab, enabled)) {
+            this._removeOocBubbleMessage(id);
+        }
+    }
+
+    _getOocBubbleAnimationMs() {
+        return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+            ? 0
+            : OOC_BUBBLE_ANIMATION_MS;
+    }
+
+    _getOocBubbleDurationMs() {
+        const value = Number(game.settings.get(MODULE_ID, "oocChatBubbleDuration"));
+        const seconds = Number.isFinite(value) ? Math.min(30, Math.max(1, Math.round(value))) : 5;
+        return seconds * 1000;
+    }
+
+    _ensureOocBubbleElement() {
+        const root = this.element;
+        if (!root) return null;
+        if (this._oocBubbleElement?.parentElement === root) return this._oocBubbleElement;
+
+        this._oocBubbleElement?.remove();
+        const documentRef = root.ownerDocument;
+        const layer = documentRef.createElement("div");
+        layer.className = "YCIO-ooc-bubble-layer";
+        layer.dataset.state = "hidden";
+        layer.hidden = true;
+
+        const bubble = documentRef.createElement("div");
+        bubble.className = "YCIO-ooc-bubble";
+        bubble.setAttribute("role", "status");
+        bubble.setAttribute("aria-live", "polite");
+        bubble.setAttribute("aria-atomic", "true");
+
+        const avatar = documentRef.createElement("img");
+        avatar.className = "YCIO-ooc-bubble-avatar";
+        avatar.alt = "";
+        avatar.addEventListener("error", () => {
+            avatar.hidden = true;
+        });
+
+        const body = documentRef.createElement("span");
+        body.className = "YCIO-ooc-bubble-body";
+        const sender = documentRef.createElement("span");
+        sender.className = "YCIO-ooc-bubble-sender";
+        const text = documentRef.createElement("span");
+        text.className = "YCIO-ooc-bubble-text";
+        body.append(sender, text);
+        bubble.append(avatar, body);
+        layer.appendChild(bubble);
+        root.appendChild(layer);
+        this._oocBubbleElement = layer;
+        return layer;
+    }
+
+    _writeOocBubblePreview(preview) {
+        const layer = this._ensureOocBubbleElement();
+        if (!layer || !preview) return false;
+
+        const avatar = layer.querySelector(".YCIO-ooc-bubble-avatar");
+        const sender = layer.querySelector(".YCIO-ooc-bubble-sender");
+        const text = layer.querySelector(".YCIO-ooc-bubble-text");
+        const avatarUrl = String(preview.avatarUrl || "");
+        const showAvatar = avatarUrl && avatarUrl !== "__NO_AVATAR__";
+        if (avatar) {
+            avatar.hidden = !showAvatar;
+            if (showAvatar) avatar.src = avatarUrl;
+            else avatar.removeAttribute("src");
+        }
+        if (sender) sender.textContent = preview.speaker;
+        if (text) text.textContent = preview.text;
+        layer.dataset.messageId = preview.messageId;
+        return true;
+    }
+
+    _hideOocBubbleElement() {
+        const layer = this._oocBubbleElement;
+        if (!layer) return;
+        layer.hidden = true;
+        layer.dataset.state = "hidden";
+        layer.parentElement?.classList.remove("YCIO-ooc-bubble-active");
+        delete layer.dataset.messageId;
+        const avatar = layer.querySelector(".YCIO-ooc-bubble-avatar");
+        if (avatar) {
+            avatar.hidden = true;
+            avatar.removeAttribute("src");
+        }
+        const sender = layer.querySelector(".YCIO-ooc-bubble-sender");
+        const text = layer.querySelector(".YCIO-ooc-bubble-text");
+        if (sender) sender.textContent = "";
+        if (text) text.textContent = "";
+    }
+
+    _syncOocBubbleAfterRender() {
+        const layer = this._ensureOocBubbleElement();
+        if (!layer) return;
+        if (!this._oocBubbleCurrent) {
+            this._hideOocBubbleElement();
+            return;
+        }
+        if (this.minimized
+            || this.activeTab === "ooc"
+            || !game.settings.get(MODULE_ID, "oocChatBubbleEnabled")) {
+            this._clearOocBubble({ removeElement: false });
+            return;
+        }
+        if (this._oocBubblePhase === "visible"
+            && this._oocBubbleDeadline > 0
+            && Date.now() >= this._oocBubbleDeadline) {
+            this._beginOocBubbleLeaving();
+            return;
+        }
+
+        this._writeOocBubblePreview(this._oocBubbleCurrent);
+        layer.hidden = false;
+        layer.parentElement?.classList.add("YCIO-ooc-bubble-active");
+        layer.dataset.state = this._oocBubblePhase === "leaving" ? "leaving" : "visible";
+        this._scheduleOocBubblePosition();
+    }
+
+    _scheduleOocBubblePosition() {
+        const layer = this._oocBubbleElement;
+        if (!layer || layer.hidden || !this._oocBubbleCurrent) return;
+        if (this._oocBubblePositionFrame !== null && typeof cancelAnimationFrame === "function") {
+            cancelAnimationFrame(this._oocBubblePositionFrame);
+        }
+        if (typeof requestAnimationFrame !== "function") {
+            this._positionOocBubble();
+            return;
+        }
+        this._oocBubblePositionFrame = requestAnimationFrame(() => {
+            this._oocBubblePositionFrame = null;
+            this._positionOocBubble();
+        });
+    }
+
+    _positionOocBubble() {
+        const root = this.element;
+        const layer = this._oocBubbleElement;
+        const oocTab = root?.querySelector('[data-action="switchTab"][data-tab="ooc"]');
+        if (!root || !layer || layer.hidden || !oocTab) return;
+
+        const rootRect = root.getBoundingClientRect();
+        const tabRect = oocTab.getBoundingClientRect();
+        const viewportWidth = globalThis.innerWidth || root.ownerDocument.documentElement.clientWidth;
+        const relativeLeft = tabRect.left - rootRect.left;
+        const availableWidth = Math.max(120, Math.min(
+            340,
+            rootRect.width - Math.max(0, relativeLeft) - 8,
+            viewportWidth - tabRect.left - 8
+        ));
+
+        let left = relativeLeft;
+        let top = tabRect.top - rootRect.top - 6;
+        layer.style.maxWidth = `${availableWidth}px`;
+        layer.style.left = `${left}px`;
+        layer.style.top = `${top}px`;
+
+        const positionedRect = layer.getBoundingClientRect();
+        if (positionedRect.left < 4) left += 4 - positionedRect.left;
+        if (positionedRect.right > viewportWidth - 4) left -= positionedRect.right - (viewportWidth - 4);
+        if (positionedRect.top < 4) top += 4 - positionedRect.top;
+        layer.style.left = `${left}px`;
+        layer.style.top = `${top}px`;
+    }
+
+    _extractOocBubbleText(content) {
+        const documentRef = this.element?.ownerDocument || globalThis.document;
+        const template = documentRef?.createElement?.("template");
+        if (!template?.content) return "";
+
+        try {
+            template.innerHTML = String(content ?? "");
+        } catch (error) {
+            console.warn("YCIO | 解析 OOC 聊天氣泡摘要失敗:", error);
+            return "";
+        }
+
+        const fragments = [];
+        const collectVisibleText = node => {
+            if (node.nodeType === 3) {
+                fragments.push(node.nodeValue || "");
+                return;
+            }
+            if (node.nodeType === 11) {
+                for (const child of node.childNodes) collectVisibleText(child);
+                return;
+            }
+            if (node.nodeType !== 1) return;
+
+            const tagName = node.tagName.toLowerCase();
+            if (!OOC_BUBBLE_SAFE_TEXT_TAGS.has(tagName)) return;
+            for (const attribute of node.attributes) {
+                const attributeName = attribute.name.toLowerCase();
+                if (!isSafeOocBubbleTextAttribute(tagName, attributeName, attribute.value)) return;
+            }
+            if (tagName === "br" || tagName === "wbr") {
+                fragments.push(" ");
+                return;
+            }
+
+            const isBlock = OOC_BUBBLE_BLOCK_TEXT_TAGS.has(tagName);
+            if (isBlock) fragments.push(" ");
+            for (const child of node.childNodes) collectVisibleText(child);
+            if (isBlock) fragments.push(" ");
+        };
+
+        collectVisibleText(template.content);
+        return normalizeOocBubbleText(fragments.join(""), OOC_BUBBLE_MAX_TEXT_LENGTH);
+    }
+
+    _buildOocBubblePreview(message) {
+        // 不呼叫 renderHTML：它會再次派送第三方 render hook，且可能把 CSS 隱藏內容升格到摘要。
+        const summary = this._extractOocBubbleText(message.content);
+
+        const speaker = normalizeOocBubbleText(
+            message.alias || message.speaker?.alias || message.author?.name || message.user?.name,
+            80
+        ) || game.i18n.localize("YCIO.Tabs.OOC");
+        let avatarUrl = "__NO_AVATAR__";
+        try {
+            avatarUrl = getAvatarUrl(message);
+        } catch (error) {
+            console.warn("YCIO | 取得 OOC 聊天氣泡頭像失敗:", error);
+        }
+
+        return {
+            messageId: String(message.id),
+            speaker,
+            avatarUrl,
+            text: summary || game.i18n.localize("YCIO.OOCBubble.Fallback")
+        };
+    }
+
+    _showOocBubbleForMessage(message) {
+        if (!this.rendered || this.minimized) return;
+        const enabled = game.settings.get(MODULE_ID, "oocChatBubbleEnabled");
+        if (!isOocBubbleEligible(message, this.activeTab, enabled)) return;
+        const preview = this._buildOocBubblePreview(message);
+        if (game.messages.get(message.id) !== message) return;
+        this._queueOocBubblePreview(preview);
+    }
+
+    _queueOocBubblePreview(preview) {
+        if (!this._oocBubbleCurrent) {
+            this._startOocBubble(preview);
+            return;
+        }
+        if (this._oocBubbleCurrent.messageId === preview.messageId) {
+            this._oocBubbleCurrent = preview;
+            this._writeOocBubblePreview(preview);
+            this._scheduleOocBubblePosition();
+            return;
+        }
+
+        this._oocBubblePending = preview;
+        if (this._oocBubblePhase !== "leaving") this._beginOocBubbleLeaving();
+    }
+
+    _startOocBubble(preview) {
+        this._cancelOocBubbleTimers();
+        const generation = ++this._oocBubbleGeneration;
+        this._oocBubbleCurrent = preview;
+        this._oocBubblePending = null;
+        this._oocBubblePhase = "entering";
+        this._oocBubbleDeadline = 0;
+
+        const layer = this._ensureOocBubbleElement();
+        if (!layer || !this._writeOocBubblePreview(preview)) {
+            this._clearOocBubble({ removeElement: false });
+            return;
+        }
+        layer.hidden = false;
+        layer.parentElement?.classList.add("YCIO-ooc-bubble-active");
+        layer.dataset.state = "preparing";
+        this._positionOocBubble();
+        void layer.offsetWidth;
+        layer.dataset.state = "visible";
+
+        this._oocBubbleTransitionTimeout = setTimeout(() => {
+            this._oocBubbleTransitionTimeout = null;
+            if (generation !== this._oocBubbleGeneration || !this._oocBubbleCurrent) return;
+            this._oocBubblePhase = "visible";
+            const durationMs = this._getOocBubbleDurationMs();
+            this._oocBubbleDeadline = Date.now() + durationMs;
+            this._oocBubbleHideTimeout = setTimeout(() => {
+                this._oocBubbleHideTimeout = null;
+                if (generation === this._oocBubbleGeneration) this._beginOocBubbleLeaving();
+            }, durationMs);
+        }, this._getOocBubbleAnimationMs());
+    }
+
+    _beginOocBubbleLeaving() {
+        if (!this._oocBubbleCurrent) return;
+        this._cancelOocBubbleTimers();
+        const generation = ++this._oocBubbleGeneration;
+        this._oocBubblePhase = "leaving";
+        this._oocBubbleDeadline = 0;
+        const layer = this._ensureOocBubbleElement();
+        if (layer) {
+            layer.hidden = false;
+            layer.parentElement?.classList.add("YCIO-ooc-bubble-active");
+            layer.dataset.state = "leaving";
+        }
+        this._oocBubbleTransitionTimeout = setTimeout(() => {
+            this._oocBubbleTransitionTimeout = null;
+            this._finishOocBubbleLeaving(generation);
+        }, this._getOocBubbleAnimationMs());
+    }
+
+    _finishOocBubbleLeaving(generation) {
+        if (generation !== this._oocBubbleGeneration) return;
+        const next = this._oocBubblePending;
+        this._oocBubbleCurrent = null;
+        this._oocBubblePending = null;
+        this._oocBubblePhase = "hidden";
+        this._oocBubbleDeadline = 0;
+        this._hideOocBubbleElement();
+        if (next) this._startOocBubble(next);
+    }
+
+    _cancelOocBubbleTimers() {
+        if (this._oocBubbleHideTimeout) clearTimeout(this._oocBubbleHideTimeout);
+        if (this._oocBubbleTransitionTimeout) clearTimeout(this._oocBubbleTransitionTimeout);
+        this._oocBubbleHideTimeout = null;
+        this._oocBubbleTransitionTimeout = null;
+    }
+
+    _clearOocBubble({ removeElement = false } = {}) {
+        this._cancelOocBubbleTimers();
+        if (this._oocBubblePositionFrame !== null && typeof cancelAnimationFrame === "function") {
+            cancelAnimationFrame(this._oocBubblePositionFrame);
+        }
+        this._oocBubblePositionFrame = null;
+        this._oocBubbleGeneration++;
+        this._oocBubbleCurrent = null;
+        this._oocBubblePending = null;
+        this._oocBubblePhase = "hidden";
+        this._oocBubbleDeadline = 0;
+        this._hideOocBubbleElement();
+        if (removeElement) {
+            this._oocBubbleElement?.remove();
+            this._oocBubbleElement = null;
+        }
+    }
+
+    _removeOocBubbleMessage(messageId) {
+        const id = String(messageId);
+        if (this._oocBubblePending?.messageId === id) this._oocBubblePending = null;
+        if (this._oocBubbleCurrent?.messageId !== id) return;
+        const next = this._oocBubblePending;
+        this._clearOocBubble({ removeElement: false });
+        if (next) this._startOocBubble(next);
+    }
+
+    _updateOocBubbleMessage(message) {
+        const id = String(message.id);
+        const tracksCurrent = this._oocBubbleCurrent?.messageId === id;
+        const tracksPending = this._oocBubblePending?.messageId === id;
+        if (!tracksCurrent && !tracksPending) return;
+
+        const enabled = game.settings.get(MODULE_ID, "oocChatBubbleEnabled");
+        if (!isOocBubbleEligible(message, this.activeTab, enabled)) {
+            this._removeOocBubbleMessage(id);
+            return;
+        }
+
+        const preview = this._buildOocBubblePreview(message);
+        if (this._oocBubbleCurrent?.messageId === id) {
+            this._oocBubbleCurrent = preview;
+            this._writeOocBubblePreview(preview);
+            this._scheduleOocBubblePosition();
+        }
+        if (this._oocBubblePending?.messageId === id) this._oocBubblePending = preview;
+    }
 
     /**
      * ============================================
@@ -1228,6 +1718,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * @param {boolean} triggerSceneView - 是否連動視角切換至目標點
      */
     async changeTab(tabId, triggerSceneView = true) {
+        // OOC 切換即使正在等待舊訊息載入，也要先同步移除提示。
+        if (tabId === "ooc") this._clearOocBubble({ removeElement: false });
         return this.queueContentMutation(() => this._changeTab(tabId, triggerSceneView));
     }
 
@@ -1251,6 +1743,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         }
 
         this.activeTab = tabId;
+        if (tabId === "ooc") this._clearOocBubble({ removeElement: false });
         const generation = ++this._contentGeneration;
 
         // 1. 重新渲染並等待渲染完成
@@ -1479,6 +1972,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     deleteMessageFromDOM(messageId) {
         this.invalidateCache(messageId); // 清除快取
+        this._removeOocBubbleMessage(messageId);
 
         const log = this.element.querySelector("#custom-chat-log");
         const el = log?.querySelector(`[data-message-id="${messageId}"]`);
@@ -1492,6 +1986,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     async updateMessageInDOM(message) {
         this.invalidateCache(message.id); // 訊息更新清除快取
+        this._updateOocBubbleMessage(message);
         this._historyExhausted.delete(getMessageRouteId(message));
         const log = this.element.querySelector("#custom-chat-log");
         if (!log) return;

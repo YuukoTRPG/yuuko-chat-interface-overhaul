@@ -12,6 +12,7 @@
     "Menu": {
       "ExportLog": "Export Chat Log",
       "ClearLog": "Clear Chat Log",
+      "ToggleTimestampMode": "Toggle Message Timestamp Mode",
       "MosaicSpeaker": "Blur Speakers (for screenshots)",
       "MosaicSpeakerOff": "Remove Blurs",
       "Settings": "Module Settings",
@@ -56,6 +57,9 @@
       "Actor": "Actor",
       "NoAvailableToken": "No Token available for speaking"
     },
+    "OOCBubble": {
+      "Fallback": "New OOC message"
+    },
     "Settings": {
       "Sections": {
         "Controls": "Controls",
@@ -96,6 +100,16 @@
       "BackgroundOpacity": {
         "Name": "➤ Floating Chat Window Background Opacity",
         "Hint": "Adjust the background opacity of your floating chat window (minimum 30%)."
+      },
+      "OOCBubble": {
+        "Enabled": {
+          "Name": "➤ Show OOC Chat Bubble",
+          "Hint": "While viewing a scene tab, show new messages from the OOC tab in a chat bubble."
+        },
+        "Duration": {
+          "Name": "➤ OOC Chat Bubble Duration",
+          "Hint": "Set how many seconds each OOC chat bubble remains visible (1–30 seconds)."
+        }
       },
       "CleanSender": {
         "Name": "➤ Clean Speaker Info",

@@ -88,6 +88,8 @@ Hooks.on("createChatMessage", (message, options, userId) => {
 
     // 檢查視窗是否已建立且已渲染 (rendered)，避免報錯
     if (floatingChatInstance?.rendered) {
+        // 氣泡提示不等待內容 DOM queue，避免歷史載入阻塞即時 OOC 提示。
+        floatingChatInstance.handleOocBubbleMessageCreated(message);
         queueMessageSync(app => app.appendMessage(message));
     }
 });
@@ -98,6 +100,8 @@ Hooks.on("createChatMessage", (message, options, userId) => {
  */
 Hooks.on("deleteChatMessage", (message, options, userId) => {
     if (floatingChatInstance?.rendered) {
+        // 氣泡不必等待內容 DOM queue；已刪除訊息應立即離開提示層。
+        floatingChatInstance.handleOocBubbleMessageDeleted(message.id);
         queueMessageSync(app => app.deleteMessageFromDOM(message.id));
     }
 });
@@ -108,6 +112,8 @@ Hooks.on("deleteChatMessage", (message, options, userId) => {
  */
 Hooks.on("updateChatMessage", (message, changes, options, userId) => {
     if (floatingChatInstance?.rendered) {
+        // 權限或路由失效時先同步清除，避免長工作佇列延長敏感內容的顯示。
+        floatingChatInstance.handleOocBubbleMessageUpdate(message);
         // ChatMessage 更新頻率很低；全量重新判斷路由比維護易漏欄位的白名單可靠。
         queueMessageSync(app => app.updateMessageInDOM(message));
     }
