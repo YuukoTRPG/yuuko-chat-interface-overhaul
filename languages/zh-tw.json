@@ -57,6 +57,9 @@
       "Actor": "角色",
       "NoAvailableToken": "無可用於發言的Token"
     },
+    "OOCBubble": {
+      "Fallback": "新的場外訊息"
+    },
     "Settings": {
       "Sections": {
         "Controls": "操作設定",
@@ -97,6 +100,16 @@
       "BackgroundOpacity": {
         "Name": "➤浮動聊天視窗背景透明度",
         "Hint": "調整（你自己的）浮動聊天視窗背景透明度（最低 30%）。"
+      },
+      "OOCBubble": {
+        "Enabled": {
+          "Name": "➤顯示場外聊天氣泡",
+          "Hint": "停留在場景分頁時，顯示場外（OOC）分頁的新訊息聊天氣泡。"
+        },
+        "Duration": {
+          "Name": "➤場外聊天氣泡顯示秒數",
+          "Hint": "設定場外（OOC）聊天氣泡每則訊息的顯示秒數（1–30 秒）。"
+        }
       },
       "CleanSender": {
         "Name": "➤精簡發言者資訊",

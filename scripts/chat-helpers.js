@@ -799,6 +799,53 @@ export function isMessageVisibleInTab(message, activeTabId) {
 }
 
 /**
+ * 判斷一則新訊息是否可在目前客戶端顯示 OOC 聊天氣泡。
+ * 此判斷刻意比一般分頁顯示更嚴格，避免將 blind／私密內容放進提示層。
+ * @param {ChatMessage} message - 新建立的聊天訊息
+ * @param {String|null} activeTabId - 目前作用中的 YCIO 分頁
+ * @param {Boolean} enabled - 客戶端是否啟用 OOC 氣泡
+ * @returns {Boolean} 是否可顯示
+ */
+export function isOocBubbleEligible(message, activeTabId, enabled = true) {
+    if (!enabled || !message?.speaker || !activeTabId || activeTabId === "ooc") return false;
+    if (!message.visible || !message.isContentVisible || message.isAuthor) return false;
+    return getMessageRouteId(message) === "ooc";
+}
+
+/**
+ * 將氣泡摘要正規化為短純文字，並以 Unicode code point 安全截斷。
+ * @param {*} value - 原始文字
+ * @param {Number} maxLength - 最多保留的字元數
+ * @returns {String} 正規化後的摘要
+ */
+export function normalizeOocBubbleText(value, maxLength = 240) {
+    const normalized = String(value ?? "").replace(/\s+/g, " ").trim();
+    const limit = Number.isInteger(maxLength) && maxLength > 0 ? maxLength : 240;
+    const characters = Array.from(normalized);
+    if (characters.length <= limit) return normalized;
+    return `${characters.slice(0, limit).join("").trimEnd()}…`;
+}
+
+const OOC_BUBBLE_SAFE_TEXT_ATTRIBUTES = new Set([
+    "colspan", "datetime", "dir", "href", "lang", "rel", "rowspan", "scope", "target", "title"
+]);
+const OOC_BUBBLE_SAFE_COLOR_STYLE = /^\s*color\s*:\s*#[0-9a-f]{6}\s*;?\s*$/i;
+
+/**
+ * OOC 氣泡只接受低風險的文字屬性；唯一特許的 style 是 YCIO 色票產生的十六進位文字色。
+ * @param {String} tagName - 小寫 HTML tag 名稱
+ * @param {String} attributeName - 小寫 HTML attribute 名稱
+ * @param {String} attributeValue - attribute 原始值
+ * @returns {Boolean} 是否允許繼續讀取該元素子樹
+ */
+export function isSafeOocBubbleTextAttribute(tagName, attributeName, attributeValue) {
+    if (OOC_BUBBLE_SAFE_TEXT_ATTRIBUTES.has(attributeName)) return true;
+    return tagName === "span"
+        && attributeName === "style"
+        && OOC_BUBBLE_SAFE_COLOR_STYLE.test(attributeValue);
+}
+
+/**
  * 生成打字狀態的 HTML 字串
  * @returns {string|null} 回傳 HTML 字串，若無人打字則回傳 null
  */

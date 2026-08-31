@@ -18,6 +18,10 @@
     padding: 0;
 }
 
+.YCIO-floating-chat-window.YCIO-ooc-bubble-active {
+    overflow: visible;
+}
+
 /* 由於 CSS 限制子元素透明度無法大於父元素，故不能直接將 opacity 設在最頂層。
    FVTT 的 ApplicationV2 渲染結構為: 視窗 > .window-content > .chat-content
    所以分兩層進行反向排除，確保只有對話容器絕對不繼承全局透明度。 */
@@ -63,6 +67,100 @@
     position: relative;
     z-index: 2;
     border-bottom: 1px solid #555;
+}
+
+/* OOC 新訊息提示：直接錨定實際 OOC 分頁，向視窗上方懸浮且不推動版面。 */
+.YCIO-floating-chat-window .YCIO-ooc-bubble-layer {
+    position: absolute;
+    z-index: 9;
+    width: max-content;
+    max-width: min(340px, calc(100vw - 8px));
+    transform: translateY(-100%);
+    pointer-events: none;
+}
+
+.YCIO-floating-chat-window .YCIO-ooc-bubble-layer[hidden] {
+    display: none;
+}
+
+.YCIO-floating-chat-window .YCIO-ooc-bubble {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    background: rgba(20, 20, 20, 0.94);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.YCIO-floating-chat-window .YCIO-ooc-bubble::after {
+    content: "";
+    position: absolute;
+    left: 18px;
+    bottom: -6px;
+    width: 10px;
+    height: 10px;
+    border-right: 1px solid rgba(255, 255, 255, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(20, 20, 20, 0.94);
+    transform: rotate(45deg);
+}
+
+.YCIO-floating-chat-window .YCIO-ooc-bubble-layer[data-state="visible"] .YCIO-ooc-bubble {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.YCIO-floating-chat-window .YCIO-ooc-bubble-layer[data-state="leaving"] .YCIO-ooc-bubble {
+    opacity: 0;
+    transform: translateY(-12px);
+}
+
+.YCIO-floating-chat-window .YCIO-ooc-bubble-avatar {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.YCIO-floating-chat-window .YCIO-ooc-bubble-body {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.YCIO-floating-chat-window .YCIO-ooc-bubble-sender {
+    overflow: hidden;
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.YCIO-floating-chat-window .YCIO-ooc-bubble-text {
+    display: -webkit-box;
+    overflow: hidden;
+    color: #cfcfcf;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
 }
 
 .YCIO-floating-chat-window .tabs {
@@ -1757,5 +1855,12 @@ body.YCIO-hide-native-ui #chat-popout {
     .YCIO-floating-chat-window #chat-wait-btn.YCIO-active,
     .YCIO-pulse-animation {
         animation: none;
+    }
+
+    .YCIO-floating-chat-window .YCIO-ooc-bubble,
+    .YCIO-floating-chat-window .YCIO-ooc-bubble-layer[data-state="visible"] .YCIO-ooc-bubble,
+    .YCIO-floating-chat-window .YCIO-ooc-bubble-layer[data-state="leaving"] .YCIO-ooc-bubble {
+        transition: none;
+        transform: none;
     }
 }

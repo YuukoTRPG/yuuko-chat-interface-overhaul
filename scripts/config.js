@@ -154,6 +154,40 @@ export function registerSettings() {
         onChange: () => Hooks.callAll("YCIO_UpdateStyle") // 觸發自定義 Hook
     });
 
+    // 停留在場景分頁時是否顯示場外 (OOC) 聊天氣泡 (Client)
+    game.settings.register(MODULE_ID, "oocChatBubbleEnabled", {
+        name: "YCIO.Settings.OOCBubble.Enabled.Name",
+        hint: "YCIO.Settings.OOCBubble.Enabled.Hint",
+        scope: "client",
+        config: true,
+        type: Boolean,
+        default: true,
+        onChange: () => {
+            for (const app of foundry.applications.instances.values()) {
+                if (app.id !== "YCIO-floating-chat-window") continue;
+                if (typeof app.handleOocBubbleSettingChange === "function") {
+                    app.handleOocBubbleSettingChange();
+                }
+                break;
+            }
+        }
+    });
+
+    // 場外 (OOC) 聊天氣泡的顯示秒數 (Client)
+    game.settings.register(MODULE_ID, "oocChatBubbleDuration", {
+        name: "YCIO.Settings.OOCBubble.Duration.Name",
+        hint: "YCIO.Settings.OOCBubble.Duration.Hint",
+        scope: "client",
+        config: true,
+        type: Number,
+        default: 5,
+        range: {
+            min: 1,
+            max: 30,
+            step: 1
+        }
+    });
+
     // 保留舊設定鍵供既有資料相容；目前沒有安全的背景-only 透明度實作，因此不顯示。
     game.settings.register(MODULE_ID, "messageOpacity", {
         scope: "client",
