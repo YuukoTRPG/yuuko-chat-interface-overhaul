@@ -1633,8 +1633,32 @@
     /* 撐滿 ApplicationV2 的視窗內容區 */
     gap: 5px;
     /* 區塊間距 */
-    overflow: hidden;
-    /* 防止外部捲軸 */
+    overflow: auto;
+    /* 新增進度與報告後，小視窗仍須能捲動至操作按鈕。 */
+}
+
+.YCIO-export-form [hidden] {
+    display: none !important;
+}
+
+.YCIO-export-form .export-progress {
+    flex-shrink: 0;
+    overflow-wrap: anywhere;
+}
+
+.YCIO-export-form .export-failures {
+    flex-shrink: 0;
+    max-height: 220px;
+    overflow: auto;
+    overflow-wrap: anywhere;
+}
+
+.YCIO-export-form .export-failures li {
+    margin-block: 0.4em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .YCIO-export-form [data-export-spinner] { animation: none; }
 }
 
 .YCIO-export-form .notes {

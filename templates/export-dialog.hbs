@@ -14,7 +14,7 @@
 
     <div class="form-group-stacked">
         <label class="checkbox">
-            <input type="checkbox" name="includePrivate">
+            <input type="checkbox" name="includePrivate" {{#if includePrivate}}checked{{/if}}>
             <span>{{localize "YCIO.Exporter.IncludePrivate"}}</span>
         </label>
         <p class="hint">{{localize "YCIO.Exporter.IncludePrivateHint"}}</p>
@@ -22,9 +22,22 @@
 
     <p class="notification warning">{{localize "YCIO.Exporter.PrivateWarning"}}</p>
 
+    <div class="export-progress" role="status" aria-live="polite" aria-atomic="true">
+        <i class="fas fa-spinner fa-spin" data-export-spinner aria-hidden="true" hidden></i>
+        <span data-export-status></span>
+    </div>
+    <details class="export-failures" data-export-details hidden>
+        <summary>{{localize "YCIO.Exporter.FailureDetails"}}</summary>
+        <p class="hint">{{localize "YCIO.Exporter.FailureGroupingHint"}}</p>
+        <ul></ul>
+    </details>
+
     <footer class="sheet-footer flexrow">
         <button type="button" data-action="doExport">
             <i class="fas fa-file-export"></i> {{localize "YCIO.Exporter.ButtonStart"}}
         </button>
+        <button type="button" data-action="cancelExport" hidden>{{localize "YCIO.Exporter.ButtonCancel"}}</button>
+        <button type="button" data-action="downloadExport" hidden>{{localize "YCIO.Exporter.ButtonDownloadWarnings"}}</button>
+        <button type="button" data-action="discardExport" hidden>{{localize "YCIO.Exporter.ButtonDiscard"}}</button>
     </footer>
 </div>

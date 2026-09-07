@@ -7,6 +7,32 @@ import { applyMessageTimestampDisplay, enrichMessageHTML, getMessageRouteId } fr
 import { MODULE_ID } from "./config.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+const EXPORT_PROGRESS_KEYS = {
+    Preparing: "YCIO.Exporter.ProgressPreparing",
+    Styles: "YCIO.Exporter.ProgressStyles",
+    Assets: "YCIO.Exporter.ProgressAssets",
+    Messages: "YCIO.Exporter.ProgressMessages",
+    Images: "YCIO.Exporter.ProgressImages",
+    Assembling: "YCIO.Exporter.ProgressAssembling"
+};
+
+// Only errors constructed here may carry a user-facing diagnostic.
+class ChatExportError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "ChatExportError";
+        this.exportSafeMessage = message;
+    }
+}
+
+// A single retained dialog owns the client-local job, including while closed.
+let exportDialog;
+export function openChatExportDialog() {
+    if (!game.user?.isGM) return;
+    exportDialog ??= new ChatExportDialog();
+    exportDialog._captureSelection();
+    return exportDialog.render(true);
+}
 
 /**
  * ============================================
@@ -20,7 +46,10 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
         window: { title: "YCIO.Exporter.Title", icon: "fas fa-file-export", resizable: true },
         position: { width: 400, height: "auto" },
         actions: {
-            doExport: ChatExportDialog.onDoExport
+            doExport: ChatExportDialog.onDoExport,
+            cancelExport: ChatExportDialog.onCancelExport,
+            downloadExport: ChatExportDialog.onDownloadExport,
+            discardExport: ChatExportDialog.onDiscardExport
         }
     };
 
@@ -43,12 +72,120 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
             });
         });
 
-        return { tabs };
+        if (this._selection) {
+            for (const tab of tabs) tab.checked = this._selection.tabs.includes(tab.id);
+        }
+        return { tabs, includePrivate: this._selection?.includePrivate ?? false };
+    }
+
+    _selection = null;
+    _job = null;
+    _result = null;
+    _status = "";
+    _failures = [];
+
+    _captureSelection() {
+        const form = this.element;
+        if (!form?.querySelector('[name="tabs"]') || this._job || this._result) return;
+        this._selection = {
+            tabs: Array.from(form.querySelectorAll('[name="tabs"]:checked'), input => input.value),
+            includePrivate: Boolean(form.querySelector('[name="includePrivate"]')?.checked)
+        };
+    }
+
+    _onRender(context, options) {
+        super._onRender(context, options);
+        this._updateStatus();
+    }
+
+    async close(options = {}) {
+        this._captureSelection();
+        if (this._job && !this._job.closeNotice) {
+            this._job.closeNotice = true;
+            ui.notifications.info(game.i18n.localize("YCIO.Exporter.InfoBackground"));
+        }
+        return super.close(options);
+    }
+
+    _updateStatus() {
+        const root = this.element;
+        if (!root) return;
+        const busy = Boolean(this._job);
+        const pending = Boolean(this._result);
+        root.querySelectorAll('input').forEach(input => { input.disabled = busy || pending; });
+        for (const [action, visible] of Object.entries({
+            doExport: !busy && !pending, cancelExport: busy,
+            downloadExport: pending, discardExport: pending
+        })) {
+            const button = root.querySelector(`[data-action="${action}"]`);
+            if (button) button.hidden = !visible;
+        }
+        const cancel = root.querySelector('[data-action="cancelExport"]');
+        if (cancel) cancel.disabled = Boolean(this._job?.controller.signal.aborted);
+        const status = root.querySelector('[data-export-status]');
+        if (status) status.textContent = this._status;
+        const spinner = root.querySelector('[data-export-spinner]');
+        if (spinner) spinner.hidden = !busy;
+        const details = root.querySelector('[data-export-details]');
+        if (details) {
+            details.hidden = !this._failures.length;
+            const summary = details.querySelector('summary');
+            if (summary) summary.textContent = `${game.i18n.localize("YCIO.Exporter.FailureDetails")} (${this._failures.length})`;
+            const list = details.querySelector('ul');
+            // Progress updates must not rebuild or collapse an open report.
+            if (list && list._failures !== this._failures) {
+                list._failures = this._failures;
+                list.replaceChildren(...this._failures.map(failure => {
+                    const item = root.ownerDocument.createElement('li');
+                    item.textContent = `${failure.type}: ${failure.url} — ${failure.reason} — `
+                        + game.i18n.format("YCIO.Exporter.ReferenceCount", { count: failure.references })
+                        + (failure.messageIds.length ? ` (${failure.messageIds.join(', ')})` : '');
+                    return item;
+                }));
+            }
+        }
+    }
+
+    _downloadResult() {
+        if (!this._result || this._job || !game.user?.isGM) return;
+        const result = this._result;
+        // Clear before the synchronous handoff so repeated actions cannot download twice.
+        this._result = null;
+        try {
+            foundry.utils.saveDataToFile(result.html, "text/html;charset=utf-8", result.filename);
+            this._status = game.i18n.format("YCIO.Exporter.DownloadHandedOff", { count: result.messageCount });
+            ui.notifications.info(this._status);
+        } catch {
+            this._status = game.i18n.localize("YCIO.Exporter.FailureDownload");
+            ui.notifications.error(this._status);
+        }
+        this._updateStatus();
+    }
+
+    static onCancelExport(event) {
+        event.preventDefault();
+        if (!this._job) return;
+        this._job.controller.abort();
+        this._status = game.i18n.localize("YCIO.Exporter.Cancelling");
+        this._updateStatus();
+    }
+
+    static onDownloadExport(event) {
+        event.preventDefault();
+        this._downloadResult();
+    }
+
+    static onDiscardExport(event) {
+        event.preventDefault();
+        if (this._job) return;
+        this._result = null;
+        this._status = game.i18n.localize("YCIO.Exporter.Discarded");
+        this._updateStatus();
     }
 
     static async onDoExport(event, target) {
         event.preventDefault();
-        if (!game.user?.isGM) return;
+        if (!game.user?.isGM || this._job || this._result) return;
         const form = target.closest("form");
         if (!form) return;
         const formData = new FormData(form);
@@ -63,19 +200,51 @@ export class ChatExportDialog extends HandlebarsApplicationMixin(ApplicationV2) 
             return;
         }
 
-        // 關閉視窗並開始執行導出
-        await this.close();
-        ui.notifications.info(game.i18n.localize("YCIO.Exporter.InfoPreparing"));
-
+        this._selection = { tabs: selectedTabs, includePrivate };
+        const job = { controller: new AbortController() };
+        this._job = job;
+        this._failures = [];
+        this._status = game.i18n.localize("YCIO.Exporter.ProgressPreparing");
+        this._updateStatus();
         try {
-            const exporter = new ChatExporter();
-            await exporter.generateAndDownload(selectedTabs, { includePrivate });
+            const exporter = new ChatExporter({
+                signal: job.controller.signal,
+                onProgress: progress => {
+                    if (this._job !== job || job.controller.signal.aborted) return;
+                    this._status = game.i18n.localize(EXPORT_PROGRESS_KEYS[progress.phase] ?? EXPORT_PROGRESS_KEYS.Preparing)
+                        + (progress.tabLabel ? ` — ${progress.tabLabel}` : '')
+                        + (Number.isFinite(progress.total) ? ` ${progress.completed} / ${progress.total}` : '');
+                    if (progress.failures) this._failures = progress.failures;
+                    this._updateStatus();
+                }
+            });
+            const result = await exporter.generateAndDownload(selectedTabs, { includePrivate });
+            if (job.controller.signal.aborted) throw new DOMException("Cancelled", "AbortError");
+            this._failures = result.failures;
+            if (!result.messageCount) this._status = game.i18n.localize("YCIO.Exporter.NoMessages");
+            else {
+                this._result = result;
+                this._status = game.i18n.format("YCIO.Exporter.WarningSummary", {
+                    messages: result.messageCount, count: result.failures.length,
+                    references: result.failures.reduce((sum, failure) => sum + failure.references, 0)
+                }) + ' ' + game.i18n.format("YCIO.Exporter.AffectedMessages", {
+                    count: new Set(result.failures.flatMap(failure => failure.messageIds)).size
+                });
+                if (result.failures.length) ui.notifications.warn(this._status);
+            }
         } catch (error) {
-            console.error("[YCIO] 聊天紀錄導出失敗", error);
-            ui.notifications.error(game.i18n.format("YCIO.Exporter.ErrorFailed", {
-                error: error?.message || String(error)
-            }));
+            this._result = null;
+            this._status = job.controller.signal.aborted
+                ? game.i18n.localize("YCIO.Exporter.Cancelled")
+                : game.i18n.format("YCIO.Exporter.FailedStage", { stage: this._status,
+                    reason: error instanceof ChatExportError ? error.exportSafeMessage
+                        : game.i18n.localize("YCIO.Exporter.FailureUnexpected") });
+            if (!job.controller.signal.aborted) ui.notifications.error(foundry.utils.escapeHTML(this._status));
+        } finally {
+            this._job = null;
+            this._updateStatus();
         }
+        if (this._result && !this._failures.length) this._downloadResult();
     }
 }
 
@@ -91,59 +260,81 @@ const IMAGE_BATCH_SIZE = 10;
 const RESOURCE_TIMEOUT_MS = 15000;
 
 class ChatExporter {
-    constructor() {
+    constructor({ signal, onProgress } = {}) {
+        this.signal = signal || null;
+        this.onProgress = typeof onProgress === "function" ? onProgress : null;
         this.cssContent = "";
-        this.resourceFailures = [];
-        this.imageSourceCache = new Map(); // src -> Promise<short asset ID>
+        this.resourceFailures = new Map(); // type + safe URL -> grouped failure
+        this.imageSourceCache = new Map(); // actual src -> Promise<short asset ID>
+        this.textResourceCache = new Map(); // actual stylesheet URL -> Promise<text>
+        this.cssResourceCache = new Map(); // actual fetch URL -> Promise<data URI>
         this.imageAssetIds = new Map(); // data URI -> short asset ID
         this.imageAssets = new Map(); // short asset ID -> data URI
+        this._failureRevision = 0;
+        this._failureSnapshotRevision = -1;
+        this._failureSnapshot = Object.freeze([]);
     }
 
     /**
-     * 主流程：生成並下載
+     * 只產生離線 HTML；下載與通知由保留中的匯出視窗負責。
      */
     async generateAndDownload(selectedTabs, { includePrivate = false } = {}) {
-        // 1. 讀取 CSS 內容
-        try {
-            ui.notifications.info(game.i18n.localize("YCIO.Exporter.InfoDownloadingCSS"));
+        this._reportProgress("Preparing", 0, undefined, { messageCount: 0 });
+        // 先讓對話框的 busy 狀態與 spinner 有一次繪製機會。
+        await this._yieldToBrowser();
+        this._throwIfAborted();
 
-            // Step A: 先抓全域所有 CSS (包含 Core, System 和其他模組)
-            const globalCSS = await this._fetchGlobalCSS();
-
-            // Step B: 強制單獨再抓一次 module.css，確保它的權重贏過前面抓到的任何東西
-            let moduleCSS = "";
-            try {
-                const moduleCSSUrl = new URL(
-                    foundry.utils.getRoute(`modules/${MODULE_ID}/styles/module.css`),
-                    window.location.origin
-                ).href;
-                const response = await this._fetchWithTimeout(moduleCSSUrl);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                moduleCSS = this._resolveRelativeUrls(await response.text(), moduleCSSUrl);
-            } catch (err) {
-                this._recordResourceFailure("CSS", `modules/${MODULE_ID}/styles/module.css`, err);
-            }
-
-            // Step C: 組合 (將 module.css 放在最後面)
-            this.cssContent = globalCSS + "\n/* --- YCIO Module CSS Priority Override --- */\n" + moduleCSS;
-
-        } catch (e) {
-            console.error("無法讀取 CSS", e);
-            this.cssContent = "";
+        const exportTabs = await this._snapshotExportTabs(selectedTabs, includePrivate);
+        const messageCount = exportTabs.reduce((count, tab) => count + tab.messageIds.length, 0);
+        if (messageCount === 0) {
+            return { html: null, filename: null, messageCount: 0, failures: [] };
         }
 
-        // 2. 捕獲主題狀態與 CSS 變數快照
+        const stylesheetUrls = Array.from(
+            document.querySelectorAll('link[rel="stylesheet"]'),
+            link => link.href
+        ).filter(Boolean);
+        let stylesCompleted = 0;
+        const stylesTotal = stylesheetUrls.length + 1;
+        const completeStyle = () => {
+            stylesCompleted += 1;
+            this._reportProgress("Styles", stylesCompleted, stylesTotal, { messageCount });
+        };
+        this._reportProgress("Styles", 0, stylesTotal, { messageCount });
+
+        const globalCSS = await this._fetchGlobalCSS(stylesheetUrls, completeStyle);
+        let moduleCSS = "";
+        const moduleCSSUrl = new URL(
+            foundry.utils.getRoute(`modules/${MODULE_ID}/styles/module.css`),
+            window.location.origin
+        ).href;
+        try {
+            moduleCSS = this._resolveRelativeUrls(await this._fetchText(moduleCSSUrl), moduleCSSUrl);
+        } catch (error) {
+            if (this._isCancellation(error)) throw error;
+            this._recordResourceFailure("stylesheet", moduleCSSUrl, error);
+        }
+        completeStyle();
+        this.cssContent = globalCSS + "\n/* --- YCIO Module CSS Priority Override --- */\n" + moduleCSS;
+
         const themeState = this._captureThemeState();
         let rootVarsCSS = this._captureRootCSSVariables();
         let chatVarsInline = this._captureChatCSSVariables();
-
-        // 3. 離線化 CSS 中的外部資源 (字型、背景圖等)
-        ui.notifications.info(game.i18n.localize("YCIO.Exporter.InfoPreparing"));
-        [this.cssContent, rootVarsCSS, chatVarsInline] = await Promise.all([
-            this._inlineCSSResources(this.cssContent),
-            this._inlineCSSResources(rootVarsCSS),
-            this._inlineCSSResources(chatVarsInline)
-        ]);
+        const cssSections = [this.cssContent, rootVarsCSS, chatVarsInline];
+        const assetTotal = cssSections.reduce(
+            (count, section) => count + this._getCSSResourceUsages(section).urls.length,
+            0
+        );
+        let assetsCompleted = 0;
+        const completeAsset = () => {
+            assetsCompleted += 1;
+            this._reportProgress("Assets", assetsCompleted, assetTotal, { messageCount });
+        };
+        this._reportProgress("Assets", 0, assetTotal, { messageCount });
+        // 三段 CSS 順序處理，避免同時建立大量資源請求而掩蓋取消狀態。
+        this.cssContent = await this._inlineCSSResources(this.cssContent, { onProcessed: completeAsset });
+        rootVarsCSS = await this._inlineCSSResources(rootVarsCSS, { onProcessed: completeAsset });
+        chatVarsInline = await this._inlineCSSResources(chatVarsInline, { onProcessed: completeAsset });
         const cssAssetResult = this._deduplicateCSSDataUris([
             this.cssContent,
             rootVarsCSS,
@@ -151,23 +342,34 @@ class ChatExporter {
         ]);
         [this.cssContent, rootVarsCSS, chatVarsInline] = cssAssetResult.sections;
         if (cssAssetResult.registry) rootVarsCSS = cssAssetResult.registry + rootVarsCSS;
+        this._throwIfAborted();
 
-        // 4. 準備 HTML 結構
-        const dateStr = new Date().toISOString().split("T")[0];
-        const exportTabs = selectedTabs.map((sourceId, index) => ({
-            sourceId,
-            navId: "export-tab-button-" + index,
-            domId: `export-tab-${index}`,
-            label: sourceId === "ooc"
-                ? game.i18n.localize("YCIO.Exporter.OOCButton")
-                : (game.scenes.get(sourceId)?.navName || game.scenes.get(sourceId)?.name || sourceId)
-        }));
+        const messageProgress = { completed: 0, total: messageCount };
+        const tabMarkup = new Map();
+        for (const tab of exportTabs) {
+            tabMarkup.set(
+                tab.sourceId,
+                await this._processMessagesForTab(tab, includePrivate, messageProgress)
+            );
+        }
+        // 避免資源處理期間被刪除或改為不可匯出的訊息仍進入最終檔案。
+        this._assertExportPlanIsCurrent(exportTabs, includePrivate);
+
+        this._reportProgress("Assembling", 0, undefined, { messageCount });
+        await this._yieldToBrowser();
+        this._throwIfAborted();
+        const failures = this._getFailures();
+        const exportTimestamp = new Date().toISOString();
+        const dateStr = exportTimestamp.split("T")[0];
         const htmlTitle = foundry.utils.escapeHTML(game.i18n.localize("YCIO.Exporter.HtmlTitle"));
         const htmlLang = foundry.utils.escapeHTML(game.i18n.lang || "en");
         const safeChatVars = foundry.utils.escapeHTML(chatVarsInline);
         const safeChatLogClasses = foundry.utils.escapeHTML(themeState.chatLogClasses);
         const scriptNonce = foundry.utils.randomID(32);
-        let fullHtml = `
+        const warningReport = this._buildWarningReportHtml(failures, messageCount, exportTimestamp);
+        const imageAssetsJson = JSON.stringify(Object.fromEntries(this.imageAssets))
+            .replace(/[<>&\u2028\u2029]/g, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
+        const fullHtml = `
 <!DOCTYPE html>
 <html lang="${htmlLang}">
 <head>
@@ -175,17 +377,15 @@ class ChatExporter {
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; img-src data:; media-src data:; font-src data:; style-src 'unsafe-inline' data:; script-src 'nonce-${scriptNonce}'">
     <title>${htmlTitle} - ${dateStr}</title>
     <style>
-        /* :root CSS 變數快照 (從 FVTT 運行時環境捕獲) */
         ${rootVarsCSS}
-
-        /* 重置基礎樣式，模擬 FVTT 環境 */
         body { margin: 0; padding: 0; font-family: system-ui, sans-serif; height: 100vh; overflow: hidden; }
-
-        /* 嵌入抓取到的所有 CSS */
         ${this.cssContent}
-        
-        /* 導出專用樣式調整 */
         .YCIO-floating-chat-window { position: relative; height: 100%; width: 100%; top: 0; left: 0; border: none; display: flex; flex-direction: column; }
+        .export-warning { max-height: 30vh; overflow: auto; margin: 10px; padding: 10px; border: 1px solid #a66; border-radius: 4px; background: #fff3cd; color: #422; flex: 0 0 auto; }
+        .export-warning p { margin: 0 0 6px; }
+        .export-warning details { margin-top: 6px; }
+        .export-warning ul { margin: 6px 0 0; padding-left: 20px; overflow-wrap: anywhere; }
+        .ycio-export-missing-image { display: inline-block; padding: 0.25em 0.5em; border: 1px dashed currentColor; color: #a33; font-style: italic; }
         .export-nav { background: #222; padding: 10px; border-bottom: 1px solid #555; display: flex; gap: 5px; flex-shrink: 0; flex-wrap: wrap; }
         .export-nav button { background: #444; color: #ccc; border: 1px solid #555; padding: 5px 10px; cursor: pointer; border-radius: 4px; }
         .export-nav button.active { background: #eee; color: #111; font-weight: bold; }
@@ -198,208 +398,183 @@ class ChatExporter {
 </head>
 <body>
     <div class="YCIO-floating-chat-window">
+        ${warningReport}
         <div class="export-nav" id="nav-container" role="tablist" aria-label="${htmlTitle}">
             ${exportTabs.map(tab => `<button id="${tab.navId}" type="button" role="tab" aria-selected="false" aria-controls="${tab.domId}" data-target="${tab.domId}">${foundry.utils.escapeHTML(tab.label)}</button>`).join("")}
         </div>
-
         <div class="chat-content">
-`;
-
-        // 5. 遍歷分頁，生成訊息內容
-        for (const tab of exportTabs) {
-            const messagesHtml = await this._processMessagesForTab(tab.sourceId, includePrivate);
-            // 每個分頁都包含完整的 CSS 鏡像結構，確保系統 CSS 選擇器能正確命中
-            fullHtml += `
+            ${exportTabs.map(tab => `
             <div id="${tab.domId}" class="tab-content" role="tabpanel" aria-labelledby="${tab.navId}">
                 <div class="YCIO-css-mirror tab sidebar-tab chat-sidebar" style="${safeChatVars}">
-                    <div class="chat-scroll">
-                        <ol class="chat-log ${safeChatLogClasses}">
-                            ${messagesHtml}
-                        </ol>
-                    </div>
+                    <div class="chat-scroll"><ol class="chat-log ${safeChatLogClasses}">${tabMarkup.get(tab.sourceId)}</ol></div>
                 </div>
-            </div>`;
-        }
-
-        const imageAssetsJson = JSON.stringify(Object.fromEntries(this.imageAssets))
-            .replace(/[<>&\u2028\u2029]/g, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
-
-        // 6. 結尾與腳本
-        fullHtml += `
+            </div>`).join("")}
         </div>
     </div>
     <script nonce="${scriptNonce}">
-        // A. 回填離線圖片資源
         const imageAssets = ${imageAssetsJson};
         document.querySelectorAll("img[data-ycio-asset]").forEach(image => {
             const assetId = image.dataset.ycioAsset;
-            if (Object.prototype.hasOwnProperty.call(imageAssets, assetId)) {
-                image.setAttribute("src", imageAssets[assetId]);
-            }
+            if (Object.prototype.hasOwnProperty.call(imageAssets, assetId)) image.setAttribute("src", imageAssets[assetId]);
         });
-
-        // B. 簡單的分頁切換邏輯
         function switchTab(targetId) {
             document.querySelectorAll(".tab-content").forEach(element => {
                 const active = element.id === targetId;
                 element.classList.toggle("active", active);
                 element.hidden = !active;
             });
-
             document.querySelectorAll(".export-nav button").forEach(button => {
                 const active = button.dataset.target === targetId;
                 button.classList.toggle("active", active);
                 button.setAttribute("aria-selected", String(active));
             });
         }
-
-        document.querySelector('.export-nav').addEventListener('click', function(e) {
-            const button = e.target.closest('button[data-target]');
+        document.querySelector('.export-nav').addEventListener('click', event => {
+            const button = event.target.closest('button[data-target]');
             if (button) switchTab(button.dataset.target);
         });
-
-        // C. 通用擲骰展開互動 (Event Delegation)
-        // 監聽整個頁面的點擊事件，不用對每個骰子綁定
-        document.addEventListener('click', function(e) {
-            // 1. 找到被點擊的骰子區塊
-            const diceRoll = e.target.closest('.dice-roll');
+        document.addEventListener('click', event => {
+            const diceRoll = event.target.closest('.dice-roll');
             if (!diceRoll) return;
-
-            // 2. 標準動作：切換 expanded class (適用於標準系統)
             diceRoll.classList.toggle('expanded');
-
-            // 3. 強制動作：處理像 CoC 這種用 style="display:none" 的北爛系統
-            // 搜尋該區塊內常見的隱藏容器 class
-            const tooltips = diceRoll.querySelectorAll('.dice-tooltip');
-            
-            tooltips.forEach(tp => {
-                // 如果當前是隱藏的 (檢查行內樣式)
-                if (tp.style.display === 'none') {
-                    // 清空 display 屬性，讓它回歸 CSS 控制 (通常就會顯示了)
-                    tp.style.display = ''; 
-                } 
-                // 如果當前是顯示的 (且外層已經移除 expanded，手動把它藏回去)
-                else if (!diceRoll.classList.contains('expanded')) {
-                    tp.style.display = 'none';
-                }
+            diceRoll.querySelectorAll('.dice-tooltip').forEach(tooltip => {
+                if (tooltip.style.display === 'none') tooltip.style.display = '';
+                else if (!diceRoll.classList.contains('expanded')) tooltip.style.display = 'none';
             });
         });
-        
-        // 預設開啟第一個分頁
         document.querySelector('.export-nav button[data-target]')?.click();
     </script>
 </body>
 </html>`;
 
-        // 7. 觸發下載
-        foundry.utils.saveDataToFile(
-            fullHtml,
-            "text/html;charset=utf-8",
-            `chat-log-${dateStr}.html`
-        );
-
-        ui.notifications.info(game.i18n.localize("YCIO.Exporter.InfoComplete"));
-        if (this.resourceFailures.length > 0) {
-            ui.notifications.warn(game.i18n.format("YCIO.Exporter.WarningResourceFailures", {
-                count: this.resourceFailures.length
-            }));
-        }
+        await this._yieldToBrowser();
+        this._assertExportPlanIsCurrent(exportTabs, includePrivate);
+        this._throwIfAborted();
+        this._reportProgress("Assembling", 1, undefined, { messageCount });
+        return {
+            html: fullHtml,
+            filename: `chat-log-${dateStr}${failures.length ? "-warnings" : ""}.html`,
+            messageCount,
+            failures
+        };
     }
 
     /**
-     * 處理單一分頁的訊息：撈取 -> 渲染 -> 圖片轉碼
+     * 處理固定清單中的一個分頁。訊息在 render 前後都重新檢查可匯出資格。
      */
-    async _processMessagesForTab(tabId, includePrivate = false) {
-        // 1. 撈取訊息 (複製 floating-chat.js 的過濾邏輯，但不限制數量)
-        const allMessages = game.messages.contents;
-        const targetMessages = allMessages.filter(msg => {
-            if (!msg.visible) return false;
-
-            const isPrivate = msg.blind || msg.whisper?.length > 0 || !msg.isContentVisible;
-            if (!includePrivate && isPrivate) return false;
-
-            return getMessageRouteId(msg) === tabId;
-        });
-
-        // 2. 建立一個暫存的容器來處理 DOM
+    async _processMessagesForTab(tab, includePrivate, messageProgress) {
         const container = document.createElement("div");
+        const imageMessageIds = new Map();
+        this._reportProgress("Messages", messageProgress.completed, messageProgress.total, {
+            tabLabel: tab.label,
+            messageCount: messageProgress.completed
+        });
+        for (const messageId of tab.messageIds) {
+            this._throwIfAborted();
+            const message = this._getCurrentExportableMessage(messageId, tab, includePrivate);
+            let html;
+            try {
+                // renderHTML 無法被強制中斷；abort race 讓延遲回傳不得再推進本次工作。
+                html = await this._awaitWithAbort(message.renderHTML());
+                this._throwIfAborted();
+                this._getCurrentExportableMessage(messageId, tab, includePrivate);
+                enrichMessageHTML(message, html, { includeAvatarPreview: false });
+                applyMessageTimestampDisplay(message, html, { exportMode: true });
+                this._getCurrentExportableMessage(messageId, tab, includePrivate);
+                container.appendChild(html);
+                for (const image of html.querySelectorAll("img")) imageMessageIds.set(image, messageId);
+            } catch (error) {
+                if (this._isCancellation(error) || error instanceof ChatExportError) throw error;
+                throw this._createSafeError("YCIO.Exporter.FailureMessage", {
+                    tab: tab.label,
+                    id: messageId
+                });
+            }
 
-        for (const msg of targetMessages) {
-            // 渲染原始 HTML
-            const html = await msg.renderHTML();
-            // 注入頭像與 YCIO 結構 (重複利用既有函式)
-            enrichMessageHTML(msg, html, { includeAvatarPreview: false }); // 此時 html 已經變成 <li class="message ...">...</li>
-            applyMessageTimestampDisplay(msg, html, { exportMode: true });
-
-            container.appendChild(html);
+            messageProgress.completed += 1;
+            this._reportProgress("Messages", messageProgress.completed, messageProgress.total, {
+                tabLabel: tab.label,
+                messageCount: messageProgress.completed
+            });
+            if (messageProgress.completed % IMAGE_BATCH_SIZE === 0) await this._yieldToBrowser();
         }
 
-        // 3. 將容器內的圖片登錄為共用離線資源，分批處理以避免記憶體爆炸
         const images = Array.from(container.querySelectorAll("img"));
-        await this._convertImagesInBatches(images);
-
+        await this._convertImagesInBatches(images, {
+            tabLabel: tab.label,
+            messageCount: messageProgress.completed,
+            imageMessageIds
+        });
         return container.innerHTML;
     }
 
     /**
-     * 分批將圖片轉為共用離線資源，避免同時載入過多圖片導致記憶體溢出
-     * @param {HTMLImageElement[]} images - 所有需要轉碼的圖片元素
+     * 分批將圖片轉為共用離線資源，並在每筆完成後更新本分頁的進度。
      */
-    async _convertImagesInBatches(images) {
+    async _convertImagesInBatches(images, { tabLabel, messageCount, imageMessageIds }) {
+        let completed = 0;
+        this._reportProgress("Images", completed, images.length, { tabLabel, messageCount });
         for (let i = 0; i < images.length; i += IMAGE_BATCH_SIZE) {
             const batch = images.slice(i, i + IMAGE_BATCH_SIZE);
-            await Promise.all(batch.map(img => this._convertImageToOfflineAsset(img)));
+            await Promise.all(batch.map(async image => {
+                await this._convertImageToOfflineAsset(image, imageMessageIds.get(image) || null);
+                completed += 1;
+                this._reportProgress("Images", completed, images.length, { tabLabel, messageCount });
+            }));
+            await this._yieldToBrowser();
         }
     }
 
     /**
-     * 將 img 標籤改為離線資源 ID
+     * 將 img 標籤改為離線資源 ID；不能內嵌時留下可見、離線的占位文字。
      */
-    async _convertImageToOfflineAsset(imgElement) {
+    async _convertImageToOfflineAsset(imgElement, messageId) {
         const src = imgElement.currentSrc || imgElement.src;
-        // srcset 可能讓瀏覽器略過已內嵌的 src。
         imgElement.removeAttribute("srcset");
-        // 不信任訊息原本帶入的內部屬性，只接受本次匯出產生的資源 ID。
+        // picture/source 可在離線開啟時覆蓋 img 的 data asset；只清理此圖片的候選來源。
+        const picture = imgElement.closest("picture");
+        for (const source of picture?.querySelectorAll("source[srcset]") || []) source.remove();
         imgElement.removeAttribute("data-ycio-asset");
         if (!src) return;
 
         try {
             const assetId = await this._getImageAssetId(src);
+            this._throwIfAborted();
             imgElement.removeAttribute("src");
             imgElement.setAttribute("data-ycio-asset", assetId);
-        } catch (err) {
-            this._recordResourceFailure("image", src, err);
-            // 不留下會在離線檔案開啟時自動連線的遠端 URL。
-            imgElement.removeAttribute("src");
-            imgElement.removeAttribute("data-ycio-asset");
+        } catch (error) {
+            if (this._isCancellation(error)) throw error;
+            this._recordResourceFailure("image", src, error, { messageId });
+            const placeholder = document.createElement("span");
+            placeholder.className = "ycio-export-missing-image";
+            placeholder.setAttribute("role", "img");
+            placeholder.textContent = game.i18n.localize("YCIO.Exporter.MissingImage");
+            imgElement.replaceWith(placeholder);
         }
     }
 
     /**
-     * 取得離線圖片資源 ID；同一來源在所有分頁共用同一個 Promise。
+     * 取得離線圖片資源 ID；同一實際來源在本次工作共用同一個 Promise。
      */
     _getImageAssetId(src) {
-        const cached = this.imageSourceCache.get(src);
+        const cacheKey = String(src);
+        const cached = this.imageSourceCache.get(cacheKey);
         if (cached) return cached;
 
-        const assetIdPromise = (/^data:/i.test(src) ? Promise.resolve(src) : (async () => {
-            const response = await this._fetchWithTimeout(src);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-            const blob = await response.blob();
-            if (blob.type && !blob.type.startsWith("image/")) {
-                throw new Error(`Unexpected MIME type: ${blob.type}`);
+        const assetIdPromise = (async () => {
+            this._throwIfAborted();
+            let dataUri = cacheKey;
+            if (!/^data:/i.test(cacheKey)) {
+                const blob = await this._fetchBlob(cacheKey);
+                if (blob.type && !blob.type.startsWith("image/")) throw new Error("Unexpected image MIME type");
+                dataUri = await this._blobToDataUri(blob);
             }
-
-            // 直接內嵌原始 Blob，保留 JPEG/WebP/GIF 等原格式與動畫。
-            return this._blobToDataUri(blob);
-        })()).then(dataUri => this._registerImageAsset(dataUri)).catch(error => {
-            // 短暫性失敗不永久污染快取，讓後續批次仍可重試。
-            this.imageSourceCache.delete(src);
-            throw error;
-        });
-
-        this.imageSourceCache.set(src, assetIdPromise);
+            this._throwIfAborted();
+            return this._registerImageAsset(dataUri);
+        })();
+        // 保留拒絕的 Promise 到本次結束，避免稍後重試同 URL 而掩蓋先前缺漏。
+        assetIdPromise.catch(() => {});
+        this.imageSourceCache.set(cacheKey, assetIdPromise);
         return assetIdPromise;
     }
 
@@ -420,28 +595,26 @@ class ChatExporter {
      * 抓取當前網頁所有載入的 CSS 內容
      * 同時將 CSS 中的 url() 相對路徑轉為絕對路徑，確保嵌入後資源路徑仍然有效
      */
-    async _fetchGlobalCSS() {
-        // 1. 抓取所有 <link rel="stylesheet"> 標籤
-        const links = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
-
-        // 2. 異步並行下載所有 CSS 檔案內容
-        const cssPromises = links.map(async (link) => {
-            try {
-                const response = await this._fetchWithTimeout(link.href);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-                const cssText = await response.text();
-                // 將 CSS 中的 url() 相對路徑轉為絕對路徑
-                return this._resolveRelativeUrls(cssText, link.href);
-            } catch (e) {
-                this._recordResourceFailure("CSS", link.href, e);
-            }
-            return "";
-        });
-
-        // 3. 等待全部下載完成並合併成一個大字串
-        const allCss = await Promise.all(cssPromises);
-        return allCss.join("\n");
+    async _fetchGlobalCSS(stylesheetUrls, onProcessed) {
+        const cssParts = new Array(stylesheetUrls.length).fill("");
+        for (let start = 0; start < stylesheetUrls.length; start += IMAGE_BATCH_SIZE) {
+            const batch = stylesheetUrls.slice(start, start + IMAGE_BATCH_SIZE);
+            await Promise.all(batch.map(async (stylesheetUrl, offset) => {
+                this._throwIfAborted();
+                try {
+                    const cssText = await this._fetchText(stylesheetUrl);
+                    // 完成順序可不同，輸出仍跟隨 <link> 的原始順序。
+                    cssParts[start + offset] = this._resolveRelativeUrls(cssText, stylesheetUrl);
+                } catch (error) {
+                    if (this._isCancellation(error)) throw error;
+                    this._recordResourceFailure("stylesheet", stylesheetUrl, error);
+                }
+                onProcessed?.();
+            }));
+            this._throwIfAborted();
+            await this._yieldToBrowser();
+        }
+        return cssParts.join("\n");
     }
 
     /**
@@ -593,42 +766,28 @@ class ChatExporter {
      * @param {string} cssText - 已經路徑修正過的 CSS 文字
      * @returns {Promise<string>} 資源已內嵌的 CSS 文字
      */
-    async _inlineCSSResources(cssText) {
-        const urlRegex = /url\(\s*(["']?)(.*?)\1\s*\)/gi;
-        const matches = [...cssText.matchAll(urlRegex)];
+    async _inlineCSSResources(cssText, { onProcessed } = {}) {
+        const { urlRegex, urls, referencesByUrl } = this._getCSSResourceUsages(cssText);
+        if (urls.length === 0) return cssText;
 
-        if (matches.length === 0) return cssText;
-
-        // 收集所有需要轉碼的 URL (去重)
-        const urlMap = new Map(); // url -> base64 data URI
-        const uniqueUrls = [...new Set(
-            matches
-                .map(match => match[2].trim())
-                .filter(url => url && !/^(?:data:|#|var\()/i.test(url))
-        )];
-
-        // 分批下載與轉碼
-        for (let i = 0; i < uniqueUrls.length; i += IMAGE_BATCH_SIZE) {
-            const batch = uniqueUrls.slice(i, i + IMAGE_BATCH_SIZE);
-            await Promise.all(batch.map(async (resourceUrl) => {
+        const urlMap = new Map();
+        for (let index = 0; index < urls.length; index += IMAGE_BATCH_SIZE) {
+            const batch = urls.slice(index, index + IMAGE_BATCH_SIZE);
+            await Promise.all(batch.map(async resourceUrl => {
                 try {
-                    const absoluteUrl = this._resolveResourceUrl(resourceUrl, document.baseURI);
-                    const fetchUrl = new URL(absoluteUrl);
-                    const fragment = fetchUrl.hash;
-                    fetchUrl.hash = "";
-
-                    const response = await this._fetchWithTimeout(fetchUrl.href);
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-                    const blob = await response.blob();
-                    const dataUri = await this._blobToDataUri(blob);
-                    urlMap.set(resourceUrl, dataUri + fragment);
+                    urlMap.set(resourceUrl, await this._getCSSResourceDataUri(resourceUrl));
                 } catch (error) {
-                    this._recordResourceFailure("CSS resource", resourceUrl, error);
+                    if (this._isCancellation(error)) throw error;
+                    this._recordResourceFailure("css-resource", resourceUrl, error, {
+                        references: referencesByUrl.get(resourceUrl) || 1
+                    });
                     // 使用空的 data URI，避免離線檔案再次對外連線。
                     urlMap.set(resourceUrl, "data:,");
                 }
+                onProcessed?.();
             }));
+            this._throwIfAborted();
+            await this._yieldToBrowser();
         }
 
         return cssText.replace(urlRegex, (match, quote, rawUrl) => {
@@ -842,31 +1001,328 @@ class ChatExporter {
     }
 
     /**
-     * 以瀏覽器原生 AbortController 限制單一資源的等待時間。
+     * 將使用者選擇固定為 ID 與順序，避免匯出期間新訊息改變總數。
      */
-    async _fetchWithTimeout(url) {
-        // AbortSignal.timeout remains active while callers consume text/blob bodies.
-        return fetch(url, { signal: AbortSignal.timeout(RESOURCE_TIMEOUT_MS) });
+    async _snapshotExportTabs(selectedTabs, includePrivate) {
+        const sourceIds = [];
+        const seen = new Set();
+        for (const sourceId of selectedTabs || []) {
+            if (typeof sourceId !== "string" || seen.has(sourceId)) continue;
+            seen.add(sourceId);
+            sourceIds.push(sourceId);
+        }
+
+        const tabs = sourceIds.map((sourceId, index) => {
+            const scene = sourceId === "ooc" ? null : game.scenes.get(sourceId);
+            const label = sourceId === "ooc"
+                ? game.i18n.localize("YCIO.Exporter.OOCButton")
+                : (scene?.navName || scene?.name || sourceId);
+            return {
+                sourceId,
+                navId: `export-tab-button-${index}`,
+                domId: `export-tab-${index}`,
+                label,
+                messageIds: []
+            };
+        });
+        const byRoute = new Map(tabs.map(tab => [tab.sourceId, tab]));
+        const messages = Array.from(game.messages.contents || []);
+        this._reportProgress("Preparing", 0, messages.length);
+        for (let index = 0; index < messages.length; index += 1) {
+            const message = messages[index];
+            try {
+                const route = this._getExportableRoute(message, includePrivate);
+                byRoute.get(route)?.messageIds.push(message.id);
+            } catch {
+                throw this._createSafeError("YCIO.Exporter.FailurePreparingMessage", { id: message.id });
+            }
+            if ((index + 1) % 100 === 0) {
+                this._reportProgress("Preparing", index + 1, messages.length);
+                await this._yieldToBrowser();
+            }
+        }
+        this._reportProgress("Preparing", messages.length, messages.length);
+        this._throwIfAborted();
+        return tabs;
     }
 
     /**
-     * 紀錄不含 query/hash 的資源位置，避免錯誤記錄洩漏簽章參數。
+     * 本次匯出範圍與原有顯示邊界一致。
      */
-    _recordResourceFailure(type, resourceUrl, error) {
-        let safeUrl = String(resourceUrl).split(/[?#]/, 1)[0];
-        try {
-            const parsed = new URL(resourceUrl, document.baseURI);
-            safeUrl = `${parsed.origin}${parsed.pathname}`;
-        } catch {
-            // 非 URL 輸入沿用已移除 query/hash 的文字。
-        }
+    _isMessageExportable(message, tabId, includePrivate) {
+        return this._getExportableRoute(message, includePrivate) === tabId;
+    }
 
-        this.resourceFailures.push({
-            type,
-            url: safeUrl,
-            error: error?.message || String(error)
+    _getExportableRoute(message, includePrivate) {
+        if (!message?.visible) return null;
+        const isPrivate = message.blind || message.whisper?.length > 0 || !message.isContentVisible;
+        if (!includePrivate && isPrivate) return null;
+        return getMessageRouteId(message);
+    }
+
+    _getCurrentExportableMessage(messageId, tab, includePrivate) {
+        const collection = game.messages;
+        const message = collection?.get?.(messageId)
+            || collection?.contents?.find(candidate => candidate.id === messageId);
+        let isExportable = false;
+        try {
+            isExportable = this._isMessageExportable(message, tab.sourceId, includePrivate);
+        } catch {
+            // Cannot prove that the snapshot still fits the original permission boundary.
+        }
+        if (!game.user?.isGM || !isExportable) {
+            throw this._createSafeError("YCIO.Exporter.FailureChanged", {
+                tab: tab.label,
+                id: messageId
+            });
+        }
+        return message;
+    }
+
+    _assertExportPlanIsCurrent(exportTabs, includePrivate) {
+        for (const tab of exportTabs) {
+            for (const messageId of tab.messageIds) {
+                this._getCurrentExportableMessage(messageId, tab, includePrivate);
+            }
+        }
+    }
+
+    _getCSSResourceUsages(cssText) {
+        const urlRegex = /url\(\s*(["']?)(.*?)\1\s*\)/gi;
+        const referencesByUrl = new Map();
+        for (const match of String(cssText || "").matchAll(urlRegex)) {
+            const resourceUrl = match[2].trim();
+            if (!resourceUrl || /^(?:data:|#|var\()/i.test(resourceUrl)) continue;
+            referencesByUrl.set(resourceUrl, (referencesByUrl.get(resourceUrl) || 0) + 1);
+        }
+        return { urlRegex, urls: [...referencesByUrl.keys()], referencesByUrl };
+    }
+
+    async _getCSSResourceDataUri(resourceUrl) {
+        this._throwIfAborted();
+        const absoluteUrl = this._resolveResourceUrl(resourceUrl, document.baseURI);
+        const fetchUrl = new URL(absoluteUrl);
+        const fragment = fetchUrl.hash;
+        fetchUrl.hash = "";
+        // Cache with the actual request URL; only failure reports remove query/hash.
+        const cacheKey = fetchUrl.href;
+        let dataUriPromise = this.cssResourceCache.get(cacheKey);
+        if (!dataUriPromise) {
+            dataUriPromise = (async () => {
+                const blob = await this._fetchBlob(cacheKey);
+                return this._blobToDataUri(blob);
+            })();
+            dataUriPromise.catch(() => {});
+            this.cssResourceCache.set(cacheKey, dataUriPromise);
+        }
+        return (await this._awaitWithAbort(dataUriPromise)) + fragment;
+    }
+
+    async _fetchText(url) {
+        const cacheKey = String(url);
+        let textPromise = this.textResourceCache.get(cacheKey);
+        if (!textPromise) {
+            textPromise = this._fetchWithTimeout(cacheKey, response => response.text());
+            // 本次工作保留失敗結果，避免 priority stylesheet 的重試掩蓋前段缺漏。
+            textPromise.catch(() => {});
+            this.textResourceCache.set(cacheKey, textPromise);
+        }
+        return this._awaitWithAbort(textPromise);
+    }
+
+    async _fetchBlob(url) {
+        return this._fetchWithTimeout(url, response => response.blob());
+    }
+
+    /**
+     * 單一資源的 timeout 與使用者取消都維持到 response body 讀取完成。
+     */
+    async _fetchWithTimeout(url, consumeResponse) {
+        this._throwIfAborted();
+        const controller = new AbortController();
+        let timedOut = false;
+        const timeoutId = setTimeout(() => {
+            timedOut = true;
+            controller.abort(this._createTimeoutError());
+        }, RESOURCE_TIMEOUT_MS);
+        const abortFromParent = () => controller.abort(this._createAbortError());
+        this.signal?.addEventListener("abort", abortFromParent, { once: true });
+
+        try {
+            const response = await fetch(url, { signal: controller.signal });
+            this._throwIfAborted();
+            if (!response.ok) throw this._createHttpError(response.status);
+            const result = consumeResponse ? await consumeResponse(response) : response;
+            this._throwIfAborted();
+            return result;
+        } catch (error) {
+            if (this.signal?.aborted) throw this._createAbortError();
+            if (timedOut) throw this._createTimeoutError();
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
+            this.signal?.removeEventListener("abort", abortFromParent);
+        }
+    }
+
+    async _awaitWithAbort(value) {
+        const promise = Promise.resolve(value);
+        // Abort race 離開後，遲到的 renderer/resource rejection 仍有處理器。
+        promise.catch(() => {});
+        this._throwIfAborted();
+        if (!this.signal) return promise;
+        return new Promise((resolve, reject) => {
+            let settled = false;
+            const finish = (callback, result) => {
+                if (settled) return;
+                settled = true;
+                this.signal.removeEventListener("abort", abort);
+                callback(result);
+            };
+            const abort = () => finish(reject, this._createAbortError());
+            this.signal.addEventListener("abort", abort, { once: true });
+            promise.then(
+                result => {
+                    if (this.signal.aborted) finish(reject, this._createAbortError());
+                    else finish(resolve, result);
+                },
+                error => finish(reject, error)
+            );
         });
-        console.warn(`[YCIO] 無法內嵌 ${type}: ${safeUrl}`, error);
+    }
+
+    _throwIfAborted() {
+        if (this.signal?.aborted) throw this._createAbortError();
+    }
+
+    _isCancellation() {
+        // A third-party renderer or reader can also throw AbortError.
+        // Only this job's signal makes it a user cancellation.
+        return Boolean(this.signal?.aborted);
+    }
+
+    _createAbortError() {
+        if (typeof DOMException === "function") return new DOMException("Export cancelled", "AbortError");
+        const error = new Error("Export cancelled");
+        error.name = "AbortError";
+        return error;
+    }
+
+    _createTimeoutError() {
+        const error = new Error("Resource request timed out");
+        error.name = "TimeoutError";
+        return error;
+    }
+
+    _createHttpError(status) {
+        const error = new Error("Resource request failed");
+        error.name = "HttpError";
+        error.status = status;
+        return error;
+    }
+
+    _createSafeError(key, data) {
+        return new ChatExportError(game.i18n.format(key, data));
+    }
+
+    _getResourceFailureReason(error) {
+        const key = error?.name === "TimeoutError"
+            ? "YCIO.Exporter.FailureTimeout"
+            : error?.name === "HttpError"
+                ? "YCIO.Exporter.FailureHTTP"
+                : "YCIO.Exporter.FailureResource";
+        return game.i18n.localize(key);
+    }
+
+    _safeResourceUrl(resourceUrl) {
+        const rawUrl = String(resourceUrl || "");
+        try {
+            const baseUrl = typeof document === "undefined" ? undefined : document.baseURI;
+            const parsed = new URL(rawUrl, baseUrl);
+            return `${parsed.origin}${parsed.pathname}`;
+        } catch {
+            return rawUrl.split(/[?#]/, 1)[0];
+        }
+    }
+
+    /**
+     * 以類型與安全 URL 匯總缺漏；簽章與原始例外不會流入 UI 或檔案。
+     */
+    _recordResourceFailure(type, resourceUrl, error, { references = 1, messageId = null } = {}) {
+        const safeUrl = this._safeResourceUrl(resourceUrl);
+        const key = `${type}\u0000${safeUrl}`;
+        let failure = this.resourceFailures.get(key);
+        if (!failure) {
+            failure = {
+                type,
+                url: safeUrl,
+                reason: this._getResourceFailureReason(error),
+                references: 0,
+                messageIds: new Set()
+            };
+            this.resourceFailures.set(key, failure);
+        }
+        failure.references += Math.max(1, Math.floor(Number(references) || 1));
+        if (messageId) failure.messageIds.add(String(messageId));
+        this._failureRevision += 1;
+    }
+
+    _getFailures() {
+        if (this._failureSnapshotRevision === this._failureRevision) return this._failureSnapshot;
+        this._failureSnapshot = Object.freeze([...this.resourceFailures.values()].map(failure => Object.freeze({
+            type: failure.type,
+            url: failure.url,
+            reason: failure.reason,
+            references: failure.references,
+            messageIds: Object.freeze([...failure.messageIds])
+        })));
+        this._failureSnapshotRevision = this._failureRevision;
+        return this._failureSnapshot;
+    }
+
+    _buildWarningReportHtml(failures, messageCount, exportTimestamp) {
+        if (!failures.length) return "";
+        const escape = value => foundry.utils.escapeHTML(String(value));
+        const references = failures.reduce((total, failure) => total + failure.references, 0);
+        const affectedMessageIds = new Set(failures.flatMap(failure => failure.messageIds));
+        const summary = game.i18n.format("YCIO.Exporter.WarningSummary", {
+            messages: messageCount,
+            count: failures.length,
+            references
+        });
+        const detailItems = failures.map(failure => {
+            const referenceCount = game.i18n.format("YCIO.Exporter.ReferenceCount", {
+                count: failure.references
+            });
+            const messages = failure.messageIds.length ? ` (${escape(failure.messageIds.join(", "))})` : "";
+            return `<li>${escape(failure.type)}: ${escape(failure.url)} — ${escape(failure.reason)} — ${escape(referenceCount)}${messages}</li>`;
+        }).join("");
+        return `<section class="export-warning" role="status"><p>${escape(summary)}</p>`
+            + `<p>${escape(game.i18n.format("YCIO.Exporter.AffectedMessages", { count: affectedMessageIds.size }))}</p>`
+            + `<time datetime="${escape(exportTimestamp)}">${escape(exportTimestamp)}</time>`
+            + `<details><summary>${escape(game.i18n.localize("YCIO.Exporter.FailureDetails"))}</summary>`
+            + `<p>${escape(game.i18n.localize("YCIO.Exporter.FailureGroupingHint"))}</p><ul>${detailItems}</ul></details></section>`;
+    }
+
+    _reportProgress(phase, completed, total, { tabLabel = null, messageCount = 0 } = {}) {
+        if (!this.onProgress) return;
+        try {
+            this.onProgress({
+                phase,
+                completed,
+                total,
+                tabLabel,
+                messageCount,
+                failures: this._getFailures()
+            });
+        } catch {
+            // UI 更新失敗不能改變已固定的匯出資料範圍。
+        }
+    }
+
+    async _yieldToBrowser() {
+        await new Promise(resolve => setTimeout(resolve, 0));
+        this._throwIfAborted();
     }
 
     /**
@@ -875,11 +1331,36 @@ class ChatExporter {
      * @returns {Promise<string>}
      */
     _blobToDataUri(blob) {
+        this._throwIfAborted();
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
+            let settled = false;
+            const finish = (callback, result) => {
+                if (settled) return;
+                settled = true;
+                this.signal?.removeEventListener("abort", abort);
+                callback(result);
+            };
+            const abort = () => {
+                try {
+                    reader.abort();
+                } catch {
+                    // Reader may have completed between the signal and abort call.
+                }
+                finish(reject, this._createAbortError());
+            };
+            this.signal?.addEventListener("abort", abort, { once: true });
+            reader.onload = () => {
+                if (this.signal?.aborted) finish(reject, this._createAbortError());
+                else finish(resolve, String(reader.result));
+            };
+            reader.onerror = () => finish(reject, new Error("Could not read resource data"));
+            reader.onabort = () => finish(reject, this._createAbortError());
+            try {
+                reader.readAsDataURL(blob);
+            } catch {
+                finish(reject, new Error("Could not read resource data"));
+            }
         });
     }
 }

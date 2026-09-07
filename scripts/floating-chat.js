@@ -40,7 +40,7 @@ import {
     setSceneChatTabCollapsedState
 } from "./chat-tab-collapse.js";
 import { AvatarSelector, InlineAvatarPicker } from "./avatar-selector.js"; // 頭像選擇器
-import { ChatExportDialog } from "./chat-exporter.js"; // 聊天記錄匯出
+import { openChatExportDialog } from "./chat-exporter.js"; // 聊天記錄匯出
 import { AboutDialog } from "./about-dialog.js"; // 關於本模組對話框
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -319,7 +319,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     static onExportLog(event, target) {
         if (!game.user.isGM) return;
-        new ChatExportDialog().render(true);
+        openChatExportDialog();
     }
 
     /**
