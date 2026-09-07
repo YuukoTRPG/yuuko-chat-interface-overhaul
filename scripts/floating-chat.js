@@ -1113,6 +1113,12 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         await this._refreshChatLogDOM(generation, tabId);
     }
 
+    async close(options = {}) {
+        // Keep the persistent chat available when Core dismisses windows via Esc.
+        if (options.closeKey) return this;
+        return super.close(options);
+    }
+
     _onClose(options) {
         // An in-flight Core create still needs its nonce removed before cancellation.
         if (this._pendingSpeakerSelection) this._pendingSpeakerSelection.cancelled = true;
