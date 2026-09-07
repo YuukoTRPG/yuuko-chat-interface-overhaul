@@ -3,6 +3,8 @@
         "WindowTitle": "悠子的文字聊天大修（GM可在设置更改这段标题）",
         "MinimizeIcon": "最小化",
         "Warning": {
+      "SendAssociationAmbiguous": "消息已发送，但其他集成同时提交了无法区分的消息。YCIO 无法安全应用发言身份／头像快照或检查收件显示限制。",
+      "WhisperSceneRouteLimited": "密语已发送，但 {recipients} 目前无法在 YCIO 显示此密语，因为其没有该场景的显示权限。可改用 OOC 身份另行联系。",
             "NoLabeledAvatars": "目前的发言身份没有设置任何带注解的头像",
             "FailedMsg": "消息发送失败",
             "InitialRenderFailed": "无法打开 YCIO 聊天窗口，请查看控制台获取详细信息。",

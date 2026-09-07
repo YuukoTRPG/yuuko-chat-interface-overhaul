@@ -17,6 +17,7 @@ import {
     applyWindowStyles,
     shouldPlayNotification,
     getMessageRouteId,
+    getWhisperRecipientsWithoutRoute,
     getVisibleChatScenes,
     isSceneVisibleToUser,
     isMessageVisibleInTab,
@@ -28,6 +29,8 @@ import {
     parseInlineAvatars,
     generateAvatarTooltip
 } from "./chat-helpers.js";
+
+import { createPlainOOCMessage } from "./chat-send.js";
 
 import { FLAG_SCOPE, FLAG_KEY, MODULE_ID } from "./config.js"; // 打字狀態同步常數
 import {
@@ -144,7 +147,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         this._typingDesired = false;
         this._typingWrite = Promise.resolve();
         this._isSending = false;
-        this._isProcessingYCIOMessage = false;
+        this._composerRevision = 0;
+        this._composerDraft = "";
         this._speakerValidationFailed = false;
         this._pendingSpeakerSelection = null;
 
@@ -264,7 +268,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * Action: 跳至底部按鈕點擊
      */
     static onJumpToBottom(event, target) {
-        const log = document.getElementById("custom-chat-log");
+        const log = this.element?.querySelector("#custom-chat-log");
         const scrollContainer = log?.closest(".chat-scroll");
         if (scrollContainer) {
             scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: "smooth" });
@@ -455,7 +459,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // 嘗試讀取當前 DOM 中的輸入框內容 (如果視窗已經存在)
         // 為了防止局部渲染 "input" 區塊時，使用者打到一半的字被清空
         const inputEl = this.element?.querySelector("#chat-message-input");
-        const draftContent = inputEl ? inputEl.value : "";
+        const draftContent = inputEl ? inputEl.value : (this._composerDraft ?? "");
+        this._composerDraft = draftContent;
 
         return {
             scenes: primaryScenes,
@@ -618,14 +623,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         // --- C. 輸入區 (Input) 事件綁定 ---
         // 包含：發話身分選單、頭像按鈕、顏色選擇器、輸入框、發送按鈕
         if (parts.includes("input")) {
-            if (this._quickRollClickOutsideTimeout) {
-                clearTimeout(this._quickRollClickOutsideTimeout);
-                this._quickRollClickOutsideTimeout = null;
-            }
-            if (this._quickRollClickOutside) {
-                document.removeEventListener("click", this._quickRollClickOutside);
-                this._quickRollClickOutside = null;
-            }
+            this._removeQuickRollListener();
 
             // 1. 發話身分選單
             const speakerSelect = this.element.querySelector("#chat-speaker-select");
@@ -722,8 +720,9 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             const sendBtn = this.element.querySelector("#chat-send-btn");
 
             if (input) {
+                this._restoreComposer(input);
                 input.addEventListener("keydown", this._onChatKeyDown.bind(this));
-                input.addEventListener("input", () => this._adjustInputHeight(input));
+                input.addEventListener("input", () => this._onComposerInput(input));
                 input.addEventListener("input", this._onTypingInput.bind(this));
                 input.addEventListener("dragover", this._onChatDragOver.bind(this));
                 input.addEventListener("drop", this._onChatDrop.bind(this));
@@ -733,17 +732,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             }
 
             if (sendBtn && input) {
-                sendBtn.addEventListener("click", async () => {
-                    const content = input.value;
-                    if (content.trim()) {
-                        this._stopTypingBroadcast();
-                        if (await this._processMessage(content)) {
-                            input.value = "";
-                            input.focus();
-                            this._adjustInputHeight(input);
-                        }
-                    }
-                });
+                sendBtn.addEventListener("click", () => this._sendComposer());
             }
 
             // 5. 同步「請等一下」按鈕狀態
@@ -832,17 +821,11 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
 
                 // 點擊面板外區域自動關閉
                 // 使用 setTimeout 確保本次點擊事件不會立即觸發關閉
-                this._quickRollClickOutsideTimeout = setTimeout(() => {
-                    const onClickOutside = (ev) => {
-                        const wrapper = this.element.querySelector(".YCIO-quick-roll-wrapper");
-                        if (wrapper && !wrapper.contains(ev.target) && quickRollPanel.style.display !== "none") {
-                            closePanel();
-                        }
-                    };
-                    document.addEventListener("click", onClickOutside);
-                    this._quickRollClickOutside = onClickOutside;
-                    this._quickRollClickOutsideTimeout = null;
-                }, 0);
+                this._quickRollClickOutside = (ev) => {
+                    const wrapper = this.element?.querySelector(".YCIO-quick-roll-wrapper");
+                    if (wrapper && !wrapper.contains(ev.target) && quickRollPanel.style.display !== "none") closePanel();
+                };
+                this._bindQuickRollListener();
             }
 
             // 7. 更新打字狀態顯示 (因為 DOM 重建了，要重新抓元素)
@@ -893,51 +876,6 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
                 }
             });
 
-            // 4. 訊息建立前攔截監聽 (Snapshot Avatar & Force Speaker Identity)
-            register("preCreateChatMessage", (messageDoc, initialData, context, userId) => {
-                if (!this._isProcessingYCIOMessage || userId !== game.user.id) return;
-                this._isProcessingYCIOMessage = false;
-
-                const speakerSelect = this.element.querySelector("#chat-speaker-select");
-                const pendingSelection = this._pendingSpeakerSelection;
-                const selection = pendingSelection?.value ?? (speakerSelect ? speakerSelect.value : "ooc");
-                const selectionTabId = pendingSelection?.tabId ?? this.activeTab;
-
-                // YCIO 的送出快照才是明確 /ooc 的依據。Foundry 在沒有受控 Token 時，
-                // 普通訊息本來就會先產生 OOC style，不能據此覆蓋已記憶的發言身分。
-                const forceUserSpeaker = pendingSelection
-                    ? pendingSelection.forceOOC === true
-                    : messageDoc.style === CONST.CHAT_MESSAGE_STYLES.OOC;
-
-                // 明確的 /ooc 指令維持 Foundry 原生語意：強制使用 User 身分。
-                if (forceUserSpeaker) {
-                    messageDoc.updateSource({
-                        speaker: {
-                            actor: null,
-                            token: null,
-                            scene: null,
-                            alias: game.user.name
-                        }
-                    });
-                } else {
-                    const resolved = getSpeakerFromSelection(selection, selectionTabId);
-                    if (!resolved.valid) {
-                        this._speakerValidationFailed = true;
-                        ui.notifications.warn(game.i18n.localize("YCIO.Warning.NoAvailableSpeaker"));
-                        return false;
-                    }
-
-                    messageDoc.updateSource({ speaker: resolved.speaker });
-                }
-
-                // 計算並寫入頭像快照
-                const finalAvatarUrl = resolveCurrentAvatar(messageDoc);
-                if (finalAvatarUrl) {
-                    messageDoc.updateSource({
-                        [`flags.${MODULE_ID}.avatarUrl`]: finalAvatarUrl
-                    });
-                }
-            });
 
             // 5. 場景與發言身分更新監聽
             register("controlToken", (token, controlled) => {
@@ -1129,6 +1067,38 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         eventDocument.addEventListener("keydown", this._collapsedTabsKeydown);
     }
 
+    _removeQuickRollListener({ preserveCallback = false } = {}) {
+        if (this._quickRollClickOutsideTimeout != null) clearTimeout(this._quickRollClickOutsideTimeout);
+        this._quickRollClickOutsideTimeout = null;
+        if (this._quickRollClickOutside) {
+            this._quickRollEventDocument?.removeEventListener("click", this._quickRollClickOutside);
+        }
+        this._quickRollEventDocument = null;
+        if (!preserveCallback) this._quickRollClickOutside = null;
+    }
+
+    _bindQuickRollListener() {
+        this._removeQuickRollListener({ preserveCallback: true });
+        if (!this._quickRollClickOutside) return;
+        const owner = this.element?.ownerDocument;
+        this._quickRollClickOutsideTimeout = setTimeout(() => {
+            this._quickRollClickOutsideTimeout = null;
+            if (!owner || this.element?.ownerDocument !== owner || !this._quickRollClickOutside) return;
+            owner.addEventListener("click", this._quickRollClickOutside);
+            this._quickRollEventDocument = owner;
+        }, 0);
+    }
+
+    _onAttach(from, to) {
+        super._onAttach?.(from, to);
+        this._bindQuickRollListener();
+    }
+
+    _onDetach(from, to) {
+        super._onDetach?.(from, to);
+        this._bindQuickRollListener();
+    }
+
     async _refreshSceneUI() {
         const activeSceneIsAvailable = this.activeTab === "ooc"
             || getVisibleChatScenes().some(scene => scene.id === this.activeTab);
@@ -1144,6 +1114,8 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     _onClose(options) {
+        // An in-flight Core create still needs its nonce removed before cancellation.
+        if (this._pendingSpeakerSelection) this._pendingSpeakerSelection.cancelled = true;
         this._clearOocBubble({ removeElement: true });
         if (this._scrollCheckInterval) clearInterval(this._scrollCheckInterval);
         this._scrollCheckInterval = null;
@@ -1151,12 +1123,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
         this._timestampRefreshInterval = null;
         if (this._typingTimeout) clearTimeout(this._typingTimeout);
         this._typingTimeout = null;
-        if (this._quickRollClickOutsideTimeout) clearTimeout(this._quickRollClickOutsideTimeout);
-        this._quickRollClickOutsideTimeout = null;
-        if (this._quickRollClickOutside) {
-            document.removeEventListener("click", this._quickRollClickOutside);
-        }
-        this._quickRollClickOutside = null;
+        this._removeQuickRollListener();
         this._programmaticScroll = false;
         this._isLoadingOlder = false;
         this._isBroadcastingTyping = false;
@@ -1261,10 +1228,20 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             }
         }
 
-        const rendered = await message.renderHTML();
-        const element = rendered instanceof jQuery ? rendered[0] : rendered;
+        const roots = new Set();
+        const observer = game.settings.get(MODULE_ID, "hookArgumentType") === "jquery"
+            ? Hooks.on("renderChatMessage", (renderedMessage, html) => {
+                if (renderedMessage === message) roots.add(html?.jquery ? html[0] : html);
+            }) : null;
+        let element;
+        try {
+            const rendered = await message.renderHTML();
+            element = rendered instanceof jQuery ? rendered[0] : rendered;
+        } finally {
+            if (observer != null) Hooks.off("renderChatMessage", observer);
+        }
         enrichMessageHTML(message, element);
-        triggerRenderHooks(this, message, element);
+        if (!roots.has(element)) triggerRenderHooks(this, message, element);
         applyMessageTimestampDisplay(message, element, {
             mode: game.settings.get(MODULE_ID, "messageTimestampMode")
         });
@@ -2054,13 +2031,7 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
             event.preventDefault(); // 阻止換行
             this._stopTypingBroadcast(); // 停止打字狀態
 
-            const input = event.target;
-            const content = input.value;
-
-            if (content.trim() && await this._processMessage(content)) {
-                input.value = "";
-                this._adjustInputHeight(input); // 重置高度
-            }
+            await this._sendComposer();
         }
     }
 
@@ -2068,55 +2039,136 @@ export class FloatingChat extends HandlebarsApplicationMixin(ApplicationV2) {
      * 呼叫 FVTT 核心處理訊息 (支援 /r, /w 等指令)
      * @param {string} content - 準備發送的內容
      */
+    _onComposerInput(input) {
+        this._composerDraft = input.value;
+        this._composerRevision++;
+        this._adjustInputHeight(input);
+    }
+
+    _restoreComposer(input) {
+        // A render may have captured its context before the latest input event.
+        if (this._composerDraft !== undefined) input.value = this._composerDraft;
+    }
+
+    async _sendComposer() {
+        const input = this.element?.querySelector("#chat-message-input");
+        const content = input?.value ?? "";
+        if (!content.trim()) return false;
+        this._composerDraft = content;
+        const revision = this._composerRevision;
+        this._stopTypingBroadcast();
+        const success = await this._processMessage(content);
+        const current = this.element?.querySelector("#chat-message-input");
+        if (success && current && this._composerRevision === revision && current.value === content) {
+            current.value = "";
+            this._composerDraft = "";
+            this._composerRevision++;
+            current.focus();
+            this._adjustInputHeight(current);
+        }
+        return success;
+    }
+
     async _processMessage(content) {
         if (this._isSending) return false;
-
-        // 在 Class 內決定誰是發話者 (UI 狀態邏輯)
-        const speakerSelect = this.element.querySelector("#chat-speaker-select");
-        const value = speakerSelect ? speakerSelect.value : "ooc";
+        const value = this.element.querySelector("#chat-speaker-select")?.value ?? "ooc";
         const selection = getSpeakerFromSelection(value, this.activeTab);
-        const isExplicitOOC = /^\/ooc(?:\s|$)/i.test(content.trim());
+        const isExplicitOOC = ui.chat.constructor.parse(content.trim())[0] === "ooc";
         if (!isExplicitOOC && !selection.valid) {
             ui.notifications.warn(game.i18n.localize("YCIO.Warning.NoAvailableSpeaker"));
             return false;
         }
-        const targetDoc = isExplicitOOC
-            ? game.user
-            : selection.actorDoc || selection.user;
-        // 直接把 Token speaker 交給 Foundry，讓它不依賴畫布是否仍控制該 Token。
-        // OOC 的 User／Actor 則先用 User speaker 取得正確的 OOC style，
-        // Actor 身分會在 preCreateChatMessage 依送出快照套回。
-        const processSpeaker = selection.kind === "token" && !isExplicitOOC
-            ? selection.speaker
-            : { scene: null, token: null, actor: null, alias: game.user.name };
-
-        // 呼叫 Helper 進行行內頭像替換
-        content = parseInlineAvatars(content, targetDoc);
+        const processSpeaker = isExplicitOOC
+            ? { scene: null, token: null, actor: null, alias: game.user.name }
+            : foundry.utils.deepClone(selection.speaker);
+        const normalizedContent = parseInlineAvatars(content,
+            isExplicitOOC ? game.user : selection.actorDoc || selection.user).trim();
+        const command = ui.chat.constructor.parse(normalizedContent)[0];
+        const generation = game.release.generation;
+        const configuredMode = generation === 14 ? game.settings.get("core", "messageMode") : null;
+        const plainOOC = command === "none" && (selection.kind !== "token"
+            || (generation === 14 && configuredMode !== "ic"));
+        const pending = { value, tabId: this.activeTab, forceOOC: isExplicitOOC,
+            speaker: foundry.utils.deepClone(processSpeaker), nonce: foundry.utils.randomID(), consumed: false };
         const sendButton = this.element.querySelector("#chat-send-btn");
-
         try {
             this._isSending = true;
-            this._isProcessingYCIOMessage = true;
             this._speakerValidationFailed = false;
-            this._pendingSpeakerSelection = {
-                value,
-                tabId: this.activeTab,
-                forceOOC: isExplicitOOC
-            };
+            this._pendingSpeakerSelection = pending;
+            this._sendPreCreate = Hooks.on("preCreateChatMessage", (doc, data, options, userId) =>
+                this._preparePendingMessage(doc, data, options, userId, pending));
             if (sendButton) sendButton.disabled = true;
-            await ui.chat.processMessage(content, { speaker: processSpeaker });
-            return !this._speakerValidationFailed;
+            let result;
+            if (plainOOC) {
+                result = await createPlainOOCMessage(normalizedContent, processSpeaker, pending.nonce,
+                    { generation, configuredMode });
+            } else {
+                this._sendTagger = Hooks.on("chatMessage", (chatLog, raw, chatData) => {
+                    if (chatLog !== ui.chat || raw !== normalizedContent || chatData.speaker !== processSpeaker) return;
+                    if (pending.cancelled) return false;
+                    if (pending.tagged) pending.ambiguous = true;
+                    pending.tagged = true;
+                    foundry.utils.setProperty(chatData, `flags.${MODULE_ID}.pendingSendNonce`, pending.nonce);
+                });
+                result = await ui.chat.processMessage(normalizedContent, { speaker: processSpeaker });
+            }
+            if (pending.cancelled || this._speakerValidationFailed || result === false) return false;
+            if (result?.id && pending.ambiguous) {
+                ui.notifications.warn(game.i18n.localize("YCIO.Warning.SendAssociationAmbiguous"));
+            }
+            const created = !pending.ambiguous && result && pending.document && result.id && result.id === pending.document.id;
+            if (created && ["whisper", "reply", "gm", "players"].includes(command) && !result.isRoll && !result.blind) {
+                const recipients = getWhisperRecipientsWithoutRoute(result);
+                if (recipients.length) ui.notifications.warn(game.i18n.format("YCIO.Warning.WhisperSceneRouteLimited", {
+                    recipients: recipients.map(user => user.name).join(", ")
+                }));
+            }
+            // Macro/void retains the existing non-document command success behavior.
+            return !!result || command === "macro";
         } catch (err) {
             console.error("YCIO | 訊息處理錯誤:", err);
             ui.notifications.error(game.i18n.localize("YCIO.Warning.FailedMsg") + "（" + err + "）");
             return false;
         } finally {
-            this._isProcessingYCIOMessage = false;
+            this._clearSendTagger();
             this._speakerValidationFailed = false;
             this._pendingSpeakerSelection = null;
             this._isSending = false;
-            if (sendButton) sendButton.disabled = false;
+            const currentButton = this.element?.querySelector("#chat-send-btn");
+            if (currentButton) currentButton.disabled = false;
         }
+    }
+
+    _preparePendingMessage(messageDoc, initialData, context, userId, pendingSelection = this._pendingSpeakerSelection) {
+        if (!pendingSelection || userId !== game.user.id
+            || initialData.flags?.[MODULE_ID]?.pendingSendNonce !== pendingSelection.nonce) return;
+        messageDoc.updateSource({ [`flags.${MODULE_ID}.-=pendingSendNonce`]: null });
+        if (pendingSelection.cancelled) return false;
+        if (pendingSelection.ambiguous || pendingSelection.consumed) return;
+        pendingSelection.consumed = true;
+        pendingSelection.document = messageDoc;
+        const resolved = getSpeakerFromSelection(pendingSelection.value, pendingSelection.tabId);
+        if (!pendingSelection.forceOOC && !resolved.valid) {
+            this._speakerValidationFailed = true;
+            ui.notifications.warn(game.i18n.localize("YCIO.Warning.NoAvailableSpeaker"));
+            return false;
+        }
+        messageDoc.updateSource({ speaker: pendingSelection.speaker });
+
+        // 計算並寫入頭像快照
+        const finalAvatarUrl = resolveCurrentAvatar(messageDoc);
+        if (finalAvatarUrl) {
+            messageDoc.updateSource({
+                [`flags.${MODULE_ID}.avatarUrl`]: finalAvatarUrl
+            });
+        }
+    }
+
+    _clearSendTagger() {
+        if (this._sendTagger != null) Hooks.off("chatMessage", this._sendTagger);
+        this._sendTagger = null;
+        if (this._sendPreCreate != null) Hooks.off("preCreateChatMessage", this._sendPreCreate);
+        this._sendPreCreate = null;
     }
 
     /**

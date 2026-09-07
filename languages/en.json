@@ -3,6 +3,8 @@
     "WindowTitle": "Yuuko's Chat Interface Overhaul (GM can override this in settings)",
     "MinimizeIcon": "Minimize",
     "Warning": {
+      "SendAssociationAmbiguous": "Message sent, but another integration submitted an indistinguishable message. YCIO could not safely apply its speaker/avatar snapshot or check recipient display restrictions.",
+      "WhisperSceneRouteLimited": "Whisper sent, but {recipients} cannot currently display it in YCIO because they lack access to that scene. You can contact them separately using an OOC identity.",
       "NoLabeledAvatars": "The current speaker has no avatars with labels.",
       "FailedMsg": "Message failed to send.",
       "InitialRenderFailed": "The YCIO chat window could not be opened. Check the console for details.",

@@ -3,6 +3,8 @@
         "WindowTitle": "悠子のチャットUI改修（GMは設定でこれを変更できます）",
         "MinimizeIcon": "最小化",
         "Warning": {
+      "SendAssociationAmbiguous": "メッセージは送信されましたが、別の連携が区別できないメッセージを同時に送信しました。YCIO は発言者・アバターの記録や受信者の表示制限の確認を安全に適用できませんでした。",
+      "WhisperSceneRouteLimited": "ささやきを送信しましたが、{recipients} はそのシーンの表示権限がないため、現在 YCIO で表示できません。OOC の発言者として別途連絡できます。",
             "NoLabeledAvatars": "現在の発言キャラクターには注釈のあるアバターが設定されていません。",
             "FailedMsg": "メッセージの送信に失敗しました",
             "InitialRenderFailed": "YCIOチャットウィンドウを開けませんでした。詳細はコンソールを確認してください。",

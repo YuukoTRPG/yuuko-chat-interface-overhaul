@@ -350,7 +350,7 @@ export function enrichMessageHTML(message, htmlElement, options = {}) {
 
     // --- DOM 淨化：清理發話者區域 (Clean Sender) ---
     const shouldCleanSender = game.settings.get(MODULE_ID, "cleanMessageSender");
-    if (shouldCleanSender) {
+    if (shouldCleanSender && message.isContentVisible !== false) {
         const senderEl = element.querySelector('.message-sender');
         if (senderEl) {
             // 取得純文字名稱。優先順序：訊息別名 (Token Name) -> 發話者/作者名稱 -> 預設字串
@@ -376,7 +376,7 @@ export function enrichMessageHTML(message, htmlElement, options = {}) {
     }
 
     // 取得頭像 (注意：這裡直接呼叫同檔案的函式，不用 this)
-    const avatarUrl = getAvatarUrl(message);
+    const avatarUrl = message.isContentVisible === false ? "__NO_AVATAR__" : getAvatarUrl(message);
 
     // 判斷是否為無頭像模式
     if (avatarUrl === "__NO_AVATAR__") {
@@ -570,6 +570,8 @@ export function triggerRenderHooks(app, message, htmlElement) {
     // 1. 取得設定：決定隔離模式與參數型別
     const cloneMode = game.settings.get(MODULE_ID, "hookCompatibilityMode") === "clone";
     const argType = game.settings.get(MODULE_ID, "hookArgumentType") || "jquery";
+
+    if (argType !== "jquery") return;
 
     // 2. 準備基底元素 (決定要不要 Clone)
     // 由於 htmlElement 已經在 enrichMessageHTML 中被確保為原生 DOM，可以使用原生的 cloneNode(true) 進行深層複製
@@ -979,4 +981,12 @@ export function generateAvatarTooltip(isUnlinked, currentUrl) {
     }
 
     return wrapper.outerHTML;
+}
+
+/** Actual whisper recipients whose existing YCIO route is unavailable. */
+export function getWhisperRecipientsWithoutRoute(message) {
+    if (!message.speaker?.token) return [];
+    const scene = game.scenes.get(message.speaker.scene);
+    return [...new Set(message.whisper ?? [])].map(id => game.users.get(id)).filter(user =>
+        user && !user.isGM && (!scene || !scene.testUserPermission(user, CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED)));
 }

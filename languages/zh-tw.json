@@ -3,6 +3,8 @@
     "WindowTitle": "悠子的文字聊天翻修（GM可在設定更改這段標題）",
     "MinimizeIcon": "最小化",
     "Warning": {
+      "SendAssociationAmbiguous": "訊息已送出，但其他整合同時提交了無法區分的訊息。YCIO 無法安全套用發言身分／頭像快照或檢查收件顯示限制。",
+      "WhisperSceneRouteLimited": "密語已送出，但 {recipients} 目前無法在 YCIO 顯示此密語，因其沒有該場景的顯示權限。可改用 OOC 身分另行聯絡。",
       "NoLabeledAvatars": "目前的發言身分沒有設定任何帶註解的頭像",
       "FailedMsg": "訊息發送失敗",
       "InitialRenderFailed": "無法開啟 YCIO 聊天視窗，請查看主控台取得詳細資訊。",
